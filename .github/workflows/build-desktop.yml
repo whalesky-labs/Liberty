@@ -49,7 +49,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Tauri bundle
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@v0.6.0
         with:
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           args: ${{ matrix.args }}
