@@ -10,6 +10,8 @@
     "frontendDist": "../dist"
   },
   "bundle": {
+    "active": true,
+    "targets": "all",
     "resources": ["../scripts/funasr_runner.py"]
   },
   "app": {
