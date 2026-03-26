@@ -3,65 +3,77 @@ name: Build Desktop Bundles
 on:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.platform }}
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: macOS Apple Silicon
-            platform: macos-latest
-            rustTargets: aarch64-apple-darwin
-            bundleTarget: aarch64-apple-darwin
-            args: --target aarch64-apple-darwin
+            os: macos-latest
+            rust_target: aarch64-apple-darwin
+            artifact_name: liberty-macos-aarch64
           - name: macOS Intel
-            platform: macos-latest
-            rustTargets: x86_64-apple-darwin
-            bundleTarget: x86_64-apple-darwin
-            args: --target x86_64-apple-darwin
+            os: macos-latest
+            rust_target: x86_64-apple-darwin
+            artifact_name: liberty-macos-x64
           - name: Windows x64
-            platform: windows-latest
-            rustTargets: x86_64-pc-windows-msvc
-            bundleTarget: x86_64-pc-windows-msvc
-            args: --target x86_64-pc-windows-msvc
+            os: windows-2022
+            rust_target: x86_64-pc-windows-msvc
+            artifact_name: liberty-windows-x64
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
-      - name: Setup Node.js
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
+          cache: pnpm
 
-      - name: Install pnpm
-        run: npm install --global pnpm@10.30.3
-
-      - name: Verify pnpm
-        run: pnpm --version
-
-      - name: Install Rust stable
+      - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rustTargets }}
+          targets: ${{ matrix.rust_target }}
 
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Tauri bundle
-        uses: tauri-apps/tauri-action@v0.6.0
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
         with:
-          args: ${{ matrix.args }}
+          workspaces: src-tauri -> target
 
-      - name: Upload bundle artifacts
-        uses: actions/upload-artifact@v4
+      - name: Install Dependencies
+        shell: bash
+        run: |
+          pnpm --version
+          pnpm install --frozen-lockfile
+
+      - name: Build Tauri Bundle
+        shell: bash
+        run: pnpm tauri build --target ${{ matrix.rust_target }}
+
+      - name: Inspect Build Outputs
+        if: always()
+        shell: bash
+        run: |
+          find src-tauri/target -maxdepth 6 -type d -name bundle -print || true
+          find src-tauri/target -maxdepth 8 -type f \( -name "*.app" -o -name "*.dmg" -o -name "*.exe" -o -name "*.msi" -o -name "*.zip" \) -print || true
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v6
         with:
-          name: liberty-${{ matrix.bundleTarget }}
-          path: |
-            src-tauri/target/${{ matrix.bundleTarget }}/release/bundle/**
-            src-tauri/target/release/bundle/**
-            target/${{ matrix.bundleTarget }}/release/bundle/**
-            target/release/bundle/**
+          name: ${{ matrix.artifact_name }}
+          path: src-tauri/target/**/release/bundle/**
           if-no-files-found: error
