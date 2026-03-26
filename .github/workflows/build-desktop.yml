@@ -20,14 +20,23 @@ jobs:
             os: macos-latest
             rust_target: aarch64-apple-darwin
             artifact_name: liberty-macos-aarch64
+            artifact_path: |
+              src-tauri/target/**/release/bundle/dmg/*.dmg
+              src-tauri/target/**/release/bundle/macos/*.app.tar.gz
           - name: macOS Intel
             os: macos-latest
             rust_target: x86_64-apple-darwin
             artifact_name: liberty-macos-x64
+            artifact_path: |
+              src-tauri/target/**/release/bundle/dmg/*.dmg
+              src-tauri/target/**/release/bundle/macos/*.app.tar.gz
           - name: Windows x64
             os: windows-2022
             rust_target: x86_64-pc-windows-msvc
             artifact_name: liberty-windows-x64
+            artifact_path: |
+              src-tauri/target/**/release/bundle/msi/*.msi
+              src-tauri/target/**/release/bundle/nsis/*.exe
 
     steps:
       - name: Checkout
@@ -75,5 +84,5 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact_name }}
-          path: src-tauri/target/**/release/bundle/**
+          path: ${{ matrix.artifact_path }}
           if-no-files-found: error
