@@ -285,6 +285,7 @@ fn install_python_dependencies(
 ) -> LocalResult<()> {
     bootstrap_pip(python_executable, log_path)?;
     upgrade_pip_tooling(python_executable, pip_indexes, log_path)?;
+    install_pytorch_stack(python_executable, pip_indexes, log_path)?;
 
     let mut last_error: Option<String> = None;
     for index in pip_indexes {
@@ -315,6 +316,72 @@ fn install_python_dependencies(
     }
 
     Err(last_error.unwrap_or_else(|| "Python 依赖安装失败。".into()))
+}
+
+fn install_pytorch_stack(
+    python_executable: &Path,
+    pip_indexes: &[PipIndex],
+    log_path: &Path,
+) -> LocalResult<()> {
+    let mut install_plans: Vec<(String, Vec<String>)> = Vec::new();
+
+    if cfg!(target_os = "windows") {
+        install_plans.push((
+            "Installing PyTorch CPU stack via PyTorch official index".into(),
+            vec![
+                "-m".into(),
+                "pip".into(),
+                "install".into(),
+                "--prefer-binary".into(),
+                "--retries".into(),
+                "2".into(),
+                "--timeout".into(),
+                "120".into(),
+                "torch==2.2.2".into(),
+                "torchvision==0.17.2".into(),
+                "torchaudio==2.2.2".into(),
+                "--index-url".into(),
+                "https://download.pytorch.org/whl/cpu".into(),
+            ],
+        ));
+    }
+
+    for index in pip_indexes {
+        install_plans.push((
+            format!("Installing PyTorch stack via {}", index.label),
+            vec![
+                "-m".into(),
+                "pip".into(),
+                "install".into(),
+                "--prefer-binary".into(),
+                "--retries".into(),
+                "2".into(),
+                "--timeout".into(),
+                "120".into(),
+                "torch==2.2.2".into(),
+                "torchvision==0.17.2".into(),
+                "torchaudio==2.2.2".into(),
+                "-i".into(),
+                index.url.clone(),
+            ],
+        ));
+    }
+
+    let mut last_error: Option<String> = None;
+    for (description, args) in install_plans {
+        let mut command = Command::new(python_executable);
+        command.env("PYTHONUTF8", "1").env("PIP_DISABLE_PIP_VERSION_CHECK", "1");
+        command.args(&args);
+
+        let install_result = run_command_with_log(&mut command, log_path, &description);
+        if let Ok(()) = install_result {
+            return Ok(());
+        }
+
+        last_error = install_result.err();
+    }
+
+    Err(last_error.unwrap_or_else(|| "PyTorch 运行时安装失败。".into()))
 }
 
 fn bootstrap_pip(python_executable: &Path, log_path: &Path) -> LocalResult<()> {
@@ -374,6 +441,19 @@ fn warmup_default_models(
     models_root: &Path,
     log_path: &Path,
 ) -> LocalResult<()> {
+    let validate_path = warmup_path
+        .parent()
+        .map(|parent| parent.join("runtime_validate.py"))
+        .ok_or_else(|| "未找到 runtime_validate.py 所在目录。".to_string())?;
+
+    run_command_with_log(
+        Command::new(python_executable)
+            .env("PYTHONUTF8", "1")
+            .arg(&validate_path),
+        log_path,
+        "Validating PyTorch runtime",
+    )?;
+
     run_command_with_log(
         Command::new(python_executable)
             .env("PYTHONUTF8", "1")
