@@ -88,6 +88,19 @@ type MessageTree = {
     runtimeInstalledAt: string;
     runtimeInstallAction: string;
     runtimeReinstallAction: string;
+    runtimeInstallProgress: string;
+    runtimeInstallPreparing: string;
+    runtimeInstallCompleted: string;
+    runtimeInstallDownload: string;
+    runtimeInstallVerify: string;
+    runtimeInstallExtract: string;
+    runtimeInstallResolvePython: string;
+    runtimeInstallBootstrapPip: string;
+    runtimeInstallUpgradePip: string;
+    runtimeInstallPytorch: string;
+    runtimeInstallDependencies: string;
+    runtimeInstallValidate: string;
+    runtimeInstallModels: string;
     runtimeInstallLog: string;
     runtimeInstallLogEmpty: string;
     runtimeDescriptionReady: string;
@@ -499,6 +512,19 @@ const messages: Record<LocaleCode, MessageTree> = {
       runtimeInstalledAt: "最后安装时间",
       runtimeInstallAction: "下载并安装",
       runtimeReinstallAction: "重新安装",
+      runtimeInstallProgress: "安装进度",
+      runtimeInstallPreparing: "准备安装",
+      runtimeInstallCompleted: "安装完成",
+      runtimeInstallDownload: "下载 Python 运行时",
+      runtimeInstallVerify: "校验安装包",
+      runtimeInstallExtract: "解压运行时",
+      runtimeInstallResolvePython: "定位 Python",
+      runtimeInstallBootstrapPip: "初始化 pip",
+      runtimeInstallUpgradePip: "升级 pip 工具链",
+      runtimeInstallPytorch: "安装 PyTorch",
+      runtimeInstallDependencies: "安装 Python 依赖",
+      runtimeInstallValidate: "校验运行环境",
+      runtimeInstallModels: "下载默认模型",
       runtimeInstallLog: "安装日志",
       runtimeInstallLogEmpty: "当前还没有安装日志。",
       runtimeDescriptionReady: "本地运行环境已就绪，任务会优先使用托管环境执行。",
@@ -927,6 +953,19 @@ const messages: Record<LocaleCode, MessageTree> = {
       runtimeInstalledAt: "Installed At",
       runtimeInstallAction: "Download and Install",
       runtimeReinstallAction: "Reinstall",
+      runtimeInstallProgress: "Install Progress",
+      runtimeInstallPreparing: "Preparing",
+      runtimeInstallCompleted: "Completed",
+      runtimeInstallDownload: "Downloading Python Runtime",
+      runtimeInstallVerify: "Verifying Archive",
+      runtimeInstallExtract: "Extracting Runtime",
+      runtimeInstallResolvePython: "Resolving Python",
+      runtimeInstallBootstrapPip: "Bootstrapping pip",
+      runtimeInstallUpgradePip: "Upgrading pip Toolchain",
+      runtimeInstallPytorch: "Installing PyTorch",
+      runtimeInstallDependencies: "Installing Python Dependencies",
+      runtimeInstallValidate: "Validating Runtime",
+      runtimeInstallModels: "Downloading Default Models",
       runtimeInstallLog: "Install Log",
       runtimeInstallLogEmpty: "No install log yet.",
       runtimeDescriptionReady: "The local runtime is ready and new jobs will prefer the managed environment.",

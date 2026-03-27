@@ -105,6 +105,57 @@ const runtimeStatusDescription = computed(() => {
 });
 const runtimeBusy = computed(() => runtimeStatus.value.status === "installing");
 const runtimeInstalledAtLabel = computed(() => formatRuntimeDate(runtimeStatus.value.installedAt));
+const runtimeInstallProgress = computed(() => {
+  const log = runtimeInstallLog.value;
+  const normalized = log.trim();
+
+  if (runtimeStatus.value.status === "ready" || normalized.includes("[runtime] install completed.")) {
+    return {
+      percent: 100,
+      label: messages.value.runtimeInstallCompleted,
+    };
+  }
+
+  let percent = runtimeStatus.value.status === "installing" ? 4 : 0;
+  let label = messages.value.runtimeInstallPreparing;
+
+  const downloadProgressMatches = Array.from(
+    log.matchAll(/\[runtime\] download progress .*?\(([\d.]+)%\)/g),
+  );
+  const lastDownloadProgress = downloadProgressMatches.at(-1)?.[1];
+
+  if (lastDownloadProgress) {
+    percent = Math.max(percent, Math.min(36, Math.round(Number(lastDownloadProgress) * 0.36)));
+    label = messages.value.runtimeInstallDownload;
+  } else if (normalized.includes("[runtime] downloading ")) {
+    percent = Math.max(percent, 10);
+    label = messages.value.runtimeInstallDownload;
+  }
+
+  const stageWeights = [
+    ["[runtime] verifying archive checksum", 42, messages.value.runtimeInstallVerify],
+    ["[runtime] extracting python runtime archive", 50, messages.value.runtimeInstallExtract],
+    ["[runtime] resolved python=", 58, messages.value.runtimeInstallResolvePython],
+    ["[runtime] Bootstrapping pip", 64, messages.value.runtimeInstallBootstrapPip],
+    ["[runtime] Upgrading pip via ", 72, messages.value.runtimeInstallUpgradePip],
+    ["Installing PyTorch", 82, messages.value.runtimeInstallPytorch],
+    ["Installing Python dependencies via ", 88, messages.value.runtimeInstallDependencies],
+    ["Validating PyTorch runtime", 94, messages.value.runtimeInstallValidate],
+    ["Downloading default FunASR models", 97, messages.value.runtimeInstallModels],
+  ] as const;
+
+  for (const [pattern, stagePercent, stageLabel] of stageWeights) {
+    if (normalized.includes(pattern)) {
+      percent = Math.max(percent, stagePercent);
+      label = stageLabel;
+    }
+  }
+
+  return {
+    percent: Math.max(0, Math.min(99, percent)),
+    label,
+  };
+});
 
 function createNextSettings(patch: Partial<SettingsState> = {}): SettingsState {
   return {
@@ -423,6 +474,25 @@ onBeforeUnmount(() => {
             </button>
           </div>
 
+          <div
+            v-if="runtimeStatus.status === 'installing' || runtimeInstallProgress.percent > 0"
+            class="runtime-progress-card"
+          >
+            <div class="runtime-progress-head">
+              <span>{{ messages.runtimeInstallProgress }}</span>
+              <strong>{{ runtimeInstallProgress.percent }}%</strong>
+            </div>
+            <div class="runtime-progress-track">
+              <span
+                class="runtime-progress-bar"
+                :style="{ width: `${runtimeInstallProgress.percent}%` }"
+              ></span>
+            </div>
+            <div class="runtime-progress-copy">
+              {{ runtimeInstallProgress.label }}
+            </div>
+          </div>
+
           <div class="runtime-meta-grid">
             <div class="runtime-meta-item">
               <span>{{ messages.runtimeVersion }}</span>
@@ -717,6 +787,82 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+
+.runtime-progress-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.24)),
+    rgba(15, 23, 42, 0.03);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.runtime-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.runtime-progress-head strong {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.runtime-progress-track {
+  position: relative;
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.runtime-progress-bar {
+  display: block;
+  position: relative;
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent) 78%, white 22%) 0%,
+      var(--accent) 28%,
+      color-mix(in srgb, var(--accent) 58%, white 42%) 50%,
+      var(--accent) 72%,
+      color-mix(in srgb, var(--accent) 78%, white 22%) 100%
+    );
+  background-size: 220% 100%;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 24%, transparent);
+  transition: width 220ms ease;
+  animation: runtime-progress-flow 1.8s linear infinite;
+}
+
+.runtime-progress-copy {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@keyframes runtime-progress-flow {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runtime-progress-bar {
+    animation: none;
+  }
 }
 
 .runtime-meta-item {

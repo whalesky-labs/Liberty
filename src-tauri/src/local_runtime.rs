@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     sync::atomic::{AtomicBool, Ordering},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager};
 
@@ -533,7 +533,7 @@ fn download_with_fallback(asset: &DownloadAsset, target_path: &Path, log_path: &
                     "[runtime] downloading {url} (attempt {attempt}/{DOWNLOAD_RETRIES_PER_URL})"
                 ),
             )?;
-            match download_to_path(&client, url, target_path) {
+            match download_to_path(&client, url, target_path, log_path) {
                 Ok(()) => return Ok(()),
                 Err(error) => {
                     append_install_log_line(
@@ -549,22 +549,90 @@ fn download_with_fallback(asset: &DownloadAsset, target_path: &Path, log_path: &
     Err(last_error.unwrap_or_else(|| "运行时资源下载失败。".into()))
 }
 
-fn download_to_path(client: &Client, url: &str, target_path: &Path) -> LocalResult<()> {
+fn download_to_path(
+    client: &Client,
+    url: &str,
+    target_path: &Path,
+    log_path: &Path,
+) -> LocalResult<()> {
     let temp_path = target_path.with_extension("download");
     let mut response = client
         .get(url)
         .send()
         .and_then(|value| value.error_for_status())
         .map_err(|err| err.to_string())?;
+    let total_bytes = response.content_length();
     let _ = fs::remove_file(&temp_path);
     let _ = fs::remove_file(target_path);
 
     let mut target = File::create(&temp_path).map_err(|err| err.to_string())?;
-    response.copy_to(&mut target).map_err(|err| err.to_string())?;
+    let mut buffer = vec![0u8; 512 * 1024];
+    let mut downloaded_bytes: u64 = 0;
+    let mut last_logged_bytes: u64 = 0;
+    let mut last_log_at = Instant::now();
+
+    if let Some(total) = total_bytes {
+        append_install_log_line(
+            log_path,
+            &format!(
+                "[runtime] download size {} MB from {}",
+                bytes_to_mb(total),
+                url
+            ),
+        )?;
+    }
+
+    loop {
+        let read = response.read(&mut buffer).map_err(|err| err.to_string())?;
+        if read == 0 {
+            break;
+        }
+
+        target
+            .write_all(&buffer[..read])
+            .map_err(|err| err.to_string())?;
+        downloaded_bytes += read as u64;
+
+        let should_log = downloaded_bytes.saturating_sub(last_logged_bytes) >= 8 * 1024 * 1024
+            || last_log_at.elapsed() >= Duration::from_secs(5);
+
+        if should_log {
+            match total_bytes {
+                Some(total) if total > 0 => {
+                    append_install_log_line(
+                        log_path,
+                        &format!(
+                            "[runtime] download progress {} / {} MB ({:.1}%)",
+                            bytes_to_mb(downloaded_bytes),
+                            bytes_to_mb(total),
+                            downloaded_bytes as f64 / total as f64 * 100.0
+                        ),
+                    )?;
+                }
+                _ => {
+                    append_install_log_line(
+                        log_path,
+                        &format!(
+                            "[runtime] download progress {} MB",
+                            bytes_to_mb(downloaded_bytes)
+                        ),
+                    )?;
+                }
+            }
+
+            last_logged_bytes = downloaded_bytes;
+            last_log_at = Instant::now();
+        }
+    }
+
     target.flush().map_err(|err| err.to_string())?;
     target.sync_all().map_err(|err| err.to_string())?;
     fs::rename(&temp_path, target_path).map_err(|err| err.to_string())?;
     Ok(())
+}
+
+fn bytes_to_mb(value: u64) -> String {
+    format!("{:.1}", value as f64 / 1024.0 / 1024.0)
 }
 
 fn verify_sha256(path: &Path, expected: &str, log_path: &Path) -> LocalResult<()> {
