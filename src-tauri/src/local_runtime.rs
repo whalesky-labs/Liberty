@@ -15,6 +15,7 @@ use tauri::{AppHandle, Manager};
 
 static RUNTIME_INSTALLING: AtomicBool = AtomicBool::new(false);
 const RUNTIME_MANIFEST_JSON: &str = include_str!("../resources/runtime-manifest.json");
+const DOWNLOAD_RETRIES_PER_URL: usize = 3;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -515,18 +516,32 @@ fn reset_runtime_workspace(
 
 fn download_with_fallback(asset: &DownloadAsset, target_path: &Path, log_path: &Path) -> LocalResult<()> {
     let client = Client::builder()
+        .connect_timeout(Duration::from_secs(20))
         .timeout(Duration::from_secs(900))
+        .tcp_keepalive(Duration::from_secs(30))
+        .no_proxy()
+        .user_agent("Liberty Runtime Installer/2026.03")
         .build()
         .map_err(|err| err.to_string())?;
     let mut last_error = None;
 
     for url in &asset.urls {
-        append_install_log_line(log_path, &format!("[runtime] downloading {url}"))?;
-        match download_to_path(&client, url, target_path) {
-            Ok(()) => return Ok(()),
-            Err(error) => {
-                append_install_log_line(log_path, &format!("[runtime] download failed: {error}"))?;
-                last_error = Some(error);
+        for attempt in 1..=DOWNLOAD_RETRIES_PER_URL {
+            append_install_log_line(
+                log_path,
+                &format!(
+                    "[runtime] downloading {url} (attempt {attempt}/{DOWNLOAD_RETRIES_PER_URL})"
+                ),
+            )?;
+            match download_to_path(&client, url, target_path) {
+                Ok(()) => return Ok(()),
+                Err(error) => {
+                    append_install_log_line(
+                        log_path,
+                        &format!("[runtime] download failed: {error}"),
+                    )?;
+                    last_error = Some(error);
+                }
             }
         }
     }
@@ -535,13 +550,20 @@ fn download_with_fallback(asset: &DownloadAsset, target_path: &Path, log_path: &
 }
 
 fn download_to_path(client: &Client, url: &str, target_path: &Path) -> LocalResult<()> {
+    let temp_path = target_path.with_extension("download");
     let mut response = client
         .get(url)
         .send()
         .and_then(|value| value.error_for_status())
         .map_err(|err| err.to_string())?;
-    let mut target = File::create(target_path).map_err(|err| err.to_string())?;
+    let _ = fs::remove_file(&temp_path);
+    let _ = fs::remove_file(target_path);
+
+    let mut target = File::create(&temp_path).map_err(|err| err.to_string())?;
     response.copy_to(&mut target).map_err(|err| err.to_string())?;
+    target.flush().map_err(|err| err.to_string())?;
+    target.sync_all().map_err(|err| err.to_string())?;
+    fs::rename(&temp_path, target_path).map_err(|err| err.to_string())?;
     Ok(())
 }
 
