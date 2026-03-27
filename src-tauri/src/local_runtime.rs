@@ -283,6 +283,41 @@ fn install_python_dependencies(
     pip_indexes: &[PipIndex],
     log_path: &Path,
 ) -> LocalResult<()> {
+    bootstrap_pip(python_executable, log_path)?;
+    upgrade_pip_tooling(python_executable, pip_indexes, log_path)?;
+
+    let mut last_error: Option<String> = None;
+    for index in pip_indexes {
+        let install_result = run_command_with_log(
+            Command::new(python_executable)
+                .env("PYTHONUTF8", "1")
+                .env("PIP_DISABLE_PIP_VERSION_CHECK", "1")
+                .arg("-m")
+                .arg("pip")
+                .arg("install")
+                .arg("--prefer-binary")
+                .arg("--retries")
+                .arg("2")
+                .arg("--timeout")
+                .arg("120")
+                .arg("-r")
+                .arg(requirements_path)
+                .arg("-i")
+                .arg(&index.url),
+            log_path,
+            &format!("Installing Python dependencies via {}", index.label),
+        );
+        if let Ok(()) = install_result {
+            return Ok(());
+        }
+
+        last_error = install_result.err();
+    }
+
+    Err(last_error.unwrap_or_else(|| "Python 依赖安装失败。".into()))
+}
+
+fn bootstrap_pip(python_executable: &Path, log_path: &Path) -> LocalResult<()> {
     run_command_with_log(
         Command::new(python_executable)
             .env("PYTHONUTF8", "1")
@@ -291,9 +326,16 @@ fn install_python_dependencies(
             .arg("--upgrade"),
         log_path,
         "Bootstrapping pip",
-    )?;
+    )
+}
 
-    let mut last_error = None;
+fn upgrade_pip_tooling(
+    python_executable: &Path,
+    pip_indexes: &[PipIndex],
+    log_path: &Path,
+) -> LocalResult<()> {
+    let mut last_error: Option<String> = None;
+
     for index in pip_indexes {
         let upgrade_result = run_command_with_log(
             Command::new(python_executable)
@@ -306,38 +348,24 @@ fn install_python_dependencies(
                 .arg("pip")
                 .arg("setuptools")
                 .arg("wheel")
+                .arg("--retries")
+                .arg("2")
+                .arg("--timeout")
+                .arg("120")
                 .arg("-i")
                 .arg(&index.url),
             log_path,
             &format!("Upgrading pip via {}", index.label),
         );
-        if let Err(error) = upgrade_result {
-            last_error = Some(error);
-            continue;
-        }
 
-        let install_result = run_command_with_log(
-            Command::new(python_executable)
-                .env("PYTHONUTF8", "1")
-                .env("PIP_DISABLE_PIP_VERSION_CHECK", "1")
-                .arg("-m")
-                .arg("pip")
-                .arg("install")
-                .arg("-r")
-                .arg(requirements_path)
-                .arg("-i")
-                .arg(&index.url),
-            log_path,
-            &format!("Installing Python dependencies via {}", index.label),
-        );
-        if install_result.is_ok() {
+        if let Ok(()) = upgrade_result {
             return Ok(());
         }
 
-        last_error = install_result.err();
+        last_error = upgrade_result.err();
     }
 
-    Err(last_error.unwrap_or_else(|| "Python 依赖安装失败。".into()))
+    Err(last_error.unwrap_or_else(|| "pip 工具升级失败。".into()))
 }
 
 fn warmup_default_models(
