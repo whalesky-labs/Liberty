@@ -1,6 +1,7 @@
 mod local_ai;
 mod local_db;
 mod local_jobs;
+mod local_runtime;
 mod local_settings;
 mod system;
 
@@ -28,6 +29,9 @@ pub fn run() {
             local_jobs::list_jobs,
             local_jobs::rename_job_speaker,
             local_jobs::retry_job,
+            local_runtime::get_runtime_install_log,
+            local_runtime::get_runtime_status,
+            local_runtime::install_runtime,
             local_settings::get_settings,
             local_settings::save_settings,
             system::open_external_url

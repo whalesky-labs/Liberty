@@ -3,6 +3,7 @@ use crate::local_db::{
     update_job_process_log, update_job_statuses, AppSettings, MeetingJob, MeetingSourceFile,
     MeetingSummary, TranscriptSegment,
 };
+use crate::local_runtime;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, OpenOptions},
@@ -29,7 +30,6 @@ pub struct CreateJobInput {
     pub enable_speaker: bool,
     pub summary_template: String,
     pub created_at: String,
-    pub python_path: String,
     #[serde(default)]
     pub runner_script_path: String,
 }
@@ -82,7 +82,7 @@ pub fn delete_job(app: AppHandle, id: String) -> LocalResult<()> {
 
 #[tauri::command]
 pub fn create_job(app: AppHandle, input: CreateJobInput) -> LocalResult<MeetingJob> {
-    validate_create_input(&input)?;
+    validate_create_input(&app, &input)?;
 
     let runner_script_path = resolve_runner_script_path(&app, Some(&input.runner_script_path))?;
     let job = build_initial_job(input, runner_script_path);
@@ -99,12 +99,8 @@ pub fn create_job(app: AppHandle, input: CreateJobInput) -> LocalResult<MeetingJ
 pub fn retry_job(
     app: AppHandle,
     id: String,
-    python_path: String,
 ) -> LocalResult<MeetingJob> {
-    if python_path.trim().is_empty() {
-        return Err("请先配置 Python 可执行文件路径。".into());
-    }
-
+    let settings = local_db::get_settings(&app)?;
     let job = local_db::get_job(&app, &id)?;
     let first_file = job
         .source_files
@@ -120,7 +116,14 @@ pub fn retry_job(
     reset_process_log(&dir)?;
     reset_runner_files(&dir)?;
     let runner_script_path = resolve_runner_script_path(&app, job.runner_script_path.as_deref())?;
-    local_db::reset_job_for_retry(&app, &id, &python_path, &runner_script_path)?;
+    let resolved_runtime =
+        local_runtime::resolve_python_runtime(&app, Some(&settings.python_path))?;
+    local_db::reset_job_for_retry(
+        &app,
+        &id,
+        &resolved_runtime.python_path,
+        &runner_script_path,
+    )?;
     spawn_local_job(app.clone(), id.clone());
     local_db::get_job(&app, &id)
 }
@@ -142,10 +145,8 @@ fn execute_local_job(app: &AppHandle, job_id: &str) -> LocalResult<()> {
         .first()
         .and_then(|file| file.path.clone())
         .ok_or_else(|| "任务缺少可处理的本地文件路径。".to_string())?;
-    let python_path = job
-        .python_path
-        .clone()
-        .ok_or_else(|| "未找到 Python 可执行文件路径。".to_string())?;
+    let resolved_runtime =
+        local_runtime::resolve_python_runtime(app, Some(&settings.python_path))?;
     let runner_script_path = resolve_runner_script_path(app, job.runner_script_path.as_deref())?;
 
     update_job_statuses(app, job_id, "transcribing", "idle", "transcribing", None)?;
@@ -155,7 +156,8 @@ fn execute_local_job(app: &AppHandle, job_id: &str) -> LocalResult<()> {
     append_process_log_line(
         &dir,
         &format!(
-            "[runner] device={}, threads={}, batch_size_s={}, speaker={}",
+            "[runner] source={}, device={}, threads={}, batch_size_s={}, speaker={}",
+            resolved_runtime.source_label,
             normalize_local_asr_device(&settings),
             runtime_threads,
             settings.local_asr_batch_size_seconds,
@@ -164,7 +166,8 @@ fn execute_local_job(app: &AppHandle, job_id: &str) -> LocalResult<()> {
     )?;
     sync_process_log(app, job_id, &dir)?;
 
-    let output = Command::new(&python_path)
+    let mut command = Command::new(&resolved_runtime.python_path);
+    command
         .env("OMP_NUM_THREADS", runtime_threads.to_string())
         .env("MKL_NUM_THREADS", runtime_threads.to_string())
         .env("NUMEXPR_NUM_THREADS", runtime_threads.to_string())
@@ -184,7 +187,16 @@ fn execute_local_job(app: &AppHandle, job_id: &str) -> LocalResult<()> {
         .arg("--speaker")
         .arg(if job.enable_speaker { "true" } else { "false" })
         .arg("--hotwords")
-        .arg(job.hotwords.join(","))
+        .arg(job.hotwords.join(","));
+
+    if let Some(models_root) = resolved_runtime.models_root.as_deref() {
+        command
+            .env("MODELSCOPE_CACHE", Path::new(models_root).join("modelscope"))
+            .env("HF_HOME", Path::new(models_root).join("huggingface"))
+            .env("TORCH_HOME", Path::new(models_root).join("torch"));
+    }
+
+    let output = command
         .output()
         .map_err(|err| format!("无法启动本地 Python 处理进程: {err}"))?;
 
@@ -263,22 +275,18 @@ fn build_initial_job(input: CreateJobInput, runner_script_path: String) -> Meeti
         export_formats: vec!["txt".into(), "md".into(), "srt".into(), "docx".into()],
         last_exported_at: None,
         process_log: None,
-        python_path: Some(input.python_path),
+        python_path: None,
         runner_script_path: Some(runner_script_path),
     }
 }
 
-fn validate_create_input(input: &CreateJobInput) -> LocalResult<()> {
+fn validate_create_input(app: &AppHandle, input: &CreateJobInput) -> LocalResult<()> {
     if input.title.trim().is_empty() {
         return Err("任务标题不能为空。".into());
     }
 
     if input.files.len() != 1 {
         return Err("本地 FunASR 模式当前只支持单文件任务。".into());
-    }
-
-    if input.python_path.trim().is_empty() {
-        return Err("请先配置 Python 可执行文件路径。".into());
     }
 
     let file = input
@@ -293,6 +301,9 @@ fn validate_create_input(input: &CreateJobInput) -> LocalResult<()> {
     if !Path::new(file_path).exists() {
         return Err("输入文件不存在或当前路径不可访问。".into());
     }
+
+    let settings = local_db::get_settings(app)?;
+    local_runtime::resolve_python_runtime(app, Some(&settings.python_path))?;
 
     Ok(())
 }

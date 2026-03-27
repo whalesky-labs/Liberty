@@ -1,23 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { MeetingJob, NewMeetingJobInput, SettingsState } from "@/types/meeting";
+import type { MeetingJob, NewMeetingJobInput } from "@/types/meeting";
 
 interface LocalCreateJobInput extends NewMeetingJobInput {
   createdAt: string;
-  pythonPath: string;
-}
-
-interface LocalRuntimeConfig {
-  pythonPath: SettingsState["pythonPath"];
 }
 
 export function createLocalMeetingService() {
   return {
-    createJob: (payload: NewMeetingJobInput, runtime: LocalRuntimeConfig) =>
+    createJob: (payload: NewMeetingJobInput) =>
       invoke<MeetingJob>("create_job", {
         input: {
           ...payload,
           createdAt: new Date().toISOString(),
-          pythonPath: runtime.pythonPath,
         } satisfies LocalCreateJobInput,
       }),
     listJobs: () => invoke<MeetingJob[]>("list_jobs"),
@@ -30,10 +24,6 @@ export function createLocalMeetingService() {
         fromSpeaker,
         toSpeaker,
       }),
-    retryJob: (id: string, runtime: LocalRuntimeConfig) =>
-      invoke<MeetingJob>("retry_job", {
-        id,
-        pythonPath: runtime.pythonPath,
-      }),
+    retryJob: (id: string) => invoke<MeetingJob>("retry_job", { id }),
   };
 }

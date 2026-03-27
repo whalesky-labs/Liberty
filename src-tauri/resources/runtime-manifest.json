@@ -1,0 +1,64 @@
+{
+  "runtimeVersion": "2026.03.27-py39.25",
+  "pythonVersion": "3.9.25",
+  "pipIndexes": [
+    {
+      "label": "清华 PyPI 镜像",
+      "url": "https://pypi.tuna.tsinghua.edu.cn/simple"
+    },
+    {
+      "label": "PyPI 官方",
+      "url": "https://pypi.org/simple"
+    }
+  ],
+  "platforms": [
+    {
+      "platformId": "darwin-aarch64",
+      "pythonArchive": {
+        "sha256": "87275619c2706affa4d1090d2ca3dad354b6d69f8b85dbfafe38785870751b9a",
+        "urls": [
+          "https://gh-proxy.com/https://github.com/astral-sh/python-build-standalone/releases/download/20251031/cpython-3.9.25+20251031-aarch64-apple-darwin-install_only.tar.gz",
+          "https://github.com/astral-sh/python-build-standalone/releases/download/20251031/cpython-3.9.25+20251031-aarch64-apple-darwin-install_only.tar.gz"
+        ]
+      },
+      "pythonExecutableCandidates": [
+        "python/bin/python3",
+        "python/bin/python"
+      ]
+    },
+    {
+      "platformId": "darwin-x64",
+      "pythonArchive": {
+        "sha256": "ace63cfe27a9487c4d72e1cb518be01c1d985271da0b2158e813801f7d3e5503",
+        "urls": [
+          "https://gh-proxy.com/https://github.com/astral-sh/python-build-standalone/releases/download/20251031/cpython-3.9.25+20251031-x86_64-apple-darwin-install_only.tar.gz",
+          "https://github.com/astral-sh/python-build-standalone/releases/download/20251031/cpython-3.9.25+20251031-x86_64-apple-darwin-install_only.tar.gz"
+        ]
+      },
+      "pythonExecutableCandidates": [
+        "python/bin/python3",
+        "python/bin/python"
+      ]
+    },
+    {
+      "platformId": "windows-x64",
+      "pythonArchive": {
+        "sha256": "4fb1b416482ce94d73cfa140317a670c596c830671d137b07c26afe8c461768a",
+        "urls": [
+          "https://gh-proxy.com/https://github.com/astral-sh/python-build-standalone/releases/download/20251031/cpython-3.9.25+20251031-x86_64-pc-windows-msvc-install_only.tar.gz",
+          "https://github.com/astral-sh/python-build-standalone/releases/download/20251031/cpython-3.9.25+20251031-x86_64-pc-windows-msvc-install_only.tar.gz"
+        ]
+      },
+      "pythonExecutableCandidates": [
+        "python/python.exe",
+        "python/python3.exe"
+      ]
+    }
+  ],
+  "defaultModels": {
+    "model": "paraformer-zh",
+    "vadModel": "fsmn-vad",
+    "puncModel": "ct-punc",
+    "speakerModel": "cam++"
+  }
+}

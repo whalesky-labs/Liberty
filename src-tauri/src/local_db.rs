@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager};
 
@@ -185,6 +186,40 @@ pub struct AppSettings {
     pub local_asr_batch_size_seconds: u32,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedRuntimeState {
+    pub platform_id: String,
+    pub runtime_version: String,
+    pub python_version: String,
+    pub status: String,
+    pub python_executable_path: Option<String>,
+    pub models_root: Option<String>,
+    pub install_root: Option<String>,
+    pub last_error: Option<String>,
+    pub installed_at: Option<String>,
+    pub updated_at: String,
+    pub last_log_path: Option<String>,
+}
+
+impl ManagedRuntimeState {
+    pub fn missing(platform_id: &str, runtime_version: &str, python_version: &str) -> Self {
+        Self {
+            platform_id: platform_id.to_string(),
+            runtime_version: runtime_version.to_string(),
+            python_version: python_version.to_string(),
+            status: "missing".into(),
+            python_executable_path: None,
+            models_root: None,
+            install_root: None,
+            last_error: None,
+            installed_at: None,
+            updated_at: unix_timestamp_millis().to_string(),
+            last_log_path: None,
+        }
+    }
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -296,6 +331,23 @@ pub fn save_settings(app: &AppHandle, settings: &AppSettings) -> LocalResult<()>
     init_database(app)?;
     let conn = open_connection(app)?;
     save_settings_inner(&conn, settings)
+}
+
+pub fn get_runtime_state(
+    app: &AppHandle,
+    platform_id: &str,
+    runtime_version: &str,
+    python_version: &str,
+) -> LocalResult<ManagedRuntimeState> {
+    init_database(app)?;
+    let conn = open_connection(app)?;
+    load_runtime_state(&conn, platform_id, runtime_version, python_version)
+}
+
+pub fn save_runtime_state(app: &AppHandle, state: &ManagedRuntimeState) -> LocalResult<()> {
+    init_database(app)?;
+    let conn = open_connection(app)?;
+    save_runtime_state_inner(&conn, state)
 }
 
 pub fn save_job_snapshot(app: &AppHandle, job: &MeetingJob) -> LocalResult<()> {
@@ -864,6 +916,20 @@ fn apply_schema(conn: &Connection) -> LocalResult<()> {
           local_asr_batch_size_seconds INTEGER NOT NULL DEFAULT 300
         );
 
+        CREATE TABLE IF NOT EXISTS runtime_state (
+          platform_id TEXT PRIMARY KEY,
+          runtime_version TEXT NOT NULL,
+          python_version TEXT NOT NULL,
+          status TEXT NOT NULL,
+          python_executable_path TEXT,
+          models_root TEXT,
+          install_root TEXT,
+          last_error TEXT,
+          installed_at TEXT,
+          updated_at TEXT NOT NULL,
+          last_log_path TEXT
+        );
+
         CREATE TABLE IF NOT EXISTS jobs (
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
@@ -957,6 +1023,7 @@ fn apply_schema(conn: &Connection) -> LocalResult<()> {
         CREATE INDEX IF NOT EXISTS idx_job_source_files_job_id ON job_source_files(job_id);
         CREATE INDEX IF NOT EXISTS idx_segments_job_id ON transcript_segments(job_id, segment_type, segment_order);
         CREATE INDEX IF NOT EXISTS idx_ai_runs_job_id ON ai_summary_runs(job_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_runtime_state_status ON runtime_state(status);
         ",
     )
     .map_err(|err| err.to_string())?;
@@ -1123,6 +1190,81 @@ fn load_settings(conn: &Connection) -> LocalResult<AppSettings> {
             Ok(settings)
         }
     }
+}
+
+fn load_runtime_state(
+    conn: &Connection,
+    platform_id: &str,
+    runtime_version: &str,
+    python_version: &str,
+) -> LocalResult<ManagedRuntimeState> {
+    let loaded = conn
+        .query_row(
+            "SELECT platform_id, runtime_version, python_version, status,
+                    python_executable_path, models_root, install_root, last_error,
+                    installed_at, updated_at, last_log_path
+             FROM runtime_state
+             WHERE platform_id = ?1",
+            params![platform_id],
+            |row| {
+                Ok(ManagedRuntimeState {
+                    platform_id: row.get(0)?,
+                    runtime_version: row.get(1)?,
+                    python_version: row.get(2)?,
+                    status: row.get(3)?,
+                    python_executable_path: row.get(4)?,
+                    models_root: row.get(5)?,
+                    install_root: row.get(6)?,
+                    last_error: row.get(7)?,
+                    installed_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                    last_log_path: row.get(10)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|err| err.to_string())?;
+
+    Ok(loaded.unwrap_or_else(|| ManagedRuntimeState::missing(
+        platform_id,
+        runtime_version,
+        python_version,
+    )))
+}
+
+fn save_runtime_state_inner(conn: &Connection, state: &ManagedRuntimeState) -> LocalResult<()> {
+    conn.execute(
+        "INSERT INTO runtime_state (
+            platform_id, runtime_version, python_version, status, python_executable_path,
+            models_root, install_root, last_error, installed_at, updated_at, last_log_path
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+         ON CONFLICT(platform_id) DO UPDATE SET
+            runtime_version = excluded.runtime_version,
+            python_version = excluded.python_version,
+            status = excluded.status,
+            python_executable_path = excluded.python_executable_path,
+            models_root = excluded.models_root,
+            install_root = excluded.install_root,
+            last_error = excluded.last_error,
+            installed_at = excluded.installed_at,
+            updated_at = excluded.updated_at,
+            last_log_path = excluded.last_log_path",
+        params![
+            state.platform_id,
+            state.runtime_version,
+            state.python_version,
+            state.status,
+            state.python_executable_path,
+            state.models_root,
+            state.install_root,
+            state.last_error,
+            state.installed_at,
+            state.updated_at,
+            state.last_log_path
+        ],
+    )
+    .map_err(|err| err.to_string())?;
+    Ok(())
 }
 
 fn save_settings_inner(conn: &Connection, settings: &AppSettings) -> LocalResult<()> {
@@ -1606,6 +1748,13 @@ fn derive_duration_minutes_from_segments(
     }
 
     Some(((max_end_ms as f64) / 60_000.0).ceil() as u32)
+}
+
+fn unix_timestamp_millis() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default()
 }
 
 fn load_summary_runs(conn: &Connection, job_id: &str) -> LocalResult<Vec<AiSummaryRun>> {

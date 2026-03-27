@@ -3,9 +3,16 @@ import { applyAppearance } from "@/services/appearance";
 import { createEmptyMeetingSummary, summaryResultToMeetingSummary } from "@/services/aiStorage";
 import { createLocalAiService } from "@/services/localAi";
 import { createLocalMeetingService } from "@/services/localMeeting";
+import { createLocalRuntimeService } from "@/services/localRuntime";
 import { createLocalSettingsService } from "@/services/localSettings";
 import { createMeetingApi } from "@/services/api";
-import type { AiSummaryRun, MeetingJob, NewMeetingJobInput, SettingsState } from "@/types/meeting";
+import type {
+  AiSummaryRun,
+  ManagedRuntimeStatus,
+  MeetingJob,
+  NewMeetingJobInput,
+  SettingsState,
+} from "@/types/meeting";
 
 const defaultSettings: SettingsState = {
   themeMode: "auto",
@@ -27,10 +34,19 @@ const defaultSettings: SettingsState = {
 const state = reactive({
   jobs: [] as MeetingJob[],
   settings: { ...defaultSettings } as SettingsState,
+  runtimeStatus: {
+    platformId: "",
+    runtimeVersion: "",
+    pythonVersion: "",
+    status: "missing",
+    updatedAt: "",
+  } as ManagedRuntimeStatus,
+  runtimeInstallLog: "",
   settingsLoaded: false,
 });
 
 const localAiService = createLocalAiService();
+const localRuntimeService = createLocalRuntimeService();
 const localSettingsService = createLocalSettingsService();
 let localPollingId: number | null = null;
 let settingsLoadPromise: Promise<void> | null = null;
@@ -68,8 +84,12 @@ function normalizeSettings(settings?: Partial<SettingsState> | null): SettingsSt
   };
 }
 
-function hasLocalRunnerSettings(settings: SettingsState) {
+function hasManualPythonOverride(settings: SettingsState) {
   return Boolean(settings.pythonPath.trim());
+}
+
+function isManagedRuntimeReady(runtimeStatus: ManagedRuntimeStatus) {
+  return runtimeStatus.status === "ready" && Boolean(runtimeStatus.pythonExecutablePath?.trim());
 }
 
 async function refreshLocalJobs() {
@@ -85,7 +105,7 @@ function syncLocalPolling() {
     return;
   }
 
-  const shouldPoll = hasLocalRunnerSettings(state.settings);
+  const shouldPoll = isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(state.settings);
 
   if (shouldPoll && localPollingId === null) {
     localPollingId = window.setInterval(() => {
@@ -117,11 +137,13 @@ async function ensureSettingsLoaded(force = false) {
       state.settings = normalizeSettings();
     }
 
+    await refreshRuntimeStatus();
+
     state.settingsLoaded = true;
     applyAppearance(state.settings);
     syncLocalPolling();
 
-    if (hasLocalRunnerSettings(state.settings)) {
+    if (isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(state.settings)) {
       await refreshLocalJobs();
     }
   })().finally(() => {
@@ -136,6 +158,38 @@ function replaceJob(job: MeetingJob) {
   return job;
 }
 
+async function refreshRuntimeStatus() {
+  try {
+    state.runtimeStatus = await localRuntimeService.getStatus();
+  } catch {
+    state.runtimeStatus = {
+      platformId: "",
+      runtimeVersion: "",
+      pythonVersion: "",
+      status: "missing",
+      updatedAt: "",
+    };
+  }
+
+  syncLocalPolling();
+
+  if (isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(state.settings)) {
+    await refreshLocalJobs();
+  }
+
+  return state.runtimeStatus;
+}
+
+async function refreshRuntimeInstallLog() {
+  try {
+    state.runtimeInstallLog = await localRuntimeService.getInstallLog();
+  } catch {
+    state.runtimeInstallLog = "";
+  }
+
+  return state.runtimeInstallLog;
+}
+
 void ensureSettingsLoaded();
 
 export function useMeetingStore() {
@@ -147,7 +201,9 @@ export function useMeetingStore() {
       ? createMeetingApi(state.settings.backendUrl, state.settings.apiToken)
       : null,
   );
-  const localMode = computed(() => hasLocalRunnerSettings(state.settings));
+  const localMode = computed(
+    () => isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(state.settings),
+  );
 
   async function refreshJobs() {
     await ensureSettingsLoaded();
@@ -195,13 +251,10 @@ export function useMeetingStore() {
         throw new Error("本地模式只支持带本地路径的单个文件。");
       }
 
-      const created = await createLocalMeetingService().createJob(
-        {
-          ...input,
-          files: [firstFile],
-        },
-        state.settings,
-      );
+      const created = await createLocalMeetingService().createJob({
+        ...input,
+        files: [firstFile],
+      });
 
       syncLocalPolling();
       return replaceJob(created);
@@ -212,7 +265,7 @@ export function useMeetingStore() {
       return replaceJob(created);
     }
 
-    throw new Error("当前未配置可用的本地 Python 环境或在线后端，无法创建任务。");
+    throw new Error("当前未安装本地运行环境，也未配置在线后端，无法创建任务。");
   }
 
   async function retryJob(id: string) {
@@ -224,7 +277,7 @@ export function useMeetingStore() {
     }
 
     if (localMode.value) {
-      const updated = await createLocalMeetingService().retryJob(id, state.settings);
+      const updated = await createLocalMeetingService().retryJob(id);
       syncLocalPolling();
       return replaceJob(updated);
     }
@@ -240,7 +293,7 @@ export function useMeetingStore() {
       return;
     }
 
-    throw new Error("当前未配置可用的本地 Python 环境或在线后端，无法重试任务。");
+    throw new Error("当前未安装本地运行环境，也未配置在线后端，无法重试任务。");
   }
 
   async function deleteJob(id: string) {
@@ -303,9 +356,17 @@ export function useMeetingStore() {
     await localSettingsService.saveSettings(normalized);
     syncLocalPolling();
 
-    if (hasLocalRunnerSettings(normalized)) {
+    if (isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(normalized)) {
       await refreshLocalJobs();
     }
+  }
+
+  async function installManagedRuntime() {
+    await ensureSettingsLoaded();
+    state.runtimeStatus = await localRuntimeService.install();
+    await refreshRuntimeInstallLog();
+    syncLocalPolling();
+    return state.runtimeStatus;
   }
 
   function getJobById(id: string) {
@@ -367,10 +428,13 @@ export function useMeetingStore() {
     api,
     localMode,
     ensureSettingsLoaded,
+    refreshRuntimeStatus,
+    refreshRuntimeInstallLog,
     refreshJobs,
     refreshJobRuns,
     createJob,
     deleteJob,
+    installManagedRuntime,
     renameSpeaker,
     retryJob,
     saveSettings,

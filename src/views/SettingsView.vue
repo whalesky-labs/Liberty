@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useMeetingStore } from "@/composables/useMeetingStore";
 import { resolveTheme } from "@/services/appearance";
 import { getMessages } from "@/services/i18n";
 import type {
   LiquidGlassStyle,
   LocaleCode,
+  ManagedRuntimeStatus,
   LocalAsrDevice,
   SettingsState,
   ThemeMode,
@@ -24,6 +25,7 @@ const accentColors = [
 
 const store = useMeetingStore();
 const saveError = ref("");
+let runtimePollingId: number | null = null;
 
 const form = reactive({
   backendUrl: "",
@@ -72,6 +74,36 @@ const runtimeModeLabel = computed(() => {
 
   return shellMessages.value.mockModeShort;
 });
+
+const runtimeStatus = computed(() => store.runtimeStatus.value);
+const runtimeInstallLog = computed(() => store.runtimeInstallLog.value);
+const runtimeActionLabel = computed(() =>
+  runtimeStatus.value.status === "ready"
+  || runtimeStatus.value.status === "failed"
+  || runtimeStatus.value.status === "repair_required"
+    ? messages.value.runtimeReinstallAction
+    : messages.value.runtimeInstallAction,
+);
+const runtimeStatusLabel = computed(() => labelForRuntimeStatus(runtimeStatus.value));
+const runtimeStatusDescription = computed(() => {
+  if (runtimeStatus.value.lastError?.trim()) {
+    return runtimeStatus.value.lastError.trim();
+  }
+
+  switch (runtimeStatus.value.status) {
+    case "ready":
+      return "本地运行环境已就绪，任务会优先使用托管环境执行。";
+    case "installing":
+      return "正在下载并配置本地运行环境，请耐心等待当前安装流程完成。";
+    case "failed":
+    case "repair_required":
+      return "安装未完成，请查看下方日志并重新安装。";
+    default:
+      return "当前设备尚未安装本地运行环境，安装后即可直接处理会议文件。";
+  }
+});
+const runtimeBusy = computed(() => runtimeStatus.value.status === "installing");
+const runtimeInstalledAtLabel = computed(() => formatRuntimeDate(runtimeStatus.value.installedAt));
 
 function createNextSettings(patch: Partial<SettingsState> = {}): SettingsState {
   return {
@@ -152,6 +184,63 @@ async function save() {
     saveError.value = error instanceof Error ? error.message : String(error);
   }
 }
+
+async function refreshRuntimePanel() {
+  await store.refreshRuntimeStatus();
+  await store.refreshRuntimeInstallLog();
+}
+
+async function installManagedRuntime() {
+  saveError.value = "";
+
+  try {
+    await store.installManagedRuntime();
+    await refreshRuntimePanel();
+  } catch (error) {
+    saveError.value = error instanceof Error ? error.message : String(error);
+  }
+}
+
+function labelForRuntimeStatus(status: ManagedRuntimeStatus) {
+  switch (status.status) {
+    case "installing":
+      return messages.value.runtimeStatusInstalling;
+    case "ready":
+      return messages.value.runtimeStatusReady;
+    case "failed":
+      return messages.value.runtimeStatusFailed;
+    case "repair_required":
+      return messages.value.runtimeStatusRepair;
+    default:
+      return messages.value.runtimeStatusMissing;
+  }
+}
+
+function formatRuntimeDate(value?: string) {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return "—";
+  }
+
+  const fromMillis = Number(normalized);
+  const date = Number.isFinite(fromMillis) && fromMillis > 0 ? new Date(fromMillis) : new Date(normalized);
+  return Number.isNaN(date.getTime()) ? normalized : date.toLocaleString();
+}
+
+onMounted(() => {
+  void refreshRuntimePanel();
+
+  runtimePollingId = window.setInterval(() => {
+    void refreshRuntimePanel();
+  }, 1500);
+});
+
+onBeforeUnmount(() => {
+  if (runtimePollingId !== null) {
+    window.clearInterval(runtimePollingId);
+    runtimePollingId = null;
+  }
+});
 </script>
 
 <template>
@@ -303,11 +392,63 @@ async function save() {
 
     <div class="settings-group">
       <h3 class="settings-group-title">{{ messages.localRuntime }}</h3>
+      <article class="surface settings-block runtime-card">
+        <div class="runtime-card-head">
+          <div class="runtime-card-title-wrap">
+            <span class="runtime-card-title">{{ messages.managedRuntime }}</span>
+            <p class="runtime-card-hint">{{ messages.managedRuntimeHint }}</p>
+          </div>
+          <div class="runtime-card-status">
+            <span class="runtime-status-label">{{ messages.runtimeStatus }}</span>
+            <span
+              class="runtime-status-badge"
+              :class="`runtime-status-${runtimeStatus.status}`"
+            >
+              {{ runtimeStatusLabel }}
+            </span>
+          </div>
+        </div>
+
+        <div class="runtime-panel">
+          <div class="runtime-hero">
+            <p class="runtime-status-text">{{ runtimeStatusDescription }}</p>
+            <button
+              class="text-button runtime-primary-action"
+              type="button"
+              :disabled="runtimeBusy"
+              @click="installManagedRuntime"
+            >
+              {{ runtimeBusy ? messages.runtimeStatusInstalling : runtimeActionLabel }}
+            </button>
+          </div>
+
+          <div class="runtime-meta-grid">
+            <div class="runtime-meta-item">
+              <span>{{ messages.runtimeVersion }}</span>
+              <strong>{{ runtimeStatus.runtimeVersion || "—" }}</strong>
+            </div>
+            <div class="runtime-meta-item">
+              <span>{{ messages.runtimePythonVersion }}</span>
+              <strong>{{ runtimeStatus.pythonVersion || "—" }}</strong>
+            </div>
+            <div class="runtime-meta-item">
+              <span>{{ messages.runtimeInstalledAt }}</span>
+              <strong>{{ runtimeInstalledAtLabel }}</strong>
+            </div>
+          </div>
+
+          <div class="runtime-log">
+            <span class="runtime-log-title">{{ messages.runtimeInstallLog }}</span>
+            <pre>{{ runtimeInstallLog || messages.runtimeInstallLogEmpty }}</pre>
+          </div>
+        </div>
+      </article>
+
       <article class="surface settings-block">
         <div class="setting-row">
           <div class="settings-meta">
-            <span class="settings-label">{{ messages.pythonPath }}</span>
-            <p class="settings-hint">{{ messages.pythonPathHint }}</p>
+            <span class="settings-label">{{ messages.manualPythonOverride }}</span>
+            <p class="settings-hint">{{ messages.manualPythonOverrideHint }}</p>
           </div>
           <div class="setting-control">
             <input
@@ -471,3 +612,189 @@ async function save() {
     </footer>
   </section>
 </template>
+
+<style scoped>
+.runtime-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.runtime-card {
+  display: grid;
+  gap: 22px;
+  padding: 18px 18px 16px;
+}
+
+.runtime-card::after {
+  display: none;
+}
+
+.runtime-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--divider-soft);
+}
+
+.runtime-card-title-wrap {
+  display: grid;
+  gap: 6px;
+  max-width: 760px;
+}
+
+.runtime-card-title {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.runtime-card-hint {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.runtime-card-status {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.runtime-status-label {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.runtime-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 84px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.runtime-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.runtime-status-ready {
+  color: rgb(31, 140, 84);
+  background: rgba(41, 171, 107, 0.14);
+}
+
+.runtime-status-installing {
+  color: rgb(191, 119, 9);
+  background: rgba(255, 176, 32, 0.16);
+}
+
+.runtime-status-failed,
+.runtime-status-repair_required {
+  color: rgb(191, 60, 60);
+  background: rgba(255, 106, 87, 0.16);
+}
+
+.runtime-status-text {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 760px;
+  font-size: 14px;
+}
+
+.runtime-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.runtime-meta-item {
+  display: grid;
+  gap: 8px;
+  padding: 15px 16px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.28)),
+    rgba(15, 23, 42, 0.03);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+.runtime-meta-item span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.runtime-meta-item strong {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.runtime-primary-action {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.runtime-primary-action.text-button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.runtime-log {
+  display: grid;
+  gap: 10px;
+}
+
+.runtime-log-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.runtime-log pre {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.05);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 980px) {
+  .runtime-card-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .runtime-card-status {
+    justify-content: space-between;
+    justify-items: stretch;
+  }
+
+  .runtime-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .runtime-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

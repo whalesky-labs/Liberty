@@ -13,6 +13,12 @@ export type ThemeMode = "auto" | "light" | "dark";
 export type LiquidGlassStyle = "transparent" | "tinted";
 export type LocaleCode = "zh-CN" | "en-US";
 export type LocalAsrDevice = "auto" | "cpu" | "mps" | "cuda";
+export type ManagedRuntimeInstallStatus =
+  | "missing"
+  | "installing"
+  | "ready"
+  | "failed"
+  | "repair_required";
 
 export interface TranscriptSegment {
   id: string;
@@ -148,4 +154,18 @@ export interface SettingsState {
   localAsrDevice: LocalAsrDevice;
   localAsrThreads: number;
   localAsrBatchSizeSeconds: number;
+}
+
+export interface ManagedRuntimeStatus {
+  platformId: string;
+  runtimeVersion: string;
+  pythonVersion: string;
+  status: ManagedRuntimeInstallStatus;
+  pythonExecutablePath?: string;
+  modelsRoot?: string;
+  installRoot?: string;
+  lastError?: string;
+  installedAt?: string;
+  updatedAt: string;
+  lastLogPath?: string;
 }

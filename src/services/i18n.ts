@@ -47,6 +47,23 @@ type MessageTree = {
     localDatabaseReady: string;
     waitingLocalConfig: string;
     localRuntime: string;
+    managedRuntime: string;
+    managedRuntimeHint: string;
+    runtimeStatus: string;
+    runtimeStatusMissing: string;
+    runtimeStatusInstalling: string;
+    runtimeStatusReady: string;
+    runtimeStatusFailed: string;
+    runtimeStatusRepair: string;
+    runtimeVersion: string;
+    runtimePythonVersion: string;
+    runtimeInstalledAt: string;
+    runtimeInstallAction: string;
+    runtimeReinstallAction: string;
+    runtimeInstallLog: string;
+    runtimeInstallLogEmpty: string;
+    manualPythonOverride: string;
+    manualPythonOverrideHint: string;
     pythonPath: string;
     pythonPathHint: string;
     localAsrDevice: string;
@@ -133,9 +150,26 @@ const messages: Record<LocaleCode, MessageTree> = {
       runtimeOverview: "运行概览",
       runtimeMode: "当前模式",
       runtimeModeHint: "Liberty 会按本地运行配置优先级决定桌面端实际走哪条处理链路。",
-      localDatabaseReady: "本地数据库已启用",
+      localDatabaseReady: "本地运行已就绪",
       waitingLocalConfig: "等待本地配置",
       localRuntime: "本地运行",
+      managedRuntime: "本地运行环境",
+      managedRuntimeHint: "下载并管理 Liberty 本地运行所需的 Python、依赖与模型。",
+      runtimeStatus: "当前状态",
+      runtimeStatusMissing: "未安装",
+      runtimeStatusInstalling: "安装中",
+      runtimeStatusReady: "已就绪",
+      runtimeStatusFailed: "安装失败",
+      runtimeStatusRepair: "需要修复",
+      runtimeVersion: "环境版本",
+      runtimePythonVersion: "Python 版本",
+      runtimeInstalledAt: "最后安装时间",
+      runtimeInstallAction: "下载并安装",
+      runtimeReinstallAction: "重新安装",
+      runtimeInstallLog: "安装日志",
+      runtimeInstallLogEmpty: "当前还没有安装日志。",
+      manualPythonOverride: "手动 Python 回退",
+      manualPythonOverrideHint: "仅在托管运行环境不可用时作为高级兼容方案使用。",
       pythonPath: "Python 可执行文件路径",
       pythonPathHint: "桌面端本地转写和重试任务都会直接调用这里的 Python 环境，Runner 脚本使用项目内置入口。",
       localAsrDevice: "推理设备",
@@ -229,9 +263,28 @@ const messages: Record<LocaleCode, MessageTree> = {
       runtimeOverview: "Runtime Overview",
       runtimeMode: "Current Mode",
       runtimeModeHint: "Liberty chooses the active desktop processing path based on local runtime priority.",
-      localDatabaseReady: "Local database enabled",
+      localDatabaseReady: "Local runtime ready",
       waitingLocalConfig: "Waiting for local runtime setup",
       localRuntime: "Local Runtime",
+      managedRuntime: "Managed Runtime",
+      managedRuntimeHint:
+        "Download and manage the Python runtime, dependencies, and models required by Liberty local processing.",
+      runtimeStatus: "Status",
+      runtimeStatusMissing: "Missing",
+      runtimeStatusInstalling: "Installing",
+      runtimeStatusReady: "Ready",
+      runtimeStatusFailed: "Failed",
+      runtimeStatusRepair: "Repair Required",
+      runtimeVersion: "Runtime Version",
+      runtimePythonVersion: "Python Version",
+      runtimeInstalledAt: "Installed At",
+      runtimeInstallAction: "Download and Install",
+      runtimeReinstallAction: "Reinstall",
+      runtimeInstallLog: "Install Log",
+      runtimeInstallLogEmpty: "No install log yet.",
+      manualPythonOverride: "Manual Python Override",
+      manualPythonOverrideHint:
+        "Advanced fallback only. Liberty uses this when the managed runtime is unavailable.",
       pythonPath: "Python Executable Path",
       pythonPathHint: "Local transcription and retry both call this Python runtime directly. The runner script uses the built-in project entry.",
       localAsrDevice: "Inference Device",
