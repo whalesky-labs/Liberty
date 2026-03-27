@@ -321,6 +321,7 @@ fn resolve_runner_script_path(
     if let Ok(resource_dir) = app.path().resource_dir() {
         candidates.push(resource_dir.join("scripts").join("funasr_runner.py"));
         candidates.push(resource_dir.join("funasr_runner.py"));
+        candidates.push(resource_dir.join("_up_").join("scripts").join("funasr_runner.py"));
     }
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

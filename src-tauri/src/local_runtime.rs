@@ -484,6 +484,7 @@ fn resolve_script_resource_path(app: &AppHandle, file_name: &str) -> LocalResult
     if let Ok(resource_dir) = app.path().resource_dir() {
         candidates.push(resource_dir.join("scripts").join(file_name));
         candidates.push(resource_dir.join(file_name));
+        candidates.push(resource_dir.join("_up_").join("scripts").join(file_name));
     }
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
