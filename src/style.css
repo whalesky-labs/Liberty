@@ -1085,7 +1085,7 @@ select:focus-visible {
 .jobs-table-head,
 .jobs-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.45fr) minmax(180px, 1fr) 140px 130px 120px 170px;
+  grid-template-columns: minmax(220px, 1.45fr) minmax(180px, 1fr) 140px 130px 120px 220px;
   gap: 16px;
   align-items: center;
   padding: 12px 14px;
