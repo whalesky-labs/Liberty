@@ -337,7 +337,6 @@ fn install_python_dependencies(
 ) -> LocalResult<()> {
     bootstrap_pip(python_executable, log_path)?;
     upgrade_pip_tooling(python_executable, pip_indexes, log_path)?;
-    install_pytorch_stack(python_executable, pip_indexes, log_path)?;
 
     let mut last_error: Option<String> = None;
     for index in pip_indexes {
@@ -367,7 +366,11 @@ fn install_python_dependencies(
         last_error = install_result.err();
     }
 
-    Err(last_error.unwrap_or_else(|| "Python 依赖安装失败。".into()))
+    if let Some(error) = last_error {
+        return Err(error);
+    }
+
+    install_pytorch_stack(python_executable, pip_indexes, log_path)
 }
 
 fn install_pytorch_stack(
@@ -384,6 +387,8 @@ fn install_pytorch_stack(
                 "-m".into(),
                 "pip".into(),
                 "install".into(),
+                "--force-reinstall".into(),
+                "--no-cache-dir".into(),
                 "--prefer-binary".into(),
                 "--retries".into(),
                 "2".into(),
@@ -405,6 +410,8 @@ fn install_pytorch_stack(
                 "-m".into(),
                 "pip".into(),
                 "install".into(),
+                "--force-reinstall".into(),
+                "--no-cache-dir".into(),
                 "--prefer-binary".into(),
                 "--retries".into(),
                 "2".into(),
