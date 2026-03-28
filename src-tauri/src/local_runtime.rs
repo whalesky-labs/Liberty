@@ -233,12 +233,13 @@ fn perform_runtime_install(app: &AppHandle) -> LocalResult<()> {
     let log_path = runtime_log_path(app, &platform_id)?;
     let manifest_path = runtime_root.join("manifest.json");
 
+    let had_models = models_root.is_dir();
+
     reset_runtime_workspace(
         &runtime_root,
         &downloads_root,
         &python_root,
         &ffmpeg_root,
-        &models_root,
         &manifest_path,
     )?;
     append_install_log_line(
@@ -330,6 +331,8 @@ fn perform_runtime_install(app: &AppHandle) -> LocalResult<()> {
             "extracting models archive",
         )?;
         append_install_log_line(&log_path, "[runtime] validating bundled models root")?;
+    } else if had_models {
+        append_install_log_line(&log_path, "[runtime] reusing existing FunASR models")?;
     } else {
         let warmup_path = resolve_script_resource_path(app, "runtime_warmup.py")?;
         warmup_default_models(&python_executable, &warmup_path, &models_root, &log_path)?;
@@ -476,12 +479,11 @@ fn reset_runtime_workspace(
     downloads_root: &Path,
     python_root: &Path,
     ffmpeg_root: &Path,
-    models_root: &Path,
     manifest_path: &Path,
 ) -> LocalResult<()> {
     fs::create_dir_all(runtime_root).map_err(|err| err.to_string())?;
 
-    for path in [downloads_root, python_root, ffmpeg_root, models_root] {
+    for path in [downloads_root, python_root, ffmpeg_root] {
         if path.exists() {
             fs::remove_dir_all(path).map_err(|err| err.to_string())?;
         }
