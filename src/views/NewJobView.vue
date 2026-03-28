@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { open } from "@tauri-apps/plugin-dialog";
+import { message, open } from "@tauri-apps/plugin-dialog";
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useMeetingStore } from "@/composables/useMeetingStore";
@@ -23,6 +23,9 @@ const commonMessages = computed(() => getMessages(store.settings.value.locale).c
 const jobsMessages = computed(() => getMessages(store.settings.value.locale).jobs);
 const summaryTemplate = computed(
   () => store.settings.value.summaryTemplate.trim() || messages.value.defaultSummaryTemplateName,
+);
+const shouldWarnModelDownloadRequired = computed(() =>
+  !store.settings.value.backendUrl.trim() && store.runtimeStatus.value.status !== "ready",
 );
 const serviceModeLabel = computed(() => {
   if (store.localMode.value) {
@@ -160,6 +163,14 @@ async function submit() {
   submitError.value = "";
 
   if (!files.value.length || !title.value.trim()) {
+    return;
+  }
+
+  if (shouldWarnModelDownloadRequired.value) {
+    await message(messages.value.modelDownloadRequiredMessage, {
+      title: messages.value.modelDownloadRequiredTitle,
+      kind: "warning",
+    });
     return;
   }
 

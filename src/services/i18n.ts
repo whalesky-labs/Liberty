@@ -194,6 +194,8 @@ type MessageTree = {
     localFileRule: string;
     remoteFileRule: string;
     fileCount: string;
+    modelDownloadRequiredTitle: string;
+    modelDownloadRequiredMessage: string;
   };
   jobs: {
     deleteConfirm: string;
@@ -638,6 +640,8 @@ const messages: Record<LocaleCode, MessageTree> = {
       localFileRule: "本地模式每次只处理 1 个文件",
       remoteFileRule: "可一次加入多个文件",
       fileCount: "{count} 个文件",
+      modelDownloadRequiredTitle: "默认模型未就绪",
+      modelDownloadRequiredMessage: "请先前往系统设置中的“模型下载”完成默认 FunASR 模型下载，然后再创建任务。",
     },
     jobs: {
       deleteConfirm: "确认删除任务“{title}”吗？删除后无法恢复。",
@@ -1082,6 +1086,8 @@ const messages: Record<LocaleCode, MessageTree> = {
       localFileRule: "Local mode processes one file at a time",
       remoteFileRule: "You can add multiple files in one batch",
       fileCount: "{count} file(s)",
+      modelDownloadRequiredTitle: "Default Models Not Ready",
+      modelDownloadRequiredMessage: "Go to Settings and finish downloading the default FunASR models before creating a job.",
     },
     jobs: {
       deleteConfirm: "Delete job \"{title}\"? This cannot be undone.",
