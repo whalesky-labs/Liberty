@@ -22,6 +22,9 @@ use std::os::unix::fs::PermissionsExt;
 static RUNTIME_INSTALLING: AtomicBool = AtomicBool::new(false);
 const RUNTIME_MANIFEST_JSON: &str = include_str!("../resources/runtime-manifest.json");
 const DOWNLOAD_RETRIES_PER_URL: usize = 3;
+const SLOW_DOWNLOAD_GRACE_SECONDS: u64 = 12;
+const SLOW_DOWNLOAD_MIN_BYTES: u64 = 512 * 1024;
+const SLOW_DOWNLOAD_MIN_TOTAL_BYTES: u64 = 8 * 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -637,6 +640,7 @@ fn download_to_path(
     let mut downloaded_bytes: u64 = 0;
     let mut last_logged_bytes: u64 = 0;
     let mut last_log_at = Instant::now();
+    let started_at = Instant::now();
 
     if let Some(total) = total_bytes {
         append_install_log_line(
@@ -689,6 +693,21 @@ fn download_to_path(
 
             last_logged_bytes = downloaded_bytes;
             last_log_at = Instant::now();
+        }
+
+        let should_switch_source = total_bytes
+            .map(|total| total >= SLOW_DOWNLOAD_MIN_TOTAL_BYTES)
+            .unwrap_or(false)
+            && started_at.elapsed() >= Duration::from_secs(SLOW_DOWNLOAD_GRACE_SECONDS)
+            && downloaded_bytes < SLOW_DOWNLOAD_MIN_BYTES;
+
+        if should_switch_source {
+            let _ = fs::remove_file(&temp_path);
+            return Err(format!(
+                "当前下载源速度过慢，{} 秒内仅下载 {} MB，切换下一个源。",
+                SLOW_DOWNLOAD_GRACE_SECONDS,
+                bytes_to_mb(downloaded_bytes)
+            ));
         }
     }
 
