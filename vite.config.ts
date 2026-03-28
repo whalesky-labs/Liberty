@@ -23,7 +23,14 @@ export default defineConfig({
       port: 5173,
     },
     watch: {
-      ignored: ["**/src-tauri/**"],
+      ignored: [
+        "**/src-tauri/**",
+        "**/.venv/**",
+        "**/.venv39/**",
+        "**/.venv310/**",
+        "**/.venv311/**",
+        "**/runtime-bundles/**",
+      ],
       usePolling: true,
       interval: 120,
     },
