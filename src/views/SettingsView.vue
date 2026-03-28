@@ -749,7 +749,8 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--bg-input) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--divider-soft) 72%, transparent);
 }
 
 .runtime-hero {
@@ -795,9 +796,12 @@ onBeforeUnmount(() => {
   padding: 14px 16px;
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.24)),
-    rgba(15, 23, 42, 0.03);
-  border: 1px solid rgba(15, 23, 42, 0.06);
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-card) 96%, transparent) 0%,
+      color-mix(in srgb, var(--bg-panel) 92%, transparent) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--divider-soft) 86%, transparent);
 }
 
 .runtime-progress-head {
@@ -820,7 +824,8 @@ onBeforeUnmount(() => {
   overflow: hidden;
   height: 8px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.08);
+  background: color-mix(in srgb, var(--bg-input) 92%, var(--text-soft) 8%);
+  border: 1px solid color-mix(in srgb, var(--divider-soft) 80%, transparent);
 }
 
 .runtime-progress-bar {
@@ -871,9 +876,12 @@ onBeforeUnmount(() => {
   padding: 15px 16px;
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.28)),
-    rgba(15, 23, 42, 0.03);
-  border: 1px solid rgba(15, 23, 42, 0.05);
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-card) 96%, transparent) 0%,
+      color-mix(in srgb, var(--bg-panel) 92%, transparent) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--divider-soft) 88%, transparent);
 }
 
 .runtime-meta-item span {
@@ -915,8 +923,13 @@ onBeforeUnmount(() => {
   overflow: auto;
   padding: 14px 16px;
   border-radius: 16px;
-  background: rgba(15, 23, 42, 0.05);
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-input) 94%, transparent) 0%,
+      color-mix(in srgb, var(--bg-card) 88%, transparent) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--divider-soft) 86%, transparent);
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.55;

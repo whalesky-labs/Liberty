@@ -12,6 +12,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager};
+use zip::ZipArchive;
 
 static RUNTIME_INSTALLING: AtomicBool = AtomicBool::new(false);
 const RUNTIME_MANIFEST_JSON: &str = include_str!("../resources/runtime-manifest.json");
@@ -39,6 +40,9 @@ struct PlatformRuntime {
     platform_id: String,
     python_archive: DownloadAsset,
     python_executable_candidates: Vec<String>,
+    ffmpeg_archive: Option<DownloadAsset>,
+    #[serde(default)]
+    ffmpeg_executable_candidates: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -53,6 +57,7 @@ pub struct ResolvedPythonRuntime {
     pub python_path: String,
     pub source_label: String,
     pub models_root: Option<String>,
+    pub ffmpeg_path: Option<String>,
 }
 
 #[tauri::command]
@@ -117,10 +122,17 @@ pub fn resolve_python_runtime(
             .clone()
             .filter(|value| Path::new(value).is_file())
         {
+            let ffmpeg_path = runtime_state
+                .install_root
+                .as_deref()
+                .and_then(|value| resolve_managed_ffmpeg_path(Path::new(value)).ok())
+                .flatten()
+                .map(|value| value.to_string_lossy().into_owned());
             return Ok(ResolvedPythonRuntime {
                 python_path: path,
                 source_label: "managed Liberty runtime".into(),
                 models_root: runtime_state.models_root.clone(),
+                ffmpeg_path,
             });
         }
     }
@@ -132,6 +144,7 @@ pub fn resolve_python_runtime(
                 python_path: manual.to_string(),
                 source_label: "manual Python path".into(),
                 models_root: None,
+                ffmpeg_path: None,
             });
         }
 
@@ -163,6 +176,7 @@ fn detect_runtime_state(app: &AppHandle) -> LocalResult<ManagedRuntimeState> {
     }
 
     if state.status == "ready" {
+        let platform = current_platform_manifest(&manifest)?;
         let python_missing = state
             .python_executable_path
             .as_deref()
@@ -175,8 +189,18 @@ fn detect_runtime_state(app: &AppHandle) -> LocalResult<ManagedRuntimeState> {
             .map(Path::new)
             .map(|path| !path.is_dir())
             .unwrap_or(true);
+        let ffmpeg_missing = if platform.ffmpeg_archive.is_some() {
+            state
+                .install_root
+                .as_deref()
+                .and_then(|value| resolve_managed_ffmpeg_path(Path::new(value)).ok())
+                .flatten()
+                .is_none()
+        } else {
+            false
+        };
 
-        if python_missing || models_missing {
+        if python_missing || models_missing || ffmpeg_missing {
             state.status = "repair_required".into();
             state.last_error = Some("本地运行环境不完整，请重新安装。".into());
             changed = true;
@@ -206,11 +230,19 @@ fn perform_runtime_install(app: &AppHandle) -> LocalResult<()> {
     let runtime_root = runtime_platform_root(app, &platform_id)?;
     let downloads_root = runtime_root.join("downloads");
     let python_root = runtime_root.join("python");
+    let ffmpeg_root = runtime_root.join("ffmpeg");
     let models_root = runtime_root.join("models");
     let log_path = runtime_log_path(app, &platform_id)?;
     let manifest_path = runtime_root.join("manifest.json");
 
-    reset_runtime_workspace(&runtime_root, &downloads_root, &python_root, &models_root, &manifest_path)?;
+    reset_runtime_workspace(
+        &runtime_root,
+        &downloads_root,
+        &python_root,
+        &ffmpeg_root,
+        &models_root,
+        &manifest_path,
+    )?;
     append_install_log_line(
         &log_path,
         &format!(
@@ -229,6 +261,21 @@ fn perform_runtime_install(app: &AppHandle) -> LocalResult<()> {
         &log_path,
         &format!("[runtime] resolved python={}", python_executable.display()),
     )?;
+
+    if let Some(ffmpeg_archive) = &platform.ffmpeg_archive {
+        let ffmpeg_archive_path = downloads_root.join("ffmpeg-runtime.zip");
+        download_with_fallback(ffmpeg_archive, &ffmpeg_archive_path, &log_path)?;
+        verify_sha256(&ffmpeg_archive_path, &ffmpeg_archive.sha256, &log_path)?;
+        extract_zip(&ffmpeg_archive_path, &ffmpeg_root, &log_path)?;
+        if let Some(ffmpeg_executable) = resolve_ffmpeg_executable(&runtime_root, &platform) {
+            append_install_log_line(
+                &log_path,
+                &format!("[runtime] resolved ffmpeg={}", ffmpeg_executable.display()),
+            )?;
+        } else {
+            return Err("未找到托管运行环境中的 ffmpeg 可执行文件。".into());
+        }
+    }
 
     let requirements_path = resolve_script_resource_path(app, "runtime_requirements.txt")?;
     let warmup_path = resolve_script_resource_path(app, "runtime_warmup.py")?;
@@ -495,12 +542,13 @@ fn reset_runtime_workspace(
     runtime_root: &Path,
     downloads_root: &Path,
     python_root: &Path,
+    ffmpeg_root: &Path,
     models_root: &Path,
     manifest_path: &Path,
 ) -> LocalResult<()> {
     fs::create_dir_all(runtime_root).map_err(|err| err.to_string())?;
 
-    for path in [downloads_root, python_root, models_root] {
+    for path in [downloads_root, python_root, ffmpeg_root, models_root] {
         if path.exists() {
             fs::remove_dir_all(path).map_err(|err| err.to_string())?;
         }
@@ -657,6 +705,36 @@ fn verify_sha256(path: &Path, expected: &str, log_path: &Path) -> LocalResult<()
     Err(format!("运行时资源校验失败，期望 {expected}，实际 {digest}。"))
 }
 
+fn extract_zip(archive_path: &Path, destination: &Path, log_path: &Path) -> LocalResult<()> {
+    append_install_log_line(log_path, "[runtime] extracting ffmpeg archive")?;
+    fs::create_dir_all(destination).map_err(|err| err.to_string())?;
+    let archive_file = File::open(archive_path).map_err(|err| err.to_string())?;
+    let mut archive = ZipArchive::new(archive_file).map_err(|err| err.to_string())?;
+
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).map_err(|err| err.to_string())?;
+        let Some(entry_name) = entry.enclosed_name().map(|value| value.to_path_buf()) else {
+            continue;
+        };
+        let output_path = destination.join(entry_name);
+
+        if entry.name().ends_with('/') {
+            fs::create_dir_all(&output_path).map_err(|err| err.to_string())?;
+            continue;
+        }
+
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+        }
+
+        let mut output = File::create(&output_path).map_err(|err| err.to_string())?;
+        std::io::copy(&mut entry, &mut output).map_err(|err| err.to_string())?;
+        output.flush().map_err(|err| err.to_string())?;
+    }
+
+    Ok(())
+}
+
 fn extract_tar_gz(archive_path: &Path, destination: &Path, log_path: &Path) -> LocalResult<()> {
     append_install_log_line(log_path, "[runtime] extracting python runtime archive")?;
     let archive_file = File::open(archive_path).map_err(|err| err.to_string())?;
@@ -674,6 +752,23 @@ fn resolve_python_executable(runtime_root: &Path, platform: &PlatformRuntime) ->
     }
 
     Err("未找到托管运行环境中的 Python 可执行文件。".into())
+}
+
+fn resolve_ffmpeg_executable(runtime_root: &Path, platform: &PlatformRuntime) -> Option<PathBuf> {
+    for candidate in &platform.ffmpeg_executable_candidates {
+        let path = runtime_root.join(candidate);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+
+    None
+}
+
+fn resolve_managed_ffmpeg_path(runtime_root: &Path) -> LocalResult<Option<PathBuf>> {
+    let manifest = load_manifest()?;
+    let platform = current_platform_manifest(&manifest)?;
+    Ok(resolve_ffmpeg_executable(runtime_root, &platform))
 }
 
 fn resolve_script_resource_path(app: &AppHandle, file_name: &str) -> LocalResult<PathBuf> {

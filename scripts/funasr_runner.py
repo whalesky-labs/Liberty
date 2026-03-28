@@ -4,8 +4,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
+import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
 from typing import Optional
 
@@ -135,6 +138,53 @@ def build_model(auto_model_cls, wants_speaker: bool) -> tuple[object, str]:
     raise RuntimeError("FunASR 模型初始化失败。")
 
 
+def resolve_ffmpeg_binary() -> Optional[str]:
+    configured = str(os.getenv("LIBERTY_FFMPEG_PATH", "") or "").strip()
+    if configured and Path(configured).exists():
+        return configured
+
+    return shutil.which("ffmpeg")
+
+
+def prepare_input_media(job_dir: Path, input_path: Path) -> Path:
+    suffix = input_path.suffix.lower()
+    if suffix == ".wav":
+        return input_path
+
+    ffmpeg_binary = resolve_ffmpeg_binary()
+    if not ffmpeg_binary:
+        raise RuntimeError("当前文件需要 ffmpeg 进行音频解码，但本地运行环境中未找到 ffmpeg。")
+
+    prepared_path = job_dir / "prepared-input.wav"
+    if prepared_path.exists():
+        prepared_path.unlink()
+
+    log(f"Preparing media via ffmpeg: {input_path.name} -> {prepared_path.name}")
+    subprocess.run(
+        [
+            ffmpeg_binary,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(input_path),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            str(prepared_path),
+        ],
+        check=True,
+    )
+
+    if not prepared_path.exists():
+        raise RuntimeError("ffmpeg 已执行，但未生成可用的 wav 文件。")
+
+    return prepared_path
+
+
 def extract_segments(result: dict, with_speaker: bool) -> tuple[list[dict], list[dict]]:
     transcript_segments: list[dict] = []
     speaker_segments: list[dict] = []
@@ -200,6 +250,9 @@ def main():
         write_progress(job_dir, "failed", "输入文件不存在。", "输入文件不存在。")
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
+    write_progress(job_dir, "transcribing", "正在准备音频文件。")
+    prepared_input = prepare_input_media(job_dir, input_path)
+
     write_progress(job_dir, "transcribing", "正在加载本地 FunASR 模型。")
 
     try:
@@ -220,7 +273,7 @@ def main():
 
     write_progress(job_dir, "transcribing", "正在进行本地转写。")
     result = model.generate(
-        input=str(input_path),
+        input=str(prepared_input),
         batch_size_s=batch_size_s,
         hotword=args.hotwords or None,
     )
@@ -255,7 +308,8 @@ if __name__ == "__main__":
             current_job_dir = Path(sys.argv[sys.argv.index("--job-dir") + 1])
         main()
     except Exception as error:
+        failure_message = f"{error.__class__.__name__}: {error}"
         if current_job_dir is not None:
-            write_progress(current_job_dir, "failed", str(error), str(error))
-        sys.stderr.write(f"{error}\n")
+            write_progress(current_job_dir, "failed", failure_message, failure_message)
+        traceback.print_exc()
         sys.exit(1)

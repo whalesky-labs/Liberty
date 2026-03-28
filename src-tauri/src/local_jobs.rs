@@ -3,8 +3,9 @@ use crate::local_db::{
     update_job_process_log, update_job_statuses, AppSettings, MeetingJob, MeetingSourceFile,
     MeetingSummary, TranscriptSegment,
 };
+use serde::Deserialize;
 use crate::local_runtime;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{
     fs::{self, OpenOptions},
     io::Write,
@@ -40,6 +41,14 @@ struct RunnerResult {
     duration_minutes: Option<u32>,
     transcript_segments: Option<Vec<TranscriptSegment>>,
     speaker_segments: Option<Vec<TranscriptSegment>>,
+    failure_reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProgressSnapshot {
+    stage: String,
+    status_message: Option<String>,
     failure_reason: Option<String>,
 }
 
@@ -156,12 +165,16 @@ fn execute_local_job(app: &AppHandle, job_id: &str) -> LocalResult<()> {
     append_process_log_line(
         &dir,
         &format!(
-            "[runner] source={}, device={}, threads={}, batch_size_s={}, speaker={}",
+            "[runner] source={}, device={}, threads={}, batch_size_s={}, speaker={}, ffmpeg={}",
             resolved_runtime.source_label,
             normalize_local_asr_device(&settings),
             runtime_threads,
             settings.local_asr_batch_size_seconds,
-            if job.enable_speaker { "true" } else { "false" }
+            if job.enable_speaker { "true" } else { "false" },
+            resolved_runtime
+                .ffmpeg_path
+                .as_deref()
+                .unwrap_or("not-configured")
         ),
     )?;
     sync_process_log(app, job_id, &dir)?;
@@ -189,6 +202,10 @@ fn execute_local_job(app: &AppHandle, job_id: &str) -> LocalResult<()> {
         .arg("--hotwords")
         .arg(job.hotwords.join(","));
 
+    if let Some(ffmpeg_path) = resolved_runtime.ffmpeg_path.as_deref() {
+        command.env("LIBERTY_FFMPEG_PATH", ffmpeg_path);
+    }
+
     if let Some(models_root) = resolved_runtime.models_root.as_deref() {
         command
             .env("MODELSCOPE_CACHE", Path::new(models_root).join("modelscope"))
@@ -206,8 +223,9 @@ fn execute_local_job(app: &AppHandle, job_id: &str) -> LocalResult<()> {
 
     if !output.status.success() {
         let code = output.status.code().unwrap_or(-1);
-        let detailed =
-            summarize_process_log(&dir).unwrap_or_else(|| format!("本地 Python 处理失败，退出码 {code}。"));
+        let detailed = read_runner_failure_reason(&dir)
+            .or_else(|| summarize_process_log(&dir, 12))
+            .unwrap_or_else(|| format!("本地 Python 处理失败，退出码 {code}。"));
         return Err(detailed);
     }
 
@@ -416,7 +434,9 @@ fn sync_process_log(app: &AppHandle, job_id: &str, job_dir: &Path) -> LocalResul
 fn mark_failed(app: &AppHandle, job_id: &str, reason: &str) -> LocalResult<()> {
     let dir = job_dir(app, job_id)?;
     sync_process_log(app, job_id, &dir)?;
-    let detailed_reason = summarize_process_log(&dir).unwrap_or_else(|| reason.to_string());
+    let detailed_reason = read_runner_failure_reason(&dir)
+        .or_else(|| summarize_process_log(&dir, 12))
+        .unwrap_or_else(|| reason.to_string());
     let job = local_db::get_job(app, job_id)?;
     let processing_finished_at_ms = unix_timestamp_millis() as u64;
     let processing_duration_seconds = job.processing_started_at_ms.map(|started_at| {
@@ -465,7 +485,24 @@ fn read_runner_result(job_dir: &Path) -> LocalResult<RunnerResult> {
     serde_json::from_slice(&bytes).map_err(|err| err.to_string())
 }
 
-fn summarize_process_log(job_dir: &Path) -> Option<String> {
+fn read_progress_snapshot(job_dir: &Path) -> Option<ProgressSnapshot> {
+    let bytes = fs::read(job_dir.join("progress.json")).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+fn read_runner_failure_reason(job_dir: &Path) -> Option<String> {
+    let progress = read_progress_snapshot(job_dir)?;
+    if progress.stage != "failed" {
+      return None;
+    }
+
+    progress
+        .failure_reason
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| progress.status_message.filter(|value| !value.trim().is_empty()))
+}
+
+fn summarize_process_log(job_dir: &Path, max_lines: usize) -> Option<String> {
     let log = fs::read_to_string(job_dir.join("process.log")).ok()?;
     let lines: Vec<&str> = log.lines().filter(|line| !line.trim().is_empty()).collect();
 
@@ -473,7 +510,12 @@ fn summarize_process_log(job_dir: &Path) -> Option<String> {
         return None;
     }
 
-    let tail = lines.iter().rev().take(3).copied().collect::<Vec<_>>();
+    let tail = lines
+        .iter()
+        .rev()
+        .take(max_lines)
+        .copied()
+        .collect::<Vec<_>>();
     Some(tail.into_iter().rev().collect::<Vec<_>>().join("\n"))
 }
 

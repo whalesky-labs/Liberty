@@ -1,5 +1,5 @@
 {
-  "runtimeVersion": "2026.03.27-py39.25",
+  "runtimeVersion": "2026.03.28-py39.25-ffmpeg1",
   "pythonVersion": "3.9.25",
   "pipIndexes": [
     {
@@ -52,6 +52,17 @@
       "pythonExecutableCandidates": [
         "python/python.exe",
         "python/python3.exe"
+      ],
+      "ffmpegArchive": {
+        "sha256": "2504f7cbfe8ad8c95beaec715683fe0fc9a913bdef37321e2ded8aa7dd5ea80b",
+        "urls": [
+          "https://gh-proxy.com/https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-01-14-13-00/ffmpeg-master-latest-win64-gpl-shared.zip",
+          "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-01-14-13-00/ffmpeg-master-latest-win64-gpl-shared.zip"
+        ]
+      },
+      "ffmpegExecutableCandidates": [
+        "ffmpeg/ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe",
+        "ffmpeg/bin/ffmpeg.exe"
       ]
     }
   ],
