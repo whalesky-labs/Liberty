@@ -8,7 +8,8 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, ExitStatus, Stdio},
+    sync::mpsc,
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -387,23 +388,67 @@ fn run_command_with_log(
     description: &str,
 ) -> LocalResult<()> {
     append_install_log_line(log_path, &format!("[runtime] {description}"))?;
-    let output = command.output().map_err(|err| err.to_string())?;
+    command
+        .env("PYTHONUNBUFFERED", "1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
-    if !output.stdout.is_empty() {
-        append_install_log(log_path, &output.stdout)?;
-    }
-    if !output.stderr.is_empty() {
-        append_install_log(log_path, &output.stderr)?;
-    }
+    let mut child = command.spawn().map_err(|err| err.to_string())?;
+    let status = stream_command_output(log_path, &mut child)?;
 
-    if output.status.success() {
+    if status.success() {
         return Ok(());
     }
 
     Err(format!(
         "{description} 失败，退出码 {}。",
-        output.status.code().unwrap_or(-1)
+        status.code().unwrap_or(-1)
     ))
+}
+
+fn stream_command_output(
+    log_path: &Path,
+    child: &mut std::process::Child,
+) -> LocalResult<ExitStatus> {
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "运行时安装进程未返回 stdout 管道。".to_string())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "运行时安装进程未返回 stderr 管道。".to_string())?;
+    let (tx, rx) = mpsc::channel::<Vec<u8>>();
+
+    spawn_install_log_reader(stdout, tx.clone());
+    spawn_install_log_reader(stderr, tx.clone());
+    drop(tx);
+
+    while let Ok(chunk) = rx.recv() {
+        append_install_log(log_path, &chunk)?;
+    }
+
+    child.wait().map_err(|err| err.to_string())
+}
+
+fn spawn_install_log_reader<R>(mut stream: R, tx: mpsc::Sender<Vec<u8>>)
+where
+    R: Read + Send + 'static,
+{
+    std::thread::spawn(move || {
+        let mut buffer = [0u8; 4096];
+        loop {
+            match stream.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(read) => {
+                    if tx.send(buffer[..read].to_vec()).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
 }
 
 fn warmup_default_models(
