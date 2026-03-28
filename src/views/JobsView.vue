@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -9,6 +10,9 @@ const store = useMeetingStore();
 const deletingJobId = ref<string | null>(null);
 const messages = computed(() => getMessages(store.settings.value.locale).jobs);
 const commonMessages = computed(() => getMessages(store.settings.value.locale).common);
+const shouldWarnModelDownloadRequired = computed(() =>
+  !store.settings.value.backendUrl.trim() && store.runtimeStatus.value.status !== "ready",
+);
 
 const sortedJobs = computed(() =>
   [...store.jobs.value].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
@@ -58,6 +62,18 @@ async function deleteJob(jobId: string) {
   } finally {
     deletingJobId.value = null;
   }
+}
+
+async function retryJob(jobId: string) {
+  if (shouldWarnModelDownloadRequired.value) {
+    await message(commonMessages.value.modelUnavailableMessage, {
+      title: commonMessages.value.modelUnavailableTitle,
+      kind: "warning",
+    });
+    return;
+  }
+
+  await store.retryJob(jobId);
 }
 
 function formatCreatedAt(value: string) {
@@ -197,7 +213,7 @@ function formatProcessingDuration(seconds?: number) {
               v-if="job.overallStatus === 'failed'"
               class="secondary-button small-button"
               type="button"
-              @click="store.retryJob(job.id)"
+              @click="retryJob(job.id)"
             >
               {{ commonMessages.retry }}
             </button>

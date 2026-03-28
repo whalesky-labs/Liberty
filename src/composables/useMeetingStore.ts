@@ -91,6 +91,10 @@ function hasManualPythonOverride(settings: SettingsState) {
   return Boolean(settings.pythonPath.trim());
 }
 
+function shouldUseLocalDataSource(settings: SettingsState) {
+  return !settings.backendUrl.trim();
+}
+
 function isManagedRuntimeReady(runtimeStatus: ManagedRuntimeStatus) {
   return runtimeStatus.status === "ready" && Boolean(runtimeStatus.pythonExecutablePath?.trim());
 }
@@ -123,7 +127,7 @@ function syncLocalPolling() {
     return;
   }
 
-  const shouldPoll = isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(state.settings);
+  const shouldPoll = shouldUseLocalDataSource(state.settings);
 
   if (shouldPoll && localPollingId === null) {
     localPollingId = window.setInterval(() => {
@@ -183,7 +187,7 @@ async function ensureSettingsLoaded(force = false) {
     syncRuntimePolling();
     maybeStartRuntimeAutoInstall();
 
-    if (isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(state.settings)) {
+    if (shouldUseLocalDataSource(state.settings)) {
       await refreshLocalJobs();
     }
   })().finally(() => {
@@ -215,7 +219,7 @@ async function refreshRuntimeStatus() {
   syncRuntimePolling();
   maybeStartRuntimeAutoInstall();
 
-  if (isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(state.settings)) {
+  if (shouldUseLocalDataSource(state.settings)) {
     await refreshLocalJobs();
   }
 
@@ -273,7 +277,7 @@ export function useMeetingStore() {
   async function refreshJobs() {
     await ensureSettingsLoaded();
 
-    if (localMode.value) {
+    if (shouldUseLocalDataSource(state.settings)) {
       state.jobs = await createLocalMeetingService().listJobs();
       return state.jobs;
     }
@@ -293,7 +297,7 @@ export function useMeetingStore() {
   async function refreshJobRuns(id: string) {
     await ensureSettingsLoaded();
 
-    if (!localMode.value) {
+    if (!shouldUseLocalDataSource(state.settings)) {
       return;
     }
 
@@ -432,7 +436,7 @@ export function useMeetingStore() {
     runtimeAutoInstallAttempted = hasManualPythonOverride(normalized) || Boolean(normalized.backendUrl.trim());
     maybeStartRuntimeAutoInstall();
 
-    if (isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(normalized)) {
+    if (shouldUseLocalDataSource(normalized)) {
       await refreshLocalJobs();
     }
   }

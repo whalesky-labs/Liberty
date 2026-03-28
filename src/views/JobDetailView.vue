@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message } from "@tauri-apps/plugin-dialog";
 import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -12,6 +13,9 @@ const store = useMeetingStore();
 const messages = computed(() => getMessages(store.settings.value.locale).jobDetail);
 const commonMessages = computed(() => getMessages(store.settings.value.locale).common);
 const statusMessages = computed(() => getMessages(store.settings.value.locale).status);
+const shouldWarnModelDownloadRequired = computed(() =>
+  !store.settings.value.backendUrl.trim() && store.runtimeStatus.value.status !== "ready",
+);
 
 const job = computed(() => store.getJobById(route.params.id as string));
 
@@ -174,6 +178,18 @@ function classifyLogLine(line: string) {
 
   return "info";
 }
+
+async function retryJob(jobId: string) {
+  if (shouldWarnModelDownloadRequired.value) {
+    await message(commonMessages.value.modelUnavailableMessage, {
+      title: commonMessages.value.modelUnavailableTitle,
+      kind: "warning",
+    });
+    return;
+  }
+
+  await store.retryJob(jobId);
+}
 </script>
 
 <template>
@@ -216,7 +232,7 @@ function classifyLogLine(line: string) {
               v-if="job.overallStatus === 'failed'"
               class="secondary-button"
               type="button"
-              @click="store.retryJob(job.id)"
+              @click="retryJob(job.id)"
             >
               {{ messages.retryJob }}
             </button>

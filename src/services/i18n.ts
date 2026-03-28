@@ -33,6 +33,8 @@ type MessageTree = {
     choose: string;
     noData: string;
     dash: string;
+    modelUnavailableTitle: string;
+    modelUnavailableMessage: string;
   };
   shell: {
     slogan: string;
@@ -461,6 +463,8 @@ const messages: Record<LocaleCode, MessageTree> = {
       choose: "请选择",
       noData: "暂无数据",
       dash: "—",
+      modelUnavailableTitle: "当前无可用模型",
+      modelUnavailableMessage: "当前无可用模型，请前往设置页面下载模型。",
     },
     shell: {
       slogan: "一半烟火以谋生，一半诗意以谋爱。",
@@ -905,6 +909,8 @@ const messages: Record<LocaleCode, MessageTree> = {
       choose: "Please choose",
       noData: "No data",
       dash: "—",
+      modelUnavailableTitle: "No Models Available",
+      modelUnavailableMessage: "No model is currently available. Please go to Settings and download the models first.",
     },
     shell: {
       slogan: "Half for making a living, half for keeping poetry alive.",

@@ -167,8 +167,8 @@ async function submit() {
   }
 
   if (shouldWarnModelDownloadRequired.value) {
-    await message(messages.value.modelDownloadRequiredMessage, {
-      title: messages.value.modelDownloadRequiredTitle,
+    await message(commonMessages.value.modelUnavailableMessage, {
+      title: commonMessages.value.modelUnavailableTitle,
       kind: "warning",
     });
     return;
