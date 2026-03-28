@@ -50,6 +50,9 @@ const localRuntimeService = createLocalRuntimeService();
 const localSettingsService = createLocalSettingsService();
 let localPollingId: number | null = null;
 let settingsLoadPromise: Promise<void> | null = null;
+let runtimePollingId: number | null = null;
+let runtimeInstallPromise: Promise<ManagedRuntimeStatus> | null = null;
+let runtimeAutoInstallAttempted = false;
 
 function normalizeSettings(settings?: Partial<SettingsState> | null): SettingsState {
   const merged = {
@@ -92,6 +95,21 @@ function isManagedRuntimeReady(runtimeStatus: ManagedRuntimeStatus) {
   return runtimeStatus.status === "ready" && Boolean(runtimeStatus.pythonExecutablePath?.trim());
 }
 
+function shouldAutoInstallManagedRuntime(
+  settings: SettingsState,
+  runtimeStatus: ManagedRuntimeStatus,
+) {
+  if (settings.backendUrl.trim()) {
+    return false;
+  }
+
+  if (hasManualPythonOverride(settings)) {
+    return false;
+  }
+
+  return runtimeStatus.status === "missing" || runtimeStatus.status === "repair_required";
+}
+
 async function refreshLocalJobs() {
   try {
     state.jobs = await createLocalMeetingService().listJobs();
@@ -120,6 +138,27 @@ function syncLocalPolling() {
   }
 }
 
+function syncRuntimePolling() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const shouldPoll = state.runtimeStatus.status === "installing";
+
+  if (shouldPoll && runtimePollingId === null) {
+    runtimePollingId = window.setInterval(() => {
+      void refreshRuntimeStatus();
+      void refreshRuntimeInstallLog();
+    }, 1500);
+    return;
+  }
+
+  if (!shouldPoll && runtimePollingId !== null) {
+    window.clearInterval(runtimePollingId);
+    runtimePollingId = null;
+  }
+}
+
 async function ensureSettingsLoaded(force = false) {
   if (state.settingsLoaded && !force) {
     return;
@@ -138,10 +177,11 @@ async function ensureSettingsLoaded(force = false) {
     }
 
     await refreshRuntimeStatus();
-
     state.settingsLoaded = true;
     applyAppearance(state.settings);
     syncLocalPolling();
+    syncRuntimePolling();
+    maybeStartRuntimeAutoInstall();
 
     if (isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(state.settings)) {
       await refreshLocalJobs();
@@ -172,6 +212,8 @@ async function refreshRuntimeStatus() {
   }
 
   syncLocalPolling();
+  syncRuntimePolling();
+  maybeStartRuntimeAutoInstall();
 
   if (isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(state.settings)) {
     await refreshLocalJobs();
@@ -188,6 +230,29 @@ async function refreshRuntimeInstallLog() {
   }
 
   return state.runtimeInstallLog;
+}
+
+function maybeStartRuntimeAutoInstall() {
+  if (!state.settingsLoaded) {
+    return;
+  }
+
+  if (runtimeAutoInstallAttempted) {
+    return;
+  }
+
+  if (!shouldAutoInstallManagedRuntime(state.settings, state.runtimeStatus)) {
+    return;
+  }
+
+  runtimeAutoInstallAttempted = true;
+  void installManagedRuntime().catch(() => {
+    runtimeAutoInstallAttempted = false;
+  });
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
 }
 
 void ensureSettingsLoaded();
@@ -244,6 +309,10 @@ export function useMeetingStore() {
   async function createJob(input: NewMeetingJobInput) {
     await ensureSettingsLoaded();
 
+    if (!localMode.value && !api.value) {
+      await ensureManagedRuntimeReadyForLocalWork();
+    }
+
     if (localMode.value) {
       const firstFile = input.files[0];
 
@@ -274,6 +343,10 @@ export function useMeetingStore() {
 
     if (!job) {
       return;
+    }
+
+    if (!localMode.value && !api.value) {
+      await ensureManagedRuntimeReadyForLocalWork();
     }
 
     if (localMode.value) {
@@ -355,6 +428,9 @@ export function useMeetingStore() {
     applyAppearance(normalized);
     await localSettingsService.saveSettings(normalized);
     syncLocalPolling();
+    syncRuntimePolling();
+    runtimeAutoInstallAttempted = hasManualPythonOverride(normalized) || Boolean(normalized.backendUrl.trim());
+    maybeStartRuntimeAutoInstall();
 
     if (isManagedRuntimeReady(state.runtimeStatus) || hasManualPythonOverride(normalized)) {
       await refreshLocalJobs();
@@ -363,10 +439,48 @@ export function useMeetingStore() {
 
   async function installManagedRuntime() {
     await ensureSettingsLoaded();
-    state.runtimeStatus = await localRuntimeService.install();
-    await refreshRuntimeInstallLog();
-    syncLocalPolling();
-    return state.runtimeStatus;
+
+    if (runtimeInstallPromise) {
+      return runtimeInstallPromise;
+    }
+
+    runtimeInstallPromise = (async () => {
+      state.runtimeStatus = await localRuntimeService.install();
+      await refreshRuntimeInstallLog();
+      syncLocalPolling();
+      syncRuntimePolling();
+      return state.runtimeStatus;
+    })().finally(() => {
+      runtimeInstallPromise = null;
+    });
+
+    return runtimeInstallPromise;
+  }
+
+  async function ensureManagedRuntimeReadyForLocalWork() {
+    if (api.value || hasManualPythonOverride(state.settings)) {
+      return;
+    }
+
+    const timeoutAt = Date.now() + 10 * 60 * 1000;
+
+    if (state.runtimeStatus.status === "missing" || state.runtimeStatus.status === "repair_required") {
+      runtimeAutoInstallAttempted = true;
+      await installManagedRuntime();
+    }
+
+    while (!isManagedRuntimeReady(state.runtimeStatus)) {
+      if (state.runtimeStatus.status === "failed") {
+        throw new Error(state.runtimeStatus.lastError || "本地运行环境自动安装失败。");
+      }
+
+      if (Date.now() > timeoutAt) {
+        throw new Error("等待本地运行环境就绪超时，请稍后重试。");
+      }
+
+      await sleep(1500);
+      await refreshRuntimeStatus();
+    }
   }
 
   function getJobById(id: string) {

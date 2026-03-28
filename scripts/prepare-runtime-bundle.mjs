@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import process from "node:process";
 
 if (process.env.LIBERTY_RUNTIME_BUNDLE_READY === "1") {
@@ -8,7 +9,18 @@ if (process.env.LIBERTY_RUNTIME_BUNDLE_READY === "1") {
 
 const platformId = resolvePlatformId();
 const outputDir = `runtime-bundles/${platformId}`;
+const ifMissingOnly = process.argv.includes("--if-missing");
 const scriptPath = "scripts/prepare_runtime_bundle.py";
+const expectedFiles = [
+  `${outputDir}/python-runtime.tar.gz`,
+  `${outputDir}/ffmpeg-runtime.tar.gz`,
+  `${outputDir}/models-runtime.tar.gz`,
+];
+
+if (ifMissingOnly && expectedFiles.every((filePath) => existsSync(filePath))) {
+  console.log(`[prepare-runtime-bundle] skip, ${platformId} bundle already exists.`);
+  process.exit(0);
+}
 
 const pythonLaunchers = process.platform === "win32"
   ? [
