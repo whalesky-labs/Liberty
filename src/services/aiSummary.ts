@@ -5,6 +5,7 @@ import type {
   AiSummaryResult,
   AiSummaryTemplate,
   MeetingJob,
+  MeetingMember,
   TranscriptSegment,
 } from "@/types/meeting";
 import { normalizeSummaryResult } from "@/services/aiStorage";
@@ -16,6 +17,8 @@ interface GenerateAiSummaryInput {
   template: AiSummaryTemplate;
   includeSpeaker: boolean;
   includeTimestamp: boolean;
+  useMemberMapping?: boolean;
+  members?: MeetingMember[];
   extraInstructions: string;
 }
 
@@ -79,6 +82,8 @@ export function buildSummaryPromptPreview({
   template,
   includeSpeaker,
   includeTimestamp,
+  useMemberMapping,
+  members,
   extraInstructions,
 }: Omit<GenerateAiSummaryInput, "model">) {
   const { aiSummary, common } = getCurrentMessages();
@@ -92,7 +97,24 @@ export function buildSummaryPromptPreview({
     `Hotwords: ${job.hotwords.join(", ") || common.none}`,
     `Include speaker info: ${includeSpeaker ? "yes" : "no"}`,
     `Include timestamps: ${includeTimestamp ? "yes" : "no"}`,
+    `Use member mapping: ${useMemberMapping ? "yes" : "no"}`,
     `Extra instructions: ${extraInstructions.trim() || common.none}`,
+    ...(useMemberMapping
+      ? [
+          "",
+          "Member directory mapping:",
+          ...(members?.length
+            ? members
+                .sort((left, right) => left.sortOrder - right.sortOrder)
+                .map(
+                  (member) =>
+                    `- ${member.name} | department=${member.department || "未设置"} | sortOrder=${member.sortOrder} | recorder=${member.isRecorder ? "yes" : "no"}`,
+                )
+            : ["- No member directory records available."]),
+          "",
+          "When the transcript already contains speaker names, keep those names exactly as they appear and use the member directory only to补充部门、排序相关上下文，不要改写姓名。",
+        ]
+      : []),
     "",
     "Please output JSON based on the following meeting content:",
     transcript || aiSummary.transcriptMissing,

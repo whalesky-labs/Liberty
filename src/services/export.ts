@@ -1,10 +1,11 @@
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentMessages } from "@/services/i18n";
 import type { MeetingJob } from "@/types/meeting";
 import { getPrimaryTranscriptSegments } from "@/services/transcript";
 
-export type ExportKind = "transcript" | "notes" | "bundle";
+export type ExportKind = "transcript" | "notes" | "bundle" | "word";
 
 function timestamp(ms: number): string {
   const date = new Date(ms);
@@ -56,6 +57,14 @@ function makeBundle(job: MeetingJob): string {
 }
 
 export function buildExportPayload(job: MeetingJob, kind: ExportKind) {
+  if (kind === "word") {
+    return {
+      ext: "docx",
+      content: "",
+      fileName: `${job.title}-meeting-minutes.docx`,
+    };
+  }
+
   if (kind === "transcript") {
     return {
       ext: "txt",
@@ -82,21 +91,29 @@ export function buildExportPayload(job: MeetingJob, kind: ExportKind) {
 export async function exportJob(job: MeetingJob, kind: ExportKind) {
   const payload = buildExportPayload(job, kind);
 
-  try {
-    const filePath = await save({
-      defaultPath: payload.fileName,
-      filters: [
-        {
-          name: payload.ext.toUpperCase(),
-          extensions: [payload.ext],
-        },
-      ],
+  const filePath = await save({
+    defaultPath: payload.fileName,
+    filters: [
+      {
+        name: payload.ext.toUpperCase(),
+        extensions: [payload.ext],
+      },
+    ],
+  });
+
+  if (!filePath) {
+    return false;
+  }
+
+  if (kind === "word") {
+    await invoke("export_job_summary_docx", {
+      jobId: job.id,
+      filePath,
     });
+    return true;
+  }
 
-    if (!filePath) {
-      return false;
-    }
-
+  try {
     await writeTextFile(filePath, payload.content);
     return true;
   } catch {

@@ -77,6 +77,21 @@ export interface AiSummaryTemplate {
   updatedAt: string;
 }
 
+export interface MeetingMember {
+  id: string;
+  name: string;
+  department: string;
+  sortOrder: number;
+  isRecorder: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MeetingMemberImportResult {
+  created: number;
+  updated: number;
+}
+
 export interface AiSummaryRun {
   id: string;
   jobId: string;
@@ -170,4 +185,9 @@ export interface ManagedRuntimeStatus {
   installedAt?: string;
   updatedAt: string;
   lastLogPath?: string;
+}
+
+export interface ProcessMetrics {
+  cpuPercent: number;
+  memoryMb: number;
 }

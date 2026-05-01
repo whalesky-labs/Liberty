@@ -68,7 +68,7 @@ const activeTemplateName = computed(() =>
   activeSummaryRun.value ? aiStore.getTemplateById(activeSummaryRun.value.templateId)?.name : "",
 );
 
-async function doExport(kind: "transcript" | "notes" | "bundle") {
+async function doExport(kind: "transcript" | "notes" | "bundle" | "word") {
   if (!job.value) {
     return;
   }
@@ -178,6 +178,9 @@ async function renameSpeaker(fromSpeaker: string, toSpeaker: string) {
           </button>
           <button class="secondary-button" type="button" @click="doExport('notes')">
             {{ messages.exportNotes }}
+          </button>
+          <button class="secondary-button" type="button" @click="doExport('word')">
+            {{ messages.exportWord }}
           </button>
         </div>
 

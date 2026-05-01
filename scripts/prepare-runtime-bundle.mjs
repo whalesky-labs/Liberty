@@ -35,6 +35,7 @@ const pythonLaunchers = process.platform === "win32"
 const launcher = pythonLaunchers.find((candidate) => {
   const result = spawnSync(candidate.command, [...candidate.args, "--version"], {
     stdio: "ignore",
+    windowsHide: true,
   });
   return result.status === 0;
 });
@@ -56,6 +57,7 @@ const result = spawnSync(
   ],
   {
     stdio: "inherit",
+    windowsHide: true,
   },
 );
 

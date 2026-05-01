@@ -94,3 +94,27 @@ export async function openTemplateEditorWindow(templateId?: string) {
 
   return window;
 }
+
+export async function openMemberEditorWindow(memberId?: string) {
+  const label = "member-editor";
+  const existing = await WebviewWindow.getByLabel(label);
+  const messages = getCurrentMessages().windows;
+
+  if (existing) {
+    await existing.close();
+  }
+
+  const query = memberId ? `?id=${encodeURIComponent(memberId)}` : "";
+  const window = new WebviewWindow(label, {
+    title: memberId ? messages.editMember : messages.newMember,
+    url: `/member-editor${query}`,
+    width: 760,
+    height: 680,
+    minWidth: 640,
+    minHeight: 560,
+    resizable: true,
+    center: true,
+  });
+
+  return window;
+}

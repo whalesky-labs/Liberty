@@ -22,7 +22,7 @@ const defaultSettings: SettingsState = {
   backendUrl: "",
   apiToken: "",
   defaultHotwords: "SeACo-Paraformer, FunASR, 会议纪要",
-  summaryTemplate: "默认会议纪要模板",
+  summaryTemplate: "表格版会议纪要",
   concurrency: 2,
   pythonPath: "",
   runnerScriptPath: "",
@@ -71,7 +71,10 @@ function normalizeSettings(settings?: Partial<SettingsState> | null): SettingsSt
     backendUrl: merged.backendUrl.trim(),
     apiToken: merged.apiToken.trim(),
     defaultHotwords: merged.defaultHotwords.trim() || defaultSettings.defaultHotwords,
-    summaryTemplate: merged.summaryTemplate.trim() || defaultSettings.summaryTemplate,
+    summaryTemplate:
+      merged.summaryTemplate.trim() === "默认会议纪要模板"
+        ? defaultSettings.summaryTemplate
+        : merged.summaryTemplate.trim() || defaultSettings.summaryTemplate,
     concurrency: Math.min(8, Math.max(1, Number(merged.concurrency) || defaultSettings.concurrency)),
     pythonPath: merged.pythonPath.trim(),
     runnerScriptPath: merged.runnerScriptPath.trim(),

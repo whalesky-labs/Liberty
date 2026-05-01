@@ -40,6 +40,12 @@ const router = createRouter({
       meta: { title: "模板管理", titleKey: "templates" },
     },
     {
+      path: "/members",
+      name: "members",
+      component: () => import("@/views/MemberManagementView.vue"),
+      meta: { title: "人员管理", titleKey: "members" },
+    },
+    {
       path: "/ai-summary",
       name: "ai-summary",
       component: () => import("@/views/AiSummaryView.vue"),
@@ -68,6 +74,12 @@ const router = createRouter({
       name: "settings",
       component: () => import("@/views/SettingsView.vue"),
       meta: { title: "系统设置", titleKey: "settings" },
+    },
+    {
+      path: "/member-editor",
+      name: "member-editor",
+      component: () => import("@/views/MemberEditorView.vue"),
+      meta: { title: "人员编辑", standalone: true },
     },
   ],
 });

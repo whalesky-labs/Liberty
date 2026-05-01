@@ -1,4 +1,5 @@
 .DS_Store
+._*
 node_modules/
 dist/
 .vite/
@@ -6,7 +7,10 @@ dist/
 .venv310/
 .venv311/
 .venv39/
+artifacts/.docx-venv/
+artifacts/*-render/
 src-tauri/target/
+src-tauri/target-check/
 __pycache__/
 *.pyc
 runtime-bundles/*

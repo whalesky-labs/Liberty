@@ -155,77 +155,79 @@ function formatProcessingDuration(seconds?: number) {
         </div>
       </div>
 
-      <div class="jobs-table">
-        <div class="jobs-table-head">
-          <span>{{ messages.colTask }}</span>
-          <span>{{ messages.colFileInfo }}</span>
-          <span>{{ messages.colProcessingTime }}</span>
-          <span>{{ messages.colCreatedAt }}</span>
-          <span>{{ messages.colStatus }}</span>
-          <span>{{ messages.colActions }}</span>
-        </div>
+      <div class="jobs-table-scroll">
+        <div class="jobs-table">
+          <div class="jobs-table-head">
+            <span>{{ messages.colTask }}</span>
+            <span>{{ messages.colFileInfo }}</span>
+            <span>{{ messages.colProcessingTime }}</span>
+            <span>{{ messages.colCreatedAt }}</span>
+            <span>{{ messages.colStatus }}</span>
+            <span>{{ messages.colActions }}</span>
+          </div>
 
-        <div v-for="job in sortedJobs" :key="job.id" class="jobs-row">
-          <div class="jobs-primary">
-            <strong>{{ job.title }}</strong>
-            <div class="job-meta-line">
-              {{ job.sourceFiles.map((file) => file.name).join(" · ") }}
+          <div v-for="job in sortedJobs" :key="job.id" class="jobs-row">
+            <div class="jobs-primary">
+              <strong>{{ job.title }}</strong>
+              <div class="job-meta-line">
+                {{ job.sourceFiles.map((file) => file.name).join(" · ") }}
+              </div>
             </div>
-          </div>
 
-          <div class="jobs-cell">
-            <strong>{{ formatMessage(messages.filesCount, { count: job.sourceFiles.length }) }}</strong>
-            <div class="job-meta-line">
-              {{ formatMessage(messages.fileDuration, { duration: formatFileDuration(job.durationMinutes) }) }}
+            <div class="jobs-cell">
+              <strong>{{ formatMessage(messages.filesCount, { count: job.sourceFiles.length }) }}</strong>
+              <div class="job-meta-line">
+                {{ formatMessage(messages.fileDuration, { duration: formatFileDuration(job.durationMinutes) }) }}
+              </div>
+              <div class="job-meta-line">
+                {{ job.enableSpeaker ? messages.diarizationEnabled : messages.transcriptOnly }}
+              </div>
             </div>
-            <div class="job-meta-line">
-              {{ job.enableSpeaker ? messages.diarizationEnabled : messages.transcriptOnly }}
+
+            <div class="jobs-cell">
+              <strong>{{ formatProcessingDuration(job.processingDurationSeconds) }}</strong>
+              <div class="job-meta-line">
+                {{ job.overallStatus === "completed" ? messages.processCompleted : job.overallStatus === "failed" ? messages.processFailed : messages.processRunning }}
+              </div>
             </div>
-          </div>
 
-          <div class="jobs-cell">
-            <strong>{{ formatProcessingDuration(job.processingDurationSeconds) }}</strong>
-            <div class="job-meta-line">
-              {{ job.overallStatus === "completed" ? messages.processCompleted : job.overallStatus === "failed" ? messages.processFailed : messages.processRunning }}
+            <div class="jobs-cell">
+              {{ formatCreatedAt(job.createdAt) }}
             </div>
-          </div>
 
-          <div class="jobs-cell">
-            {{ formatCreatedAt(job.createdAt) }}
-          </div>
+            <div class="jobs-cell">
+              <StatusBadge :status="job.overallStatus" />
+            </div>
 
-          <div class="jobs-cell">
-            <StatusBadge :status="job.overallStatus" />
-          </div>
-
-          <div class="jobs-actions">
-            <RouterLink class="text-button" :to="`/jobs/${job.id}`">
-              {{ messages.details }}
-            </RouterLink>
-            <RouterLink
-              v-if="job.overallStatus === 'completed'"
-              class="primary-button small-button"
-              :to="`/jobs/${job.id}/workbench`"
-            >
-              {{ messages.workbench }}
-            </RouterLink>
-            <button
-              v-if="job.overallStatus === 'failed'"
-              class="secondary-button small-button"
-              type="button"
-              @click="retryJob(job.id)"
-            >
-              {{ commonMessages.retry }}
-            </button>
-            <button
-              class="text-button small-button jobs-delete-button"
-              type="button"
-              :disabled="isDeleteDisabled(job.overallStatus) || isDeleting(job.id)"
-              :title="isDeleteDisabled(job.overallStatus) ? messages.deleteDisabled : messages.deleteAction"
-              @click="deleteJob(job.id)"
-            >
-              {{ isDeleting(job.id) ? messages.deleting : commonMessages.delete }}
-            </button>
+            <div class="jobs-actions">
+              <RouterLink class="text-button" :to="`/jobs/${job.id}`">
+                {{ messages.details }}
+              </RouterLink>
+              <RouterLink
+                v-if="job.overallStatus === 'completed'"
+                class="primary-button small-button"
+                :to="`/jobs/${job.id}/workbench`"
+              >
+                {{ messages.workbench }}
+              </RouterLink>
+              <button
+                v-if="job.overallStatus === 'failed'"
+                class="secondary-button small-button"
+                type="button"
+                @click="retryJob(job.id)"
+              >
+                {{ commonMessages.retry }}
+              </button>
+              <button
+                class="text-button small-button jobs-delete-button"
+                type="button"
+                :disabled="isDeleteDisabled(job.overallStatus) || isDeleting(job.id)"
+                :title="isDeleteDisabled(job.overallStatus) ? messages.deleteDisabled : messages.deleteAction"
+                @click="deleteJob(job.id)"
+              >
+                {{ isDeleting(job.id) ? messages.deleting : commonMessages.delete }}
+              </button>
+            </div>
           </div>
         </div>
       </div>

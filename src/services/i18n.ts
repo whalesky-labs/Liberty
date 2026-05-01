@@ -6,6 +6,7 @@ type MessageTree = {
     jobs: string;
     models: string;
     templates: string;
+    members: string;
     settings: string;
   };
   routeTitles: Record<string, string>;
@@ -26,6 +27,8 @@ type MessageTree = {
     save: string;
     cancel: string;
     delete: string;
+    import: string;
+    export: string;
     remove: string;
     retry: string;
     open: string;
@@ -51,6 +54,9 @@ type MessageTree = {
     github: string;
     jobCompletedTitle: string;
     jobCompletedBody: string;
+    cpu: string;
+    memory: string;
+    graphics: string;
   };
   settings: {
     pageTitle: string;
@@ -266,6 +272,7 @@ type MessageTree = {
     exporting: string;
     exportTranscript: string;
     exportNotes: string;
+    exportWord: string;
     transcriptCount: string;
     summaryCount: string;
     currentTemplate: string;
@@ -313,6 +320,7 @@ type MessageTree = {
     chooseTemplate: string;
     includeSpeaker: string;
     includeTimestamp: string;
+    useMemberMapping: string;
     extraInstructions: string;
     extraInstructionsPlaceholder: string;
     submit: string;
@@ -388,6 +396,36 @@ type MessageTree = {
     save: string;
     reset: string;
   };
+  members: {
+    title: string;
+    copy: string;
+    add: string;
+    total: string;
+    recorder: string;
+    listTitle: string;
+    empty: string;
+    emptyDepartment: string;
+    deleteConfirm: string;
+    deleteTitle: string;
+    validationName: string;
+    validationSortOrder: string;
+    formCreateTitle: string;
+    formEditTitle: string;
+    name: string;
+    namePlaceholder: string;
+    department: string;
+    departmentPlaceholder: string;
+    sortOrder: string;
+    sortOrderPlaceholder: string;
+    recorderSwitch: string;
+    recorderTag: string;
+    normalTag: string;
+    importHint: string;
+    importSuccess: string;
+    exportSuccess: string;
+    save: string;
+    reset: string;
+  };
   notes: {
     summary: string;
     emptySummary: string;
@@ -417,6 +455,8 @@ type MessageTree = {
     newModel: string;
     editTemplate: string;
     newTemplate: string;
+    editMember: string;
+    newMember: string;
   };
 };
 
@@ -427,6 +467,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       jobs: "任务列表",
       models: "模型管理",
       templates: "模板管理",
+      members: "人员管理",
       settings: "系统设置",
     },
     routeTitles: {
@@ -436,6 +477,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       workbench: "结果工作台",
       models: "模型管理",
       templates: "模板管理",
+      members: "人员管理",
       aiSummary: "AI 总结",
       settings: "系统设置",
     },
@@ -456,6 +498,8 @@ const messages: Record<LocaleCode, MessageTree> = {
       save: "保存",
       cancel: "取消",
       delete: "删除",
+      import: "导入",
+      export: "导出",
       remove: "移除",
       retry: "重试",
       open: "打开",
@@ -481,6 +525,9 @@ const messages: Record<LocaleCode, MessageTree> = {
       github: "项目 GitHub",
       jobCompletedTitle: "会议任务处理完成",
       jobCompletedBody: "“{title}” 已处理完成，可以前往结果工作台查看。",
+      cpu: "CPU",
+      memory: "内存",
+      graphics: "图形",
     },
     settings: {
       pageTitle: "系统设置",
@@ -556,7 +603,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       defaultHotwordsPlaceholder: "使用英文逗号分隔，例如：SeACo-Paraformer, FunASR, 会议纪要",
       defaultSummaryTemplate: "默认纪要模板",
       defaultSummaryTemplateHint: "新建会议任务时的默认模板名称，只影响初始填充值。",
-      defaultSummaryTemplatePlaceholder: "例如：默认会议纪要模板",
+      defaultSummaryTemplatePlaceholder: "例如：表格版会议纪要",
       concurrency: "并发上传数",
       concurrencyHint: "用于控制桌面端任务处理的默认并发度，建议保持在 1 到 8 之间。",
       localAsrThreads: "本地线程数",
@@ -595,7 +642,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       failed: "失败",
     },
     newJob: {
-      defaultSummaryTemplateName: "默认会议纪要模板",
+      defaultSummaryTemplateName: "表格版会议纪要",
       localPython: "本地 Python",
       remoteService: "在线服务",
       envMissing: "未配置环境",
@@ -714,6 +761,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       exporting: "导出中...",
       exportTranscript: "导出逐字稿",
       exportNotes: "导出纪要",
+      exportWord: "导出 Word",
       transcriptCount: "逐字稿 {count} 段",
       summaryCount: "AI 总结 {count} 次",
       currentTemplate: "当前模板 {name}",
@@ -761,6 +809,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       chooseTemplate: "请选择模板",
       includeSpeaker: "包含说话人",
       includeTimestamp: "包含时间戳",
+      useMemberMapping: "使用人员管理映射",
       extraInstructions: "补充要求",
       extraInstructionsPlaceholder: "例如：重点关注风险项和负责人，输出适合直接发飞书。",
       submit: "生成总结",
@@ -836,6 +885,38 @@ const messages: Record<LocaleCode, MessageTree> = {
       save: "保存模板",
       reset: "新建空模板",
     },
+    members: {
+      title: "人员管理",
+      copy: "统一维护人员名单、部门、排序和默认会议记录人。",
+      add: "新增人员",
+      total: "全部人员",
+      recorder: "会议记录人",
+      listTitle: "人员列表",
+      empty: "还没有人员记录。",
+      emptyDepartment: "未设置部门",
+      deleteConfirm: "确认删除人员“{name}”吗？",
+      deleteTitle: "删除人员",
+      validationName: "姓名不能为空。",
+      validationSortOrder: "排序必须是整数。",
+      formCreateTitle: "新增人员",
+      formEditTitle: "编辑人员",
+      name: "姓名",
+      namePlaceholder: "输入姓名",
+      department: "部门",
+      departmentPlaceholder: "输入部门名称",
+      sortOrder: "排序",
+      sortOrderPlaceholder: "例如：10",
+      recorderSwitch: "设为会议记录人",
+      recorderTag: "会议记录人",
+      normalTag: "普通人员",
+      importHint: "导入按姓名匹配更新其他字段，不会自动删除现有人员。",
+      importSuccess: "导入完成：新增 {created} 人，更新 {updated} 人。",
+      exportSuccess: "人员名单已导出到：{path}",
+      editorEditTitle: "编辑人员",
+      editorNewTitle: "新增人员",
+      save: "保存人员",
+      reset: "清空表单",
+    },
     notes: {
       summary: "摘要",
       emptySummary: "当前还没有可用的 AI 总结内容。",
@@ -865,6 +946,8 @@ const messages: Record<LocaleCode, MessageTree> = {
       newModel: "新增模型",
       editTemplate: "编辑模板",
       newTemplate: "新增模板",
+      editMember: "编辑人员",
+      newMember: "新增人员",
     },
   },
   "en-US": {
@@ -873,6 +956,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       jobs: "Jobs",
       models: "Models",
       templates: "Templates",
+      members: "Members",
       settings: "Settings",
     },
     routeTitles: {
@@ -882,6 +966,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       workbench: "Workbench",
       models: "Model Management",
       templates: "Template Management",
+      members: "Member Management",
       aiSummary: "AI Summary",
       settings: "Settings",
     },
@@ -902,6 +987,8 @@ const messages: Record<LocaleCode, MessageTree> = {
       save: "Save",
       cancel: "Cancel",
       delete: "Delete",
+      import: "Import",
+      export: "Export",
       remove: "Remove",
       retry: "Retry",
       open: "Open",
@@ -927,6 +1014,9 @@ const messages: Record<LocaleCode, MessageTree> = {
       github: "Project GitHub",
       jobCompletedTitle: "Meeting job completed",
       jobCompletedBody: "\"{title}\" has finished processing. You can review it in the workbench.",
+      cpu: "CPU",
+      memory: "Memory",
+      graphics: "Graphics",
     },
     settings: {
       pageTitle: "Settings",
@@ -1004,7 +1094,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       defaultHotwordsPlaceholder: "Use commas, for example: SeACo-Paraformer, FunASR, meeting notes",
       defaultSummaryTemplate: "Default Summary Template",
       defaultSummaryTemplateHint: "Used as the initial template name when creating a new meeting job.",
-      defaultSummaryTemplatePlaceholder: "Example: Default Meeting Notes Template",
+      defaultSummaryTemplatePlaceholder: "Example: Formal Meeting Minutes",
       concurrency: "Concurrent Uploads",
       concurrencyHint: "Controls the default desktop processing concurrency. Keep it between 1 and 8.",
       localAsrThreads: "Local Threads",
@@ -1043,7 +1133,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       failed: "Failed",
     },
     newJob: {
-      defaultSummaryTemplateName: "Default Meeting Notes Template",
+      defaultSummaryTemplateName: "Formal Meeting Minutes",
       localPython: "Local Python",
       remoteService: "Online Service",
       envMissing: "Environment Not Configured",
@@ -1162,6 +1252,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       exporting: "Exporting...",
       exportTranscript: "Export Transcript",
       exportNotes: "Export Notes",
+      exportWord: "Export Word",
       transcriptCount: "Transcript {count}",
       summaryCount: "AI Summaries {count}",
       currentTemplate: "Template {name}",
@@ -1209,6 +1300,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       chooseTemplate: "Choose a template",
       includeSpeaker: "Include speaker",
       includeTimestamp: "Include timestamp",
+      useMemberMapping: "Use member mapping",
       extraInstructions: "Extra Instructions",
       extraInstructionsPlaceholder: "Example: Focus on risks and owners, and make the output suitable for posting to Feishu.",
       submit: "Generate Summary",
@@ -1284,6 +1376,38 @@ const messages: Record<LocaleCode, MessageTree> = {
       save: "Save Template",
       reset: "New Empty Template",
     },
+    members: {
+      title: "Member Management",
+      copy: "Maintain roster records, department, order, and the default meeting recorder.",
+      add: "Add Member",
+      total: "Total Members",
+      recorder: "Recorder",
+      listTitle: "Member List",
+      empty: "No members yet.",
+      emptyDepartment: "No department",
+      deleteConfirm: "Delete member \"{name}\"?",
+      deleteTitle: "Delete Member",
+      validationName: "Name is required.",
+      validationSortOrder: "Sort order must be an integer.",
+      formCreateTitle: "Add Member",
+      formEditTitle: "Edit Member",
+      name: "Name",
+      namePlaceholder: "Enter a name",
+      department: "Department",
+      departmentPlaceholder: "Enter a department",
+      sortOrder: "Sort Order",
+      sortOrderPlaceholder: "Example: 10",
+      recorderSwitch: "Use as meeting recorder",
+      recorderTag: "Recorder",
+      normalTag: "Member",
+      importHint: "Import updates existing rows by name and does not delete members not listed in Excel.",
+      importSuccess: "Import finished: {created} created, {updated} updated.",
+      exportSuccess: "Member list exported to: {path}",
+      editorEditTitle: "Edit Member",
+      editorNewTitle: "Add Member",
+      save: "Save Member",
+      reset: "Reset Form",
+    },
     notes: {
       summary: "Overview",
       emptySummary: "No AI summary content is available yet.",
@@ -1313,6 +1437,8 @@ const messages: Record<LocaleCode, MessageTree> = {
       newModel: "Add Model",
       editTemplate: "Edit Template",
       newTemplate: "Add Template",
+      editMember: "Edit Member",
+      newMember: "Add Member",
     },
   },
 };

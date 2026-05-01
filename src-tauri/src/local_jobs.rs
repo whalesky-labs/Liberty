@@ -3,8 +3,9 @@ use crate::local_db::{
     update_job_process_log, update_job_statuses, AppSettings, MeetingJob, MeetingSourceFile,
     MeetingSummary, TranscriptSegment,
 };
-use serde::Deserialize;
 use crate::local_runtime;
+use crate::process_utils::configure_background_process;
+use serde::Deserialize;
 use serde::Serialize;
 use std::{
     fs::{self, OpenOptions},
@@ -218,6 +219,7 @@ fn execute_local_job(app: &AppHandle, job_id: &str) -> LocalResult<()> {
             .env("TORCH_HOME", Path::new(models_root).join("torch"));
     }
 
+    configure_background_process(&mut command);
     let mut child = command
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -290,9 +292,12 @@ fn validate_runtime_tools_for_job(
         .ok_or_else(|| "当前文件需要 ffmpeg 进行音频解码，但本地运行环境中未找到 ffmpeg。".to_string())?;
 
     append_process_log_line(job_dir, &format!("[runner] validating ffmpeg={ffmpeg}"))?;
-    let output = Command::new(ffmpeg)
+    let mut command = Command::new(ffmpeg);
+    command
         .arg("-hide_banner")
-        .arg("-version")
+        .arg("-version");
+    configure_background_process(&mut command);
+    let output = command
         .output()
         .map_err(|err| {
             format!(

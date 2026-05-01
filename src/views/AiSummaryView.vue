@@ -8,6 +8,7 @@ import StatusBadge from "@/components/StatusBadge.vue";
 import { useAiStore } from "@/composables/useAiStore";
 import { useMeetingStore } from "@/composables/useMeetingStore";
 import { formatMessage, getMessages } from "@/services/i18n";
+import { createLocalMembersService } from "@/services/localMembers";
 import {
   buildSummaryRun,
   createEmptyMeetingSummary,
@@ -15,11 +16,12 @@ import {
 } from "@/services/aiStorage";
 import { buildSummaryPromptPreview, generateAiSummary } from "@/services/aiSummary";
 import { getPrimaryTranscriptSegments } from "@/services/transcript";
-import type { AiSummaryRun, JobStage } from "@/types/meeting";
+import type { AiSummaryRun, JobStage, MeetingMember } from "@/types/meeting";
 
 const route = useRoute();
 const aiStore = useAiStore();
 const meetingStore = useMeetingStore();
+const membersService = createLocalMembersService();
 const messages = computed(() => getMessages(meetingStore.settings.value.locale).aiSummary);
 const commonMessages = computed(() => getMessages(meetingStore.settings.value.locale).common);
 
@@ -37,9 +39,11 @@ const selectedTemplateId = ref("");
 const selectedRunId = ref("");
 const includeSpeaker = ref(true);
 const includeTimestamp = ref(true);
+const useMemberMapping = ref(true);
 const extraInstructions = ref("");
 const submitting = ref(false);
 const errorMessage = ref("");
+const members = ref<MeetingMember[]>([]);
 
 const selectedModel = computed(() => aiStore.getModelById(selectedModelId.value));
 const selectedTemplate = computed(() => aiStore.getTemplateById(selectedTemplateId.value));
@@ -181,6 +185,7 @@ onMounted(() => {
   void (async () => {
     await aiStore.ensureLoaded();
     await meetingStore.refreshJobs();
+    members.value = await membersService.listMembers();
     await reconcileStaleRuns();
   })();
 });
@@ -235,6 +240,8 @@ async function submit() {
     template: selectedTemplate.value,
     includeSpeaker: includeSpeaker.value,
     includeTimestamp: includeTimestamp.value,
+    useMemberMapping: useMemberMapping.value,
+    members: members.value,
     extraInstructions: extraInstructions.value.trim(),
   });
 
@@ -259,6 +266,8 @@ async function submit() {
       template: selectedTemplate.value,
       includeSpeaker: includeSpeaker.value,
       includeTimestamp: includeTimestamp.value,
+      useMemberMapping: useMemberMapping.value,
+      members: members.value,
       extraInstructions: extraInstructions.value.trim(),
     });
 
@@ -399,6 +408,13 @@ function formatCreatedAt(value: string) {
               <label class="toggle-field">
                 <input v-model="includeTimestamp" type="checkbox" />
                 <span>{{ messages.includeTimestamp }}</span>
+              </label>
+            </div>
+
+            <div class="field-grid two-col">
+              <label class="toggle-field">
+                <input v-model="useMemberMapping" type="checkbox" />
+                <span>{{ messages.useMemberMapping }}</span>
               </label>
             </div>
 

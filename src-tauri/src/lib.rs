@@ -1,8 +1,11 @@
 mod local_ai;
 mod local_db;
+mod local_export;
 mod local_jobs;
+mod local_members;
 mod local_runtime;
 mod local_settings;
+mod process_utils;
 mod system;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -22,6 +25,7 @@ pub fn run() {
             local_ai::save_ai_summary_run,
             local_ai::save_ai_template,
             local_ai::set_active_ai_summary_run,
+            local_export::export_job_summary_docx,
             local_jobs::create_job,
             local_jobs::delete_job,
             local_jobs::get_job,
@@ -29,11 +33,17 @@ pub fn run() {
             local_jobs::list_jobs,
             local_jobs::rename_job_speaker,
             local_jobs::retry_job,
+            local_members::delete_meeting_member,
+            local_members::export_meeting_members_excel,
+            local_members::import_meeting_members_excel,
+            local_members::list_meeting_members,
+            local_members::save_meeting_member,
             local_runtime::get_runtime_install_log,
             local_runtime::get_runtime_status,
             local_runtime::install_runtime,
             local_settings::get_settings,
             local_settings::save_settings,
+            system::get_process_metrics,
             system::open_external_url
         ])
         .run(tauri::generate_context!())

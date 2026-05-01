@@ -1,4 +1,5 @@
 use crate::local_db::{self, LocalResult, ManagedRuntimeState};
+use crate::process_utils::configure_background_process;
 use chrono::Utc;
 use flate2::read::GzDecoder;
 use sevenz_rust2::decompress_file;
@@ -395,6 +396,7 @@ fn run_command_with_log(
         .env("PYTHONUNBUFFERED", "1")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    configure_background_process(command);
 
     let mut child = command.spawn().map_err(|err| err.to_string())?;
     let status = stream_command_output(log_path, &mut child)?;

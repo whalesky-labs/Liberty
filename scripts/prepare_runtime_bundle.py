@@ -5,13 +5,17 @@ import argparse
 import gzip
 import os
 import shutil
+import ssl
 import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
+
+WINDOWS_NO_WINDOW = 0x08000000
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,18 +65,68 @@ def run(cmd: list[str], env: dict[str, str] | None = None) -> None:
     merged_env = os.environ.copy()
     if env:
         merged_env.update(env)
-    subprocess.run(cmd, check=True, env=merged_env)
+    kwargs = {"check": True, "env": merged_env}
+    if os.name == "nt":
+        kwargs["creationflags"] = WINDOWS_NO_WINDOW
+    subprocess.run(cmd, **kwargs)
 
 
-def download(url: str, destination: Path) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    log(f"downloading {url}")
-    request = urllib.request.Request(
-        url,
-        headers={"User-Agent": "Liberty Runtime Bundler/1.0"},
+def download_with_curl(url: str, destination: Path) -> None:
+    curl_path = shutil.which("curl")
+    if curl_path is None:
+        raise FileNotFoundError("curl is not available")
+
+    run(
+        [
+            curl_path,
+            "--fail",
+            "--location",
+            "--silent",
+            "--show-error",
+            "--retry",
+            "3",
+            "--retry-all-errors",
+            "--output",
+            str(destination),
+            url,
+        ]
     )
-    with urllib.request.urlopen(request) as response, destination.open("wb") as output:
-        shutil.copyfileobj(response, output, length=1024 * 1024)
+
+
+def download(url: str, destination: Path, retries: int = 3) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_destination = destination.with_suffix(destination.suffix + ".part")
+    if temp_destination.exists():
+        temp_destination.unlink()
+
+    last_error: Exception | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            log(f"downloading {url} (attempt {attempt}/{retries})")
+            request = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Liberty Runtime Bundler/1.0"},
+            )
+            with urllib.request.urlopen(request, timeout=120) as response, temp_destination.open("wb") as output:
+                shutil.copyfileobj(response, output, length=1024 * 1024)
+            temp_destination.replace(destination)
+            return
+        except Exception as error:
+            last_error = error
+            if temp_destination.exists():
+                temp_destination.unlink()
+            log(f"download failed: {error}")
+            if attempt < retries:
+                time.sleep(min(attempt * 2, 5))
+
+    should_try_curl = isinstance(last_error, ssl.SSLError) or "SSL:" in str(last_error)
+    if should_try_curl:
+        log("falling back to curl after SSL download failure")
+        download_with_curl(url, temp_destination)
+        temp_destination.replace(destination)
+        return
+
+    raise last_error if last_error is not None else RuntimeError(f"Unable to download {url}")
 
 
 def extract_tar_gz(archive_path: Path, destination: Path) -> None:

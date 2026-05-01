@@ -9,7 +9,7 @@ use tauri::{AppHandle, Manager};
 
 pub type LocalResult<T> = Result<T, String>;
 
-const BUILTIN_TEMPLATE_TIMESTAMP: &str = "2026-03-26T00:00:00.000Z";
+const BUILTIN_TEMPLATE_TIMESTAMP: &str = "2026-04-28T00:00:00.000Z";
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
@@ -104,6 +104,26 @@ pub struct AiSummaryTemplate {
     pub builtin: bool,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MeetingMember {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub department: String,
+    pub sort_order: i64,
+    pub is_recorder: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MeetingMemberImportResult {
+    pub created: usize,
+    pub updated: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -232,7 +252,7 @@ impl Default for AppSettings {
             backend_url: String::new(),
             api_token: String::new(),
             default_hotwords: "SeACo-Paraformer, FunASR, 会议纪要".into(),
-            summary_template: "默认会议纪要模板".into(),
+            summary_template: "表格版会议纪要".into(),
             concurrency: 2,
             python_path: String::new(),
             runner_script_path: String::new(),
@@ -766,6 +786,124 @@ pub fn list_ai_summary_runs(app: &AppHandle, job_id: &str) -> LocalResult<Vec<Ai
     load_summary_runs(&conn, job_id)
 }
 
+pub fn list_meeting_members(app: &AppHandle) -> LocalResult<Vec<MeetingMember>> {
+    init_database(app)?;
+    let conn = open_connection(app)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, name, department, sort_order, is_recorder, created_at, updated_at
+             FROM meeting_members
+             ORDER BY sort_order ASC, datetime(updated_at) DESC, updated_at DESC, name COLLATE NOCASE ASC",
+        )
+        .map_err(|err| err.to_string())?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(MeetingMember {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                department: row.get(2)?,
+                sort_order: row.get(3)?,
+                is_recorder: row.get::<_, i64>(4)? != 0,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+            })
+        })
+        .map_err(|err| err.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
+}
+
+pub fn save_meeting_member(app: &AppHandle, member: &MeetingMember) -> LocalResult<()> {
+    init_database(app)?;
+
+    if member.name.trim().is_empty() {
+        return Err("姓名不能为空。".into());
+    }
+
+    let mut conn = open_connection(app)?;
+    let tx = conn.transaction().map_err(|err| err.to_string())?;
+    save_meeting_member_tx(&tx, member)?;
+    tx.commit().map_err(|err| err.to_string())
+}
+
+pub fn delete_meeting_member(app: &AppHandle, member_id: &str) -> LocalResult<()> {
+    init_database(app)?;
+    let conn = open_connection(app)?;
+    conn.execute("DELETE FROM meeting_members WHERE id = ?1", params![member_id])
+        .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+pub fn import_meeting_members(app: &AppHandle, members: &[MeetingMember]) -> LocalResult<MeetingMemberImportResult> {
+    init_database(app)?;
+
+    let mut conn = open_connection(app)?;
+    let tx = conn.transaction().map_err(|err| err.to_string())?;
+    let mut stmt = tx
+        .prepare("SELECT id, name, created_at FROM meeting_members")
+        .map_err(|err| err.to_string())?;
+
+    let existing_rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .map_err(|err| err.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())?;
+    drop(stmt);
+
+    let mut existing_by_name = std::collections::HashMap::new();
+    for (id, name, created_at) in existing_rows {
+        existing_by_name.insert(name.trim().to_string(), (id, created_at));
+    }
+
+    let mut created = 0usize;
+    let mut updated = 0usize;
+
+    for (index, member) in members.iter().enumerate() {
+        let normalized_name = member.name.trim().to_string();
+        let (id, created_at, is_update) = match existing_by_name.get(&normalized_name) {
+            Some((existing_id, existing_created_at)) => {
+                (existing_id.clone(), existing_created_at.clone(), true)
+            }
+            None => (
+                format!("member-{}-{index}", unix_timestamp_millis()),
+                member.created_at.clone(),
+                false,
+            ),
+        };
+
+        let next_member = MeetingMember {
+            id,
+            name: normalized_name.clone(),
+            department: member.department.trim().to_string(),
+            sort_order: member.sort_order,
+            is_recorder: member.is_recorder,
+            created_at,
+            updated_at: member.updated_at.clone(),
+        };
+
+        save_meeting_member_tx(&tx, &next_member)?;
+        existing_by_name.insert(normalized_name, (next_member.id.clone(), next_member.created_at.clone()));
+
+        if is_update {
+            updated += 1;
+        } else {
+            created += 1;
+        }
+    }
+
+    tx.commit().map_err(|err| err.to_string())?;
+
+    Ok(MeetingMemberImportResult { created, updated })
+}
+
 pub fn save_ai_summary_run(app: &AppHandle, run: &AiSummaryRun) -> LocalResult<()> {
     init_database(app)?;
     let conn = open_connection(app)?;
@@ -1022,10 +1160,21 @@ fn apply_schema(conn: &Connection) -> LocalResult<()> {
           FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS meeting_members (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          department TEXT NOT NULL DEFAULT '',
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          is_recorder INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_job_source_files_job_id ON job_source_files(job_id);
         CREATE INDEX IF NOT EXISTS idx_segments_job_id ON transcript_segments(job_id, segment_type, segment_order);
         CREATE INDEX IF NOT EXISTS idx_ai_runs_job_id ON ai_summary_runs(job_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_meeting_members_sort_order ON meeting_members(sort_order ASC, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_runtime_state_status ON runtime_state(status);
         ",
     )
@@ -1065,19 +1214,18 @@ fn apply_schema(conn: &Connection) -> LocalResult<()> {
 }
 
 fn seed_builtin_templates(conn: &Connection) -> LocalResult<()> {
-    let count = conn
-        .query_row(
-            "SELECT COUNT(*) FROM ai_summary_templates WHERE builtin = 1",
-            [],
-            |row| row.get::<_, i64>(0),
-        )
-        .map_err(|err| err.to_string())?;
-
-    if count > 0 {
-        return Ok(());
-    }
-
     let templates = [
+        AiSummaryTemplate {
+            id: "builtin-formal-meeting-minutes".into(),
+            name: "表格版会议纪要".into(),
+            description: "按正式会议纪要版式整理，适合管理例会、周会和部门汇报。".into(),
+            prompt: "你是资深会议纪要助手。请基于用户提供的会议转写内容输出结构化 JSON，用于生成正式会议纪要。\n\n要求：\n1. 只输出合法 JSON，不要输出 Markdown、解释或额外文本。\n2. 保持客观，不要编造原文中不存在的事实；无法确认的信息写“待补充”或返回空字符串。\n3. 结果字段固定为 title、overview、topics、decisions、actionItems、risks、followUps。\n4. title 填会议名称；若原文无法判断，则使用用户提供的 Meeting title。\n5. overview 必须输出一整段可直接展示的正式会议纪要正文，并严格使用以下固定结构与字段顺序，保留换行：\n会议名称：...\n会议时间：...\n会议地点：...\n记录人：...\n\n出席人员：...\n缺席人员：...\n主要议题：...\n会议主持人：...\n审阅：...\n\n发言内容\n\n【部门】：【姓名】\n上周总结：\n1、...\n2、...\n\n本周计划：\n1、...\n2、...\n\n总结：\n1、...\n2、...\n6. 发言内容必须按发言人分组整理。只要转写内容里已经带有说话人标签，姓名就直接使用该标签，不要改写、合并或重新猜测姓名。部门如果无法从原文判断，可以写“待补充部门”，后续会由人员管理信息补齐。\n7. topics 返回“主要议题”的字符串列表，用于辅助展示；如果 overview 中已经完整写明，也仍然返回数组。\n8. decisions 固定返回空数组，不要输出会议结论内容。\n9. actionItems 固定返回空数组，不要输出待办事项内容。\n10. risks 固定返回空数组，除非用户明确要求额外输出风险信息。\n11. followUps 固定返回空数组，除非用户明确要求额外输出后续跟进信息。".into(),
+            include_speaker_by_default: true,
+            include_timestamp_by_default: false,
+            builtin: true,
+            created_at: BUILTIN_TEMPLATE_TIMESTAMP.into(),
+            updated_at: BUILTIN_TEMPLATE_TIMESTAMP.into(),
+        },
         AiSummaryTemplate {
             id: "builtin-standard-summary".into(),
             name: "标准会议纪要".into(),
@@ -1193,6 +1341,41 @@ fn load_settings(conn: &Connection) -> LocalResult<AppSettings> {
             Ok(settings)
         }
     }
+}
+
+fn save_meeting_member_tx(tx: &Transaction<'_>, member: &MeetingMember) -> LocalResult<()> {
+    if member.is_recorder {
+        tx.execute(
+            "UPDATE meeting_members SET is_recorder = 0, updated_at = ?1 WHERE id <> ?2 AND is_recorder <> 0",
+            params![member.updated_at, member.id],
+        )
+        .map_err(|err| err.to_string())?;
+    }
+
+    tx.execute(
+        "INSERT INTO meeting_members (
+            id, name, department, sort_order, is_recorder, created_at, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            department = excluded.department,
+            sort_order = excluded.sort_order,
+            is_recorder = excluded.is_recorder,
+            created_at = excluded.created_at,
+            updated_at = excluded.updated_at",
+        params![
+            member.id,
+            member.name.trim(),
+            member.department.trim(),
+            member.sort_order,
+            if member.is_recorder { 1 } else { 0 },
+            member.created_at,
+            member.updated_at
+        ],
+    )
+    .map_err(|err| err.to_string())?;
+
+    Ok(())
 }
 
 fn load_runtime_state(

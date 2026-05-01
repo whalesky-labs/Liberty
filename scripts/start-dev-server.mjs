@@ -12,7 +12,8 @@ if (await isPortOpen(host, port)) {
 
 const child = spawn(npmCommand(), ["run", "dev"], {
   stdio: "inherit",
-  shell: process.platform === "win32",
+  shell: false,
+  windowsHide: true,
   env: process.env,
 });
 

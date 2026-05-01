@@ -646,7 +646,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   min-width: 84px;
   padding: 6px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
   font-weight: 600;
   background: color-mix(in srgb, var(--bg-input) 88%, transparent);
@@ -694,7 +694,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 10px;
   padding: 14px 16px;
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   background:
     linear-gradient(180deg,
       color-mix(in srgb, var(--bg-card) 96%, transparent) 0%,
@@ -720,7 +720,7 @@ onBeforeUnmount(() => {
 .runtime-progress-track {
   position: relative;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--bg-input) 92%, var(--text-soft) 8%);
   border: 1px solid color-mix(in srgb, var(--divider-soft) 80%, transparent);
 }
@@ -784,7 +784,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 8px;
   padding: 15px 16px;
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   background:
     linear-gradient(180deg,
       color-mix(in srgb, var(--bg-card) 96%, transparent) 0%,
@@ -830,7 +830,7 @@ onBeforeUnmount(() => {
   max-height: 220px;
   overflow: auto;
   padding: 14px 16px;
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   background:
     linear-gradient(180deg,
       color-mix(in srgb, var(--bg-input) 94%, transparent) 0%,
