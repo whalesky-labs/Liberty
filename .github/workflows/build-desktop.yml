@@ -16,6 +16,15 @@ on:
         required: false
         type: boolean
         default: false
+      version_bump:
+        description: "版本递增方式"
+        required: false
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -24,8 +33,117 @@ permissions:
   contents: read
 
 jobs:
+  prepare_release:
+    name: Prepare Release Version
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.actor != 'github-actions[bot]'
+    permissions:
+      contents: write
+    outputs:
+      release_tag: ${{ steps.version.outputs.tag }}
+      release_version: ${{ steps.version.outputs.version }}
+      target_commit: ${{ steps.version.outputs.target_commit }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Resolve Version
+        id: version
+        shell: bash
+        env:
+          INPUT_CREATE_RELEASE: ${{ inputs.create_release }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
+          INPUT_VERSION_BUMP: ${{ inputs.version_bump }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+            version="${tag#v}"
+            echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+            echo "version=${version}" >> "$GITHUB_OUTPUT"
+            echo "target_commit=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=${INPUT_PRERELEASE:-false}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          current_version="$(node -p "require('./package.json').version")"
+          next_version="${current_version}"
+
+          if [[ "${INPUT_CREATE_RELEASE}" == "true" ]]; then
+            latest_tag="$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+            base_version="${current_version}"
+            if [[ -n "${latest_tag}" ]]; then
+              base_version="${latest_tag#v}"
+            fi
+
+            IFS='.' read -r major minor patch <<< "${base_version}"
+            bump="${INPUT_VERSION_BUMP:-patch}"
+            case "${bump}" in
+              major)
+                major=$((major + 1))
+                minor=0
+                patch=0
+                ;;
+              minor)
+                minor=$((minor + 1))
+                patch=0
+                ;;
+              *)
+                patch=$((patch + 1))
+                ;;
+            esac
+
+            next_version="${major}.${minor}.${patch}"
+
+            NEXT_VERSION="${next_version}" node <<'NODE'
+          const fs = require('fs');
+          const version = process.env.NEXT_VERSION;
+
+          const packageJsonPath = 'package.json';
+          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+          packageJson.version = version;
+          fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+
+          const tauriConfigPath = 'src-tauri/tauri.conf.json';
+          const tauriConfig = JSON.parse(fs.readFileSync(tauriConfigPath, 'utf8'));
+          tauriConfig.version = version;
+          fs.writeFileSync(tauriConfigPath, `${JSON.stringify(tauriConfig, null, 2)}\n`);
+
+          const cargoTomlPath = 'src-tauri/Cargo.toml';
+          const cargoToml = fs.readFileSync(cargoTomlPath, 'utf8');
+          fs.writeFileSync(
+            cargoTomlPath,
+            cargoToml.replace(/^version = ".*"$/m, `version = "${version}"`),
+          );
+          NODE
+
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+            git commit -m "chore: bump version to v${next_version}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+            target_commit="$(git rev-parse HEAD)"
+          else
+            target_commit="${GITHUB_SHA}"
+          fi
+
+          echo "tag=v${next_version}" >> "$GITHUB_OUTPUT"
+          echo "version=${next_version}" >> "$GITHUB_OUTPUT"
+          echo "target_commit=${target_commit}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${INPUT_PRERELEASE:-false}" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build (${{ matrix.name }})
+    needs: prepare_release
+    if: github.event_name == 'workflow_dispatch' || github.actor != 'github-actions[bot]'
     runs-on: ${{ matrix.os }}
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -62,6 +180,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare_release.outputs.target_commit }}
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -123,10 +243,12 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: build
+    needs:
+      - prepare_release
+      - build
     runs-on: ubuntu-latest
     if: >-
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) && github.actor != 'github-actions[bot]') ||
       (github.event_name == 'workflow_dispatch' && inputs.create_release)
     permissions:
       contents: write
@@ -137,49 +259,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve Release Settings
-        id: release
-        shell: bash
-        env:
-          INPUT_PRERELEASE: ${{ inputs.prerelease }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            tag="${GITHUB_REF_NAME}"
-          else
-            version="$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")"
-            tag="v${version}"
-          fi
-
-          if [[ -z "${tag}" ]]; then
-            echo "::error::无法解析发布版本号。"
-            exit 1
-          fi
-
-          if [[ "${tag}" != v* ]]; then
-            echo "::error::发布标签必须以 v 开头，例如 v1.0.0。"
-            exit 1
-          fi
-
-          if ! git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
-            gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
-              -f ref="refs/tags/${tag}" \
-              -f sha="${GITHUB_SHA}" >/dev/null
-          fi
-
-          target_commit="${GITHUB_SHA}"
-          if git rev-parse "${tag}^{commit}" >/dev/null 2>&1; then
-            target_commit="$(git rev-parse "${tag}^{commit}")"
-          fi
-
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "target_commit=${target_commit}" >> "$GITHUB_OUTPUT"
-          echo "prerelease=${INPUT_PRERELEASE:-false}" >> "$GITHUB_OUTPUT"
-
       - name: Download Build Artifacts
         uses: actions/download-artifact@v6
         with:
           path: release-assets
+
+      - name: Ensure Release Tag Exists
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+          TARGET_COMMIT: ${{ needs.prepare_release.outputs.target_commit }}
+        run: |
+          if ! git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${RELEASE_TAG}" \
+              -f sha="${TARGET_COMMIT}" >/dev/null
+          fi
 
       - name: Prepare Release Assets
         id: assets
@@ -210,8 +306,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          TARGET_COMMIT: ${{ steps.release.outputs.target_commit }}
+          RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+          TARGET_COMMIT: ${{ needs.prepare_release.outputs.target_commit }}
         run: |
           gh api \
             --method POST \
@@ -224,8 +320,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          PRERELEASE: ${{ steps.release.outputs.prerelease }}
+          RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+          PRERELEASE: ${{ needs.prepare_release.outputs.prerelease }}
         run: |
           mapfile -t assets < <(find release-upload -maxdepth 1 -type f | sort)
 
