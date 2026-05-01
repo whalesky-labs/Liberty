@@ -17,6 +17,7 @@ pub fn run() {
             local_ai::delete_ai_model,
             local_ai::delete_ai_summary_run,
             local_ai::delete_ai_template,
+            local_ai::generate_ai_summary,
             local_ai::list_ai_models,
             local_ai::list_ai_summary_runs,
             local_ai::list_ai_templates,

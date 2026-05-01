@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { message } from "@tauri-apps/plugin-dialog";
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { useMeetingStore } from "@/composables/useMeetingStore";
@@ -18,6 +18,10 @@ const shouldWarnModelDownloadRequired = computed(() =>
 );
 
 const job = computed(() => store.getJobById(route.params.id as string));
+
+onMounted(() => {
+  void store.refreshJob(route.params.id as string);
+});
 
 const ansiPattern = /\u001b\[[0-9;]*m/g;
 

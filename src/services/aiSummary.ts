@@ -6,10 +6,7 @@ import type {
   AiSummaryTemplate,
   MeetingJob,
   MeetingMember,
-  TranscriptSegment,
 } from "@/types/meeting";
-import { normalizeSummaryResult } from "@/services/aiStorage";
-import { getPrimaryTranscriptSegments } from "@/services/transcript";
 
 interface GenerateAiSummaryInput {
   job: MeetingJob;
@@ -22,145 +19,30 @@ interface GenerateAiSummaryInput {
   extraInstructions: string;
 }
 
-interface OpenAiChatCompletionResponse {
-  choices?: Array<{
-    message?: {
-      content?:
-        | string
-        | Array<{
-            type?: string;
-            text?: string;
-          }>;
-    };
-  }>;
-}
-
-function formatTimestamp(ms: number) {
-  return new Date(ms).toISOString().slice(11, 19);
-}
-
-function formatSegment(
-  segment: TranscriptSegment,
-  includeSpeaker: boolean,
-  includeTimestamp: boolean,
-) {
-  const messages = getCurrentMessages();
-  const parts: string[] = [];
-
-  if (includeTimestamp) {
-    parts.push(`[${formatTimestamp(segment.startMs)} - ${formatTimestamp(segment.endMs)}]`);
-  }
-
-  if (includeSpeaker) {
-    parts.push(`${segment.speaker ?? messages.common.unknownSpeaker}:`);
-  }
-
-  parts.push(segment.text);
-  return parts.join(" ");
-}
-
-function extractResponseText(payload: OpenAiChatCompletionResponse) {
-  const messages = getCurrentMessages();
-  const content = payload.choices?.[0]?.message?.content;
-
-  if (typeof content === "string") {
-    return content.trim();
-  }
-
-  if (Array.isArray(content)) {
-    return content
-      .map((item) => item.text ?? "")
-      .join("")
-      .trim();
-  }
-
-  throw new Error(messages.aiSummary.emptyResponse);
-}
-
-export function buildSummaryPromptPreview({
-  job,
-  template,
-  includeSpeaker,
-  includeTimestamp,
-  useMemberMapping,
-  members,
-  extraInstructions,
-}: Omit<GenerateAiSummaryInput, "model">) {
-  const { aiSummary, common } = getCurrentMessages();
-  const transcript = getPrimaryTranscriptSegments(job)
-    .map((segment) => formatSegment(segment, includeSpeaker, includeTimestamp))
-    .join("\n");
-
-  const userMessage = [
-    `Meeting title: ${job.title}`,
-    `Meeting language: ${job.lang}`,
-    `Hotwords: ${job.hotwords.join(", ") || common.none}`,
-    `Include speaker info: ${includeSpeaker ? "yes" : "no"}`,
-    `Include timestamps: ${includeTimestamp ? "yes" : "no"}`,
-    `Use member mapping: ${useMemberMapping ? "yes" : "no"}`,
-    `Extra instructions: ${extraInstructions.trim() || common.none}`,
-    ...(useMemberMapping
-      ? [
-          "",
-          "Member directory mapping:",
-          ...(members?.length
-            ? members
-                .sort((left, right) => left.sortOrder - right.sortOrder)
-                .map(
-                  (member) =>
-                    `- ${member.name} | department=${member.department || "未设置"} | sortOrder=${member.sortOrder} | recorder=${member.isRecorder ? "yes" : "no"}`,
-                )
-            : ["- No member directory records available."]),
-          "",
-          "When the transcript already contains speaker names, keep those names exactly as they appear and use the member directory only to补充部门、排序相关上下文，不要改写姓名。",
-        ]
-      : []),
-    "",
-    "Please output JSON based on the following meeting content:",
-    transcript || aiSummary.transcriptMissing,
-  ].join("\n");
-
-  return {
-    system: template.prompt.trim(),
-    user: userMessage,
-  };
-}
-
 export async function generateAiSummary(input: GenerateAiSummaryInput) {
   const messages = getCurrentMessages();
-  const { model, job } = input;
-  const promptPreview = buildSummaryPromptPreview(input);
-  const { rawResponse } = await invoke<{ rawResponse: string }>("request_ai_chat_completion", {
-    input: {
-      baseUrl: model.baseUrl,
-      apiKey: model.apiKey,
-      model: model.model,
-      systemPrompt: promptPreview.system,
-      userPrompt: promptPreview.user,
-    },
-  });
-
-  let payload: OpenAiChatCompletionResponse;
 
   try {
-    payload = JSON.parse(rawResponse) as OpenAiChatCompletionResponse;
-  } catch {
-    throw new Error(messages.aiSummary.invalidApiJson);
+    return await invoke<{
+      promptPreview: string;
+      rawResponse: string;
+      result: AiSummaryResult;
+    }>("generate_ai_summary", { input });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message.includes("原始 JSON")) {
+      throw new Error(messages.aiSummary.invalidApiJson);
+    }
+
+    if (message.includes("结构化 JSON")) {
+      throw new Error(messages.aiSummary.invalidStructuredJson);
+    }
+
+    if (message.includes("响应内容为空")) {
+      throw new Error(messages.aiSummary.emptyResponse);
+    }
+
+    throw error;
   }
-
-  const content = extractResponseText(payload);
-
-  let structured: Partial<AiSummaryResult>;
-
-  try {
-    structured = JSON.parse(content) as Partial<AiSummaryResult>;
-  } catch {
-    throw new Error(messages.aiSummary.invalidStructuredJson);
-  }
-
-  return {
-    promptPreview: `${promptPreview.system}\n\n---\n\n${promptPreview.user}`,
-    rawResponse,
-    result: normalizeSummaryResult(structured, job.title),
-  };
 }

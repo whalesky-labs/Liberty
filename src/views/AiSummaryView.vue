@@ -14,7 +14,7 @@ import {
   createEmptyMeetingSummary,
   summaryResultToMeetingSummary,
 } from "@/services/aiStorage";
-import { buildSummaryPromptPreview, generateAiSummary } from "@/services/aiSummary";
+import { generateAiSummary } from "@/services/aiSummary";
 import { getPrimaryTranscriptSegments } from "@/services/transcript";
 import type { AiSummaryRun, JobStage, MeetingMember } from "@/types/meeting";
 
@@ -184,7 +184,7 @@ watch(
 onMounted(() => {
   void (async () => {
     await aiStore.ensureLoaded();
-    await meetingStore.refreshJobs();
+    await meetingStore.refreshJob(jobId.value);
     members.value = await membersService.listMembers();
     await reconcileStaleRuns();
   })();
@@ -235,16 +235,6 @@ async function submit() {
 
   errorMessage.value = "";
   submitting.value = true;
-  const promptPreview = buildSummaryPromptPreview({
-    job: job.value,
-    template: selectedTemplate.value,
-    includeSpeaker: includeSpeaker.value,
-    includeTimestamp: includeTimestamp.value,
-    useMemberMapping: useMemberMapping.value,
-    members: members.value,
-    extraInstructions: extraInstructions.value.trim(),
-  });
-
   const pendingRun = buildSummaryRun({
     jobId: job.value.id,
     modelConfigId: selectedModel.value.id,
@@ -253,7 +243,7 @@ async function submit() {
     includeTimestamp: includeTimestamp.value,
     extraInstructions: extraInstructions.value.trim(),
     status: "running",
-    promptPreview: `${promptPreview.system}\n\n---\n\n${promptPreview.user}`,
+    promptPreview: undefined,
     result: undefined,
   });
 

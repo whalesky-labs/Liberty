@@ -53,6 +53,7 @@ let settingsLoadPromise: Promise<void> | null = null;
 let runtimePollingId: number | null = null;
 let runtimeInstallPromise: Promise<ManagedRuntimeStatus> | null = null;
 let runtimeAutoInstallAttempted = false;
+const hydratedJobIds = new Set<string>();
 
 function normalizeSettings(settings?: Partial<SettingsState> | null): SettingsState {
   const merged = {
@@ -119,10 +120,34 @@ function shouldAutoInstallManagedRuntime(
 
 async function refreshLocalJobs() {
   try {
-    state.jobs = await createLocalMeetingService().listJobs();
+    applyJobListSnapshot(await createLocalMeetingService().listJobs());
   } catch {
     // Keep the last known local state when polling fails.
   }
+}
+
+function mergeJobSnapshot(existing: MeetingJob | undefined, incoming: MeetingJob) {
+  if (!existing || !hydratedJobIds.has(incoming.id)) {
+    return incoming;
+  }
+
+  return {
+    ...existing,
+    ...incoming,
+    transcriptSegments: existing.transcriptSegments,
+    speakerSegments: existing.speakerSegments,
+    summaryRuns: existing.summaryRuns,
+    processLog: existing.processLog,
+    pythonPath: existing.pythonPath,
+    runnerScriptPath: existing.runnerScriptPath,
+    summary: existing.summary,
+    activeSummaryRunId: existing.activeSummaryRunId,
+  } satisfies MeetingJob;
+}
+
+function applyJobListSnapshot(incomingJobs: MeetingJob[]) {
+  const existingById = new Map(state.jobs.map((job) => [job.id, job]));
+  state.jobs = incomingJobs.map((job) => mergeJobSnapshot(existingById.get(job.id), job));
 }
 
 function syncLocalPolling() {
@@ -222,10 +247,6 @@ async function refreshRuntimeStatus() {
   syncRuntimePolling();
   maybeStartRuntimeAutoInstall();
 
-  if (shouldUseLocalDataSource(state.settings)) {
-    await refreshLocalJobs();
-  }
-
   return state.runtimeStatus;
 }
 
@@ -281,7 +302,7 @@ export function useMeetingStore() {
     await ensureSettingsLoaded();
 
     if (shouldUseLocalDataSource(state.settings)) {
-      state.jobs = await createLocalMeetingService().listJobs();
+      applyJobListSnapshot(await createLocalMeetingService().listJobs());
       return state.jobs;
     }
 
@@ -294,6 +315,30 @@ export function useMeetingStore() {
       return state.jobs;
     } catch {
       return state.jobs;
+    }
+  }
+
+  async function refreshJob(id: string) {
+    await ensureSettingsLoaded();
+
+    if (shouldUseLocalDataSource(state.settings)) {
+      const refreshed = await createLocalMeetingService().getJob(id);
+      hydratedJobIds.add(id);
+      replaceJob(refreshed);
+      return refreshed;
+    }
+
+    if (!api.value) {
+      return getJobById(id);
+    }
+
+    try {
+      const refreshed = await api.value.getJob(id);
+      hydratedJobIds.add(id);
+      replaceJob(refreshed);
+      return refreshed;
+    } catch {
+      return getJobById(id);
     }
   }
 
@@ -310,6 +355,7 @@ export function useMeetingStore() {
     }
 
     const refreshed = await createLocalMeetingService().getJob(id);
+    hydratedJobIds.add(id);
     Object.assign(job, refreshed);
   }
 
@@ -333,11 +379,13 @@ export function useMeetingStore() {
       });
 
       syncLocalPolling();
+      hydratedJobIds.add(created.id);
       return replaceJob(created);
     }
 
     if (api.value) {
       const created = await api.value.createJob(input);
+      hydratedJobIds.add(created.id);
       return replaceJob(created);
     }
 
@@ -359,6 +407,7 @@ export function useMeetingStore() {
     if (localMode.value) {
       const updated = await createLocalMeetingService().retryJob(id);
       syncLocalPolling();
+      hydratedJobIds.add(updated.id);
       return replaceJob(updated);
     }
 
@@ -384,6 +433,7 @@ export function useMeetingStore() {
     }
 
     state.jobs = state.jobs.filter((job) => job.id !== id);
+    hydratedJobIds.delete(id);
   }
 
   async function renameSpeaker(id: string, fromSpeaker: string, toSpeaker: string) {
@@ -406,6 +456,7 @@ export function useMeetingStore() {
         fromSpeaker,
         normalizedTarget,
       );
+      hydratedJobIds.add(updated.id);
       return replaceJob(updated);
     }
 
@@ -552,6 +603,7 @@ export function useMeetingStore() {
     refreshRuntimeStatus,
     refreshRuntimeInstallLog,
     refreshJobs,
+    refreshJob,
     refreshJobRuns,
     createJob,
     deleteJob,

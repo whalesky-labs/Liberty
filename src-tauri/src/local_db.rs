@@ -334,7 +334,7 @@ pub fn list_jobs(app: &AppHandle) -> LocalResult<Vec<MeetingJob>> {
         .map_err(|err| err.to_string())?;
 
     ids.into_iter()
-        .map(|id| get_job(app, &id))
+        .map(|id| load_job_summary(app, &conn, &id))
         .collect::<LocalResult<Vec<_>>>()
 }
 
@@ -1883,6 +1883,58 @@ fn load_job(app: &AppHandle, conn: &Connection, job_id: &str) -> LocalResult<Mee
         .ok()
         .map(|content| content.trim_end().to_string())
         .filter(|content| !content.is_empty());
+
+    Ok(job)
+}
+
+fn load_job_summary(app: &AppHandle, conn: &Connection, job_id: &str) -> LocalResult<MeetingJob> {
+    let mut job = conn
+        .query_row(
+            "SELECT id, title, created_at, duration_minutes, lang, enable_speaker,
+                    summary_template, upload_status, asr_status, summary_status,
+                    overall_status, processing_started_at_ms, processing_finished_at_ms,
+                    processing_duration_seconds, failure_reason, active_summary_run_id,
+                    last_exported_at, hotwords_json, export_formats_json
+             FROM jobs WHERE id = ?1",
+            params![job_id],
+            |row| {
+                Ok(MeetingJob {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    duration_minutes: row.get::<_, i64>(3)? as u32,
+                    created_at: row.get(2)?,
+                    processing_started_at_ms: row.get::<_, Option<i64>>(11)?.map(|value| value as u64),
+                    processing_finished_at_ms: row.get::<_, Option<i64>>(12)?.map(|value| value as u64),
+                    processing_duration_seconds: row.get::<_, Option<i64>>(13)?.map(|value| value as u32),
+                    progress_percent: None,
+                    progress_message: None,
+                    hotwords: serde_json::from_str::<Vec<String>>(&row.get::<_, String>(17)?)
+                        .unwrap_or_default(),
+                    lang: row.get(4)?,
+                    enable_speaker: row.get::<_, i64>(5)? != 0,
+                    summary_template: row.get(6)?,
+                    upload_status: row.get(7)?,
+                    asr_status: row.get(8)?,
+                    summary_status: row.get(9)?,
+                    overall_status: row.get(10)?,
+                    failure_reason: row.get(14)?,
+                    active_summary_run_id: row.get(15)?,
+                    last_exported_at: row.get(16)?,
+                    export_formats: serde_json::from_str::<Vec<String>>(&row.get::<_, String>(18)?)
+                        .unwrap_or_else(|_| vec!["txt".into(), "md".into(), "srt".into(), "docx".into()]),
+                    ..MeetingJob::default()
+                })
+            },
+        )
+        .optional()
+        .map_err(|err| err.to_string())?
+        .ok_or_else(|| "没有找到这个任务。".to_string())?;
+
+    job.source_files = load_source_files(conn, &job.id)?;
+    let dir = job_dir(app, &job.id)?;
+    if let Ok(progress) = read_json::<ProgressSnapshot>(&dir.join("progress.json")) {
+        apply_progress_snapshot(&mut job, &progress);
+    }
 
     Ok(job)
 }

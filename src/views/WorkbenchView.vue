@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { confirm } from "@tauri-apps/plugin-dialog";
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { useAiStore } from "@/composables/useAiStore";
@@ -67,6 +67,10 @@ const activeSummaryRun = computed(() =>
 const activeTemplateName = computed(() =>
   activeSummaryRun.value ? aiStore.getTemplateById(activeSummaryRun.value.templateId)?.name : "",
 );
+
+onMounted(() => {
+  void store.refreshJob(route.params.id as string);
+});
 
 async function doExport(kind: "transcript" | "notes" | "bundle" | "word") {
   if (!job.value) {

@@ -17,7 +17,7 @@ const jobId = computed(() => String(route.query.jobId ?? ""));
 const job = computed(() => meetingStore.getJobById(jobId.value));
 
 onMounted(() => {
-  void meetingStore.refreshJobs();
+  void meetingStore.refreshJob(jobId.value);
 });
 
 async function closeWindow() {
