@@ -527,7 +527,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       jobCompletedBody: "“{title}” 已处理完成，可以前往结果工作台查看。",
       cpu: "CPU",
       memory: "内存",
-      graphics: "图形",
+      graphics: "图形估算",
     },
     settings: {
       pageTitle: "系统设置",
@@ -1016,7 +1016,7 @@ const messages: Record<LocaleCode, MessageTree> = {
       jobCompletedBody: "\"{title}\" has finished processing. You can review it in the workbench.",
       cpu: "CPU",
       memory: "Memory",
-      graphics: "Graphics",
+      graphics: "Graphics Est.",
     },
     settings: {
       pageTitle: "Settings",
