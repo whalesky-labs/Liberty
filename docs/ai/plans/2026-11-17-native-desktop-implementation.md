@@ -3,7 +3,7 @@
 文档类型：计划（含阶段验收快照）<br>
 状态：已确认，执行中；完整重构未完成<br>
 创建日期：2026-11-17<br>
-最后核实：2026-11-23（源码正式追踪、真实提交干净检出、会议 GUI 流程和实际 CI 失败整改；完整生产切换尚未完成。其他阶段证据日期见各节）<br>
+最后核实：2026-11-23（源码已推送，最新整仓检查、干净检出和三平台 CI 通过；x86 窗口/文字后端仍阻塞，完整生产切换未完成。其他阶段证据日期见各节）<br>
 适用范围：Liberty 1.1.24，`codex/native-architecture`，Go/MyGo 原生迁移<br>
 权威边界：记录已实现能力及验证边界，不代表全部业务等价、全部 UI 相同或具备发布条件。当前行为分别以两端源码、共享契约、运行时清单和正式架构为准；有意修正的旧端缺陷不作为新端兼容要求。<br>
 依据：[已确认方案](../designs/2026-11-16-native-desktop-refactor.md)、当前工作区代码、Rust 生成的合成库、Go 测试与本机运行记录。
@@ -11,6 +11,16 @@
 > 退役决策说明（2026-11-21）：下文较早批次中“保留旧端”的表述记录的是当时切换门槛尚未关闭的状态，不代表长期兼容承诺。当前终态见[旧 Tauri 退役决策收口](#2026-11-21-旧-tauri-退役决策收口)：切换条件通过后，在同一退役变更中删除旧 React/Tauri 客户端和发布链。
 
 > 文档整理说明（2026-11-20）：本文件按批次保留证据，PID、候选包路径、测试数量和“当前”均限各条记录的核验时点，不代表持续运行状态。日常操作请从[开发指南](../../development.md)与[原生模块说明](../../../apps/native/README.md)进入；长期约束见[原生架构](../../architecture/native-desktop-architecture.md)，剩余发布门槛见[发布要求](../../architecture/release-readiness.md)。
+
+## 2026-11-23 Windows 实跑整改与最终源码
+
+最新产品源码为 `22aaabbe74eb4958b86e5db7233186fd7eaeb087`，已推送。`d9fbd920` 修复已打开句柄的硬链接校验、Windows 合法夹具路径与 URI、32 位动画溢出；随后 `22aaabbe` 修复只读输入快照清理所需权限，并在不支持的 GUI 架构创建/打开资料库前拒绝启动。离线导入/恢复与版本查询保持可用，未跳过 x86 布局测试。
+
+- 最新源码的完整 `pnpm check` 通过：47 项 TS、105 项 Python、288 项 Rust（18 项既定忽略）、42 项强制安全回归、Web 构建、fmt/Clippy 与发布检查。CLI/managed 相邻 race 通过；不支持 GUI 的前置拒绝在无网络、只读根的 Linux ARM 容器实际通过，确认目录未创建。
+- 新干净检出重新安装固定根 Node 工具，ARM 候选构建、解包运行及归档核验通过，前后检出干净。归档 SHA-256 为 `238121c0686dffa1260f5e0e480f6aba24a7162e4174502331953bff1e0ce6d9`；证据为 `clean-22aaabbe-package-report.json`。这不替代其他平台执行。
+- 第五轮 CI `45172418182` 确认前述硬链接、文件名/URI、动画溢出失败消失；Windows 剩余共通失败为只读快照清理，已在最终源码修复。最终 [CI 45175760469](https://github.com/whalesky-labs/Liberty/actions/runs/45175760469) 绑定 `22aaabbe`、`publish_release=false`。Native 独立质量与两项真实安全通过，ARM、Intel 和 Windows x64 目标测试、真实系统凭据恢复、解包执行及归档核验均通过；x86 的 managed/profile/host/legacydb 已通过，剩余失败为 desktop 包的 8 项文字/布局测试，其后独立凭据验收未执行。整轮结论为 **failure**，发布预留、旧端 bundle 构建及 Release 发布步骤均跳过，未创建标签或 Release。
+- 三个平台的真实 CI 产物均已下载，分别核对 GitHub ZIP 摘要、精确文件集合、架构、包内/包外 manifest 与文件 SHA-256；均绑定 `22aaabbe`，未签名且 `productionReady:false`。报告为忽略目录中的 `ci-45175760469-downloaded/verified-artifacts.json`，确切归档摘要同步到[正式发布要求](../../architecture/release-readiness.md#2026-11-23-source-and-interactive-acceptance)。本地当前工作区也重新打包该源码，`native:launch` 可选择最新 ARM 候选；本轮最终打包仅执行解包版本命令，没有打开用户资料或留下运行实例。
+- 当前固定 MyGo 的 Windows x86 窗口后端为 unsupported，文字引擎为不绘制字形且不折行的 stub。固定上游提交 `eadf1fce6af3bdb9f7cacf649823de2bee2737f2` 的 [窗口选择](https://github.com/egoist/mygo/blob/eadf1fce6af3bdb9f7cacf649823de2bee2737f2/backend_other.go) 与 [文字选择](https://github.com/egoist/mygo/blob/eadf1fce6af3bdb9f7cacf649823de2bee2737f2/internal/text/engine_other.go) 均可核对。隔离模块副本将 81 处架构标记放开后，编译仍缺少 `putBounds`、`putZoom`、`zoomByScript` 等架构实现；探针不进入项目依赖或交付代码。该项是尚未完成的窗口/文字后端移植，不只是缺少实机验收。
 
 ## 2026-11-23 最新候选验证
 
@@ -29,13 +39,13 @@
 
 | 项目 | 已完成且有证据的部分 | 尚未关闭的验收 |
 | --- | --- | --- |
-| 1. 源码与复现 | 正式提交/推送、真实提交的干净检出、独立工具安装、完整本地检查、四目标候选及分发输入 | 第四轮 CI 因 Windows 失败，修复后的目标结果仍待核对 |
+| 1. 源码与复现 | 正式提交/推送、真实提交的干净检出、独立工具安装、完整本地检查、四目标编译；最新三平台 CI 和真实产物下载核验 | 实际四目标 CI 仍因 x86 后端缺失失败，不能标记全绿 |
 | 2. 会议主流程 | macOS ARM 原生系统文件选择、转写、总结、纪要保存、导出及重开持久化；业务奖励各一次 | 其他系统窗口流程；测试 AI 服务不代替专用外部服务 |
 | 3. 页面与交互 | 页面/控制器、作用域授权回归；双语主题、设置、资源保存和校验的原生实测 | 全页面全部状态、完整 IME 组合、焦点与系统读屏验收 |
 | 4. 宠物与现有练习 | 宠物成长、签到、盲盒持久化；工厂键盘完成、错误扣时、重开、暂停、退出且不误发工作奖励 | 目标平台桌宠视觉/多窗口交互及玩法校准 |
 | 5. 远端服务 | 能力协商、连接绑定和允许操作的实现、测试与验收入口 | 专用外部测试 URL、系统凭据引用、合成任务 ID 当前均未提供 |
 | 6. 运行时安全 | 默认 Python 3.11.18/local2 可复现安装；三平台锁及 ARM 已安装库存通过现有策略；新增 Rust 漏洞已修复 | Torch 2.2.2 无例外扫描仍为 20 组/24 条重叠记录；既有例外于 2026-11-30 到期，未扩大 |
-| 7. 平台执行 | ARM 与 Intel Mac CI 的目标测试、系统凭据、解包执行及归档核验；本机 ARM 真实运行时/GUI | Windows 通用缺陷修复待复跑；MyGo x86 窗口和文字后端尚未实现。最低系统、Windows 32 位 OS 和 Intel/Windows 本地 ASR/GUI 仍未验收 |
+| 7. 平台执行 | ARM、Intel Mac 和 Windows x64 CI 的目标测试、真实系统凭据、解包执行及归档核验；本机 ARM 真实运行时/GUI | MyGo x86 窗口和文字后端尚未实现。最低系统、Windows 32 位 OS 和 Intel/Windows 本地 ASR/GUI 仍未验收 |
 | 8. 性能与识别质量 | 合成音频的运行时和业务持久化链通过 | 登记的 8 GiB 设备、人工标注受控媒体及 CER/WER/DER/性能门禁；本机 16 GiB 不替代此证据 |
 | 9. 资料迁移恢复 | 只读源、WAL 一致快照、独立凭据、失败补偿/重试、重复导入不覆盖新数据；schema/profile race | 物理中断与实际安装升级回滚；旧端不具有本分支恢复协议，不允许原地写入接管 |
 | 10. 安装分发 | DMG/MSI 实现、66 项自测、固定 WiX 下载摘要、四目标真实候选的分发 prepare | Developer ID/公证凭据、Windows 签名证书及较旧已签名 MSI 缺失；实际签名安装和事务回退未验收 |

@@ -133,8 +133,9 @@ The macOS ARM isolated system-store acceptance now covers model/token rotation,
 SQLite restore, reopen, pre-restore safety-snapshot retention and eventual
 reclamation of only non-live credentials. Synthetic host regressions cover
 business data and cleanup intent preservation. These results do not establish
-physical power-loss, installation rollback, Windows Credential Manager or Intel
-Mac acceptance. Old distributed clients do not gain this protocol retroactively.
+physical power-loss or installation rollback. The later 2026-11-23 CI records
+below extend isolated system-store acceptance to Intel Mac and Windows x64.
+Old distributed clients do not gain this protocol retroactively.
 
 ## Required Platforms
 
@@ -419,6 +420,43 @@ from DirectWrite. The text stub draws no glyphs and does not wrap paragraphs.
 A Windows x86 compilation or `--version` result cannot establish a working GUI.
 Closing this target requires a proper MyGo Windows x86 window/text backend port
 and target verification; tests and the four-target release gate remain enforced.
+
+The final implementation commit is
+`22aaabbe74eb4958b86e5db7233186fd7eaeb087`. It passes a fresh full root check and
+CLI/managed race checks. Unsupported GUI architectures now return bilingual
+recovery guidance before profile resolution or creation; offline import/restore
+and version metadata remain available. An isolated Linux process verified that
+refusal without creating its requested profile. The intermediate Windows run
+confirmed the hard-link, fixture-path and animation fixes, then exposed a
+read-only snapshot cleanup permission issue corrected in this final commit.
+The final run is [45175760469](https://github.com/whalesky-labs/Liberty/actions/runs/45175760469),
+with publication disabled and a final conclusion of **failure**. Its Native
+quality and both real security jobs passed. Apple Silicon, Intel Mac and Windows
+x64 passed all ordinary target tests, actual isolated
+system-store rotation/restore/reclamation, extracted candidate execution and
+archive verification. Windows x86 passed the repaired managed, profile, host
+and legacy-reader tests; its desktop package still fails eight layout/typography
+tests because of the backend limitation above. Its separate system-vault command
+did not run after that failure. All three successful candidate artifacts were
+downloaded and independently checked against GitHub's ZIP digest, their exact
+file inventories, architecture, source commit and embedded/outer SHA-256 records.
+The failed x86 target blocks the full workflow; release reservation, bundle and
+publication jobs were skipped. No tag or Release was created.
+A fresh detached checkout of the same commit installed frozen
+root tooling, packaged and executed the ARM candidate, and verified archive
+SHA-256 `238121c0686dffa1260f5e0e480f6aba24a7162e4174502331953bff1e0ce6d9`.
+The checkout remained clean and the candidate remains unsigned and non-production.
+
+| Final CI candidate | Target execution and system store | Downloaded archive SHA-256 |
+| --- | --- | --- |
+| macOS Apple Silicon | Passed | `c40406ced76aea6f04618d7f05c058c51b21fa19d2e229f63c840621e8b22c4b` |
+| macOS Intel | Passed | `18df4d1d64e2d4f282b785f39d0a11af41a500079625d4b535ec7486985a3f78` |
+| Windows x64 | Passed | `2de890b9529a1fb1c545de83d26fa1242850acf1d7ab2269d21aa1fa87370de3` |
+| Windows x86 | Failed in desktop tests; separate vault acceptance not reached | No accepted artifact |
+
+These target checks do not prove native GUI interaction, Intel/Windows managed
+ASR, minimum operating systems, a 32-bit Windows installation, certificate-backed
+distribution, controlled ASR quality, 8 GiB performance or production observation.
 
 Additional macOS ARM page acceptance covered English dark and Chinese light
 themes, settings categories and diagnostics, member and custom-template saves,
