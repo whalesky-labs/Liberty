@@ -250,7 +250,7 @@ export function readNativeArchive(compressed) {
 const nativeBuildInputs = [
   'apps/native', 'packages/desktop-resources', 'packages/shared-types',
   'python/funasr-runner', 'scripts', 'config', '.github/workflows/build-native.yml',
-  'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc',
+  'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', '.gitattributes',
   'go.work', 'go.work.sum', 'LICENSE',
 ];
 

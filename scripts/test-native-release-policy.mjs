@@ -203,6 +203,7 @@ for (const [name, mutate] of [
   ['untracked shared resource', async f => { await mkdir(path.join(f.directory, 'packages/desktop-resources'), { recursive: true }); await writeFile(path.join(f.directory, 'packages/desktop-resources/untracked-input.json'), '{}'); }],
   ['untracked shared contract', async f => { await mkdir(path.join(f.directory, 'packages/shared-types'), { recursive: true }); await writeFile(path.join(f.directory, 'packages/shared-types/untracked-schema.json'), '{}'); }],
   ['modified packaging script', async f => writeFile(path.join(f.directory, 'scripts/lib/native-package.mjs'), '// dirty script\n')],
+  ['uncommitted checkout byte policy', async f => writeFile(path.join(f.directory, '.gitattributes'), '*.txt text eol=crlf\n')],
 ]) {
   test(`default provenance rejects ${name} before artifact output`, async context => {
     const f = await committedFixture(context);

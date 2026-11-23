@@ -147,11 +147,11 @@ func (v *PetView) management(c *ui.Context) {
 				ui.Text(c, v.text("桌面伙伴", "Desktop Companion")).FontSize(16).Bold().Role(ui.RoleHeading).Level(1)
 				separator(c)
 				ui.Row(c).FillWidth().MinHeight(290).Wrap().Gap(12).AlignItems(ui.Center).Children(func() {
-					ui.Column(c).Width(48).Gap(8).Children(func() {
+					ui.Column(c).Width(76).Shrink(0).Gap(8).Children(func() {
 						for _, a := range []struct{ key, zh, en, icon string }{{"tap", "点击", "Tap", "pet"}, {"pet", "抚摸", "Pet", "pet"}, {"feed", "投喂", "Feed", "gift"}, {"encourage", "鼓励", "Encourage", "growth"}} {
 							action := a
-							b := ui.ButtonBase(c.Key(a.key)).Width(48).Height(48).Radius(8).Center().Label(v.text(a.zh, a.en)).Disabled(v.Client.Busy).Background(palette(c).Subpanel)
-							b.Children(func() { ui.Text(c, v.text(action.zh, action.en)).MaxWidth(44).TextAlign(ui.Center).FontSize(11) })
+							b := ui.ButtonBase(c.Key(a.key)).Width(76).Height(48).Radius(8).Center().Label(v.text(a.zh, a.en)).Disabled(v.Client.Busy).Background(palette(c).Subpanel)
+							b.Children(func() { ui.Text(c, v.text(action.zh, action.en)).SingleLine().TextAlign(ui.Center).FontSize(11) })
 							if b.Clicked() {
 								v.Client.Interaction(action.key)
 							}

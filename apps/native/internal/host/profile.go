@@ -130,6 +130,10 @@ func assemble(ctx context.Context, database string, store *jobdb.Store) (*Profil
 }
 
 func assembleWithRuntimeProfile(ctx context.Context, database string, store *jobdb.Store, runtimeProfile string) (*Profile, error) {
+	return assembleWithRuntimePlatform(ctx, database, store, runtimeProfile, managed.CurrentPlatform())
+}
+
+func assembleWithRuntimePlatform(ctx context.Context, database string, store *jobdb.Store, runtimeProfile, runtimePlatform string) (*Profile, error) {
 	var err error
 	p := &Profile{store: store}
 	p.Pet = application.NewPet(store)
@@ -167,7 +171,7 @@ func assembleWithRuntimeProfile(ctx context.Context, database string, store *job
 	if err != nil {
 		return nil, err
 	}
-	installer, err := managed.NewInstallerWithProfile(directory, managed.CurrentPlatform(), runtimeProfile)
+	installer, err := managed.NewInstallerWithProfile(directory, runtimePlatform, runtimeProfile)
 	if err != nil {
 		return nil, err
 	}

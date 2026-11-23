@@ -58,7 +58,10 @@ func TestWriteHostSubmissionSchedulerResultRetryDeleteAndOwnership(t *testing.T)
 	if source == "" {
 		t.Fatal("run pnpm native:compat")
 	}
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	path := filepath.Join(dir, "liberty.sqlite3")
 	data, err := os.ReadFile(filepath.Join(source, "liberty.sqlite3"))
 	if err != nil {
@@ -79,8 +82,16 @@ func TestWriteHostSubmissionSchedulerResultRetryDeleteAndOwnership(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	models := filepath.Join(dir, "synthetic-models")
-	if os.Mkdir(models, 0700) != nil {
+	// This is a synthetic Runner/process integration test, not a runtime
+	// installation. Use a named desktop target even on the Linux CI host and
+	// bind its synthetic generation to the real managed input identity.
+	const fixturePlatform = "windows-x64"
+	installer, err := managed.NewInstaller(dir, fixturePlatform)
+	if err != nil {
+		t.Fatal(err)
+	}
+	models := filepath.Join(installer.PlatformRoot(), "components", "model", "generations", "1", "models")
+	if os.MkdirAll(models, 0700) != nil {
 		t.Fatal("model fixture")
 	}
 	resources, err := managed.MaterializeResources(dir)
@@ -118,25 +129,49 @@ func TestWriteHostSubmissionSchedulerResultRetryDeleteAndOwnership(t *testing.T)
 		t.Setenv(key, "unselected-model-alias")
 	}
 	for _, component := range []string{"python", "ffmpeg", "model"} {
-		s, err := store.BeginRuntime(ctx, managed.CurrentPlatform(), component, "managed", "validating", "validating", false)
+		s, err := store.BeginRuntime(ctx, fixturePlatform, component, "managed", "validating", "validating", false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		p, version := binary, manifest.RuntimeVersion
+		generation := filepath.Join(installer.PlatformRoot(), "components", component, "generations", "1")
+		if err := os.MkdirAll(generation, 0700); err != nil {
+			t.Fatal(err)
+		}
+		p, version := filepath.Join(generation, "synthetic-"+component), manifest.RuntimeVersion
 		if component == "model" {
 			p, version = models, manifest.ModelSetVersion
+		} else {
+			bytes, err := os.ReadFile(binary)
+			if err != nil || os.WriteFile(p, bytes, 0700) != nil {
+				t.Fatal("synthetic runtime executable copy failed")
+			}
 		}
-		s.Artifact = &domain.RuntimeArtifact{GenerationID: "synthetic", Version: version, Path: p}
+		marker, err := json.Marshal(map[string]any{
+			"component": component, "generation": 1, "artifactVersion": version,
+			"resolvedPath": p, "modelProfile": manifest.ModelProfile,
+			"runtimeProfile": managed.ProductionRuntimeProfile, "runtimeInputSha256": installer.InputDigest,
+		})
+		if err != nil || os.WriteFile(filepath.Join(generation, "ready.json"), marker, 0600) != nil {
+			t.Fatal("synthetic runtime ready binding failed")
+		}
+		s.Artifact = &domain.RuntimeArtifact{GenerationID: "1", Version: version, Path: p}
 		s.Availability = "ready"
 		s.Operation.Kind = "idle"
 		s.Operation.Phase = "ready"
-		if err := store.UpdateRuntime(ctx, managed.CurrentPlatform(), s); err != nil {
+		if err := store.UpdateRuntime(ctx, fixturePlatform, s); err != nil {
 			t.Fatal(err)
 		}
 	}
 	store.Close()
 	t.Setenv("LIBERTY_HOST_FIXTURE_CHILD", "asr")
-	p, err := Open(ctx, path)
+	openFixture := func() (*Profile, error) {
+		store, err := jobdb.Open(ctx, path)
+		if err != nil {
+			return nil, err
+		}
+		return assembleWithRuntimePlatform(ctx, path, store, managed.ProductionRuntimeProfile, fixturePlatform)
+	}
+	p, err := openFixture()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +225,7 @@ func TestWriteHostSubmissionSchedulerResultRetryDeleteAndOwnership(t *testing.T)
 		t.Fatal("deleted job remained visible")
 	}
 	p.Close()
-	reopened, err := Open(ctx, path)
+	reopened, err := openFixture()
 	if err != nil {
 		t.Fatal("shutdown retained profile lock")
 	}

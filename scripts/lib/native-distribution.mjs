@@ -314,7 +314,7 @@ export async function buildDistribution(options) {
   if (path.resolve(rootDirectory) !== path.resolve(repository)) throw new Error('Distribution builds must use the script checkout');
   const host = checkDistributionHost(target);
   const workspace = JSON.parse(await readFile(path.join(repository, 'package.json'), 'utf8'));
-  if (run('git', ['rev-parse', 'HEAD']) !== commit || run('git', ['status', '--porcelain=v1', '--untracked-files=all', '--', 'apps/native', 'packages', 'python', 'scripts', 'config', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', 'LICENSE'])) throw new Error('Distribution requires the exact clean source checkout');
+  if (run('git', ['rev-parse', 'HEAD']) !== commit || run('git', ['status', '--porcelain=v1', '--untracked-files=all', '--', 'apps/native', 'packages', 'python', 'scripts', 'config', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', '.gitattributes', 'LICENSE'])) throw new Error('Distribution requires the exact clean source checkout');
   // Signing must never promote a stale portable candidate merely because its
   // version string still matches HEAD. Build a new source-bound input here.
   const prefix = `liberty-native-candidate-${workspace.version}-${target}-`;
