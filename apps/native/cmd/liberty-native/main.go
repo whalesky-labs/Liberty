@@ -39,6 +39,10 @@ func main() {
 }
 
 func run() error {
+	return runWithProfileResolver(profile.DefaultDirectory)
+}
+
+func runWithProfileResolver(resolve func(bool) (string, error)) error {
 	options, err := parseOptions(os.Args[1:], launchChannel, os.Stdout)
 	if errors.Is(err, flag.ErrHelp) {
 		return nil
@@ -54,9 +58,9 @@ func run() error {
 		return err
 	}
 	if options.importProfile != "" {
-		return importProfileSnapshot(context.Background(), options, profile.DefaultDirectory, credentials.NewSystem(), os.Stdout)
+		return importProfileSnapshot(context.Background(), options, resolve, credentials.NewSystem(), os.Stdout)
 	}
-	if err := options.resolveProfile(profile.DefaultDirectory); err != nil {
+	if err := options.resolveProfile(resolve); err != nil {
 		return err
 	}
 	if options.restoreBackup != "" {

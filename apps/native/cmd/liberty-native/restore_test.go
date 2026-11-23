@@ -45,9 +45,15 @@ func TestOfflineRestoreCommandPreservesPostHandoverData(t *testing.T) {
 	oldArgs, oldChannel := os.Args, launchChannel
 	t.Cleanup(func() { os.Args, launchChannel = oldArgs, oldChannel })
 	launchChannel = "preview"
+	production := filepath.Join(t.TempDir(), profile.ProductionID)
 	restore := func(name string) error {
 		os.Args = []string{"liberty-native", "--profile-directory", directory, "--restore-backup", name}
-		return run()
+		return runWithProfileResolver(func(candidate bool) (string, error) {
+			if candidate {
+				t.Fatal("explicit restore unexpectedly selected the default candidate")
+			}
+			return production, nil
+		})
 	}
 	assertMembers := func(store *jobdb.Store, want ...domain.MeetingMember) {
 		t.Helper()

@@ -1,6 +1,6 @@
 # Release Readiness
 
-Last verified: 2026-11-22 against the current checkout, root `package.json` scripts and pinned dependency scanners. Security-scan findings below retain their stated scan dates.
+Last verified: 2026-11-23 against the current checkout, root `package.json` scripts and pinned dependency scanners. Security-scan findings below retain their stated scan dates.
 
 Use the [documentation index](../README.md), [development guide](../development.md)
 and [native architecture](native-desktop-architecture.md) for navigation and
@@ -312,10 +312,9 @@ installed inventory passed exact-lock comparison and the current-policy scan;
 its unfiltered scan retained findings. A later candidate package repeated all
 three platform input scans with complete coverage and unchanged exception
 policy. Those runs did not clear the production Python findings recorded then.
-The separate
-meeting-window acceptance remains incomplete after an interrupted UI session;
-runtime success does not establish the interactive transcription, summary and
-export workflow.
+The separate meeting-window acceptance was incomplete at that date after an
+interrupted UI session. The 2026-11-23 interactive acceptance below supersedes
+that result for its explicitly tested macOS ARM workflow.
 
 ### 2026-11-22 Production Runtime Update
 
@@ -363,6 +362,39 @@ passed. When the ASR engine, runtime, model, or supported-platform assumptions
 change, also run the controlled fixture, benchmark, platform-smoke, and accepted
 evidence workflow documented under `benchmarks/asr/`; missing media, annotations,
 registered devices, or digest-bound evidence remains blocking.
+
+### 2026-11-23 Source and Interactive Acceptance
+
+Commit `5e055a6e729b5e856f1011ed4f559fa1e14abce1` was tracked and pushed to
+`codex/native-architecture`, then checked out into a clean detached worktree.
+Fresh frozen root Node tooling, a separate hash-locked Python development
+environment, Native verification, licenses, the 135-component SBOM and Go module
+verification passed without changing the checkout. A real ARM candidate archive
+was built, extracted and executed with `--version`; distribution preparation
+bound the exact commit and archive while retaining `distributable:false` and
+false quality/security publication claims. This does not establish signing.
+
+The macOS ARM meeting-window acceptance passed with the default production
+runtime: system file selection, synthetic speech transcription into four segments
+and verified speakers, summary generation against a local authenticated fixture,
+saved minutes, and complete-result export through the system save dialog.
+After normal application shutdown, the test verified the completed job, one
+published summary, expected export text and exactly one of each workflow reward.
+The final run also removed only its own temporary database and attachments.
+An initial cleanup failure was reproduced as the external filesystem changing
+its provisional inode on first write; the fixture now compares the current path
+with its retained original file descriptor. This synthetic GUI run does not
+prove external-service acceptance, human ASR quality, all-page accessibility,
+IME composition, or other operating systems.
+
+Actual CI initially found non-desktop runtime/profile test assumptions and two
+new Rust advisories. `cookie` 0.18.3 and `url` 2.5.9 (with `form_urlencoded` 1.2.3)
+passed a fresh cargo-deny advisories/bans/sources scan and the full legacy checks.
+Linux ARM container execution verifies the corrected host/runtime tests and the
+offline CLI restore against explicit synthetic directories. The second run,
+`45155899649`, passed both real dependency security jobs but retained a CLI test
+failure subsequently corrected; a passing final CI run must still be recorded
+against the final source commit before claiming CI completion.
 
 ## Manual Desktop Workflow Checks
 
