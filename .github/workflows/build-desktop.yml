@@ -3,7 +3,9 @@ name: Build Desktop Bundles
 on:
   push:
     tags:
-      - "v*"
+      - "v1.*"
+      - "!v*-*"
+      - "!v*\\+*"
   workflow_dispatch:
     inputs:
       publish_release:
@@ -80,6 +82,7 @@ jobs:
 
           if [[ "${should_publish}" == "true" ]]; then
             node scripts/check-version-consistency.mjs \
+              --legacy-publication \
               --tag "${release_tag}" \
               --changelog-output release-changelog.md
 

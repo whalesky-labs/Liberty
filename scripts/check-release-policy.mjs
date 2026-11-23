@@ -52,8 +52,13 @@ for (const [pattern, message] of [
 
 assertMatch(
   buildWorkflow,
-  /push:\s*\n\s+tags:\s*\n\s+- ["']v\*["']/,
-  "desktop workflow must publish only from a pushed v* tag",
+  /push:\s*\n\s+tags:\s*\n\s+- "v1\.\*"\s*\n\s+- "!v\*-\*"\s*\n\s+- "!v\*\\\\\+\*"/,
+  "temporary desktop publication must only accept stable 1.x tags",
+);
+assertMatch(
+  buildWorkflow,
+  /if \[\[ "\$\{should_publish\}" == "true" \]\]; then\s+node scripts\/check-version-consistency\.mjs \\\n\s+--legacy-publication \\\n\s+--tag/,
+  "manual and tag publication must reject Native versions and prereleases before reservation",
 );
 assertMatch(
   buildWorkflow,

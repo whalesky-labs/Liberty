@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-本节描述尚未发布的工作区变化；Go/MyGo 为隔离候选，未切换默认生产入口。下方已发布版本记录保留其发布时事实。 / This section describes unreleased work; Go/MyGo remains an isolated candidate, with no production-entry cutover. Published version records retain their original context.
+后续变更待补充。 / Future changes will be recorded here.
+
+## 2.0.0-alpha.1 - 2026-11-24
+
+发布准备中。本次为 Go + MyGo 原生客户端的首个 2.0 alpha，保留独立候选资料目录，未切换稳定版生产入口。下方已发布版本记录保留其发布时事实。 / Release preparation. This is the first 2.0 alpha of the Go + MyGo native client, retaining a separate candidate profile without replacing the stable production entry.
+
+本次 alpha 资产为 macOS Apple Silicon、macOS Intel 与 Windows x64 的未签名候选归档；不提供已签名、公证或完成安装事务验收的安装器。首次本地转写需要联网安装运行时和模型。GUI/无障碍、其他设备上的 ASR 性能与真实服务验收仍有未完成项，使用隔离测试资料。 / Alpha assets are unsigned candidate archives for macOS Apple Silicon, macOS Intel and Windows x64, without signed/notarized installers or completed installation-transaction acceptance. Initial local transcription requires runtime and model downloads. GUI/accessibility, ASR performance on other devices and external-service acceptance remain incomplete; use isolated test data.
 
 ### 中文
 

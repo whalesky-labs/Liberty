@@ -31,6 +31,10 @@ if (releaseVersion && !semverPattern.test(releaseVersion)) {
   errors.push(`Release version must be valid SemVer. Found ${releaseVersion}.`);
 }
 
+if (args.legacyPublication && !/^1\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(releaseVersion ?? "")) {
+  errors.push("The temporary Tauri release entry only publishes stable 1.x versions. Native 2.x and prereleases require Native candidate artifacts.");
+}
+
 if (rootPackage.packageManager !== "pnpm@10.30.3") {
   errors.push("Root packageManager must remain pinned to pnpm@10.30.3.");
 }
@@ -80,6 +84,7 @@ if (args.printVersion) {
 function parseArgs(values) {
   const parsed = {
     native: false,
+    legacyPublication: false,
     tag: undefined,
     changelogOutput: undefined,
     printVersion: false,
@@ -87,7 +92,13 @@ function parseArgs(values) {
 
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
-    if (value === "--native") {
+    if (value === "--legacy-publication") {
+      if (parsed.legacyPublication) {
+        console.error("- --legacy-publication may only be specified once.");
+        process.exit(1);
+      }
+      parsed.legacyPublication = true;
+    } else if (value === "--native") {
       if (parsed.native) {
         console.error("- --native may only be specified once.");
         process.exit(1);
