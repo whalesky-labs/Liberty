@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"liberty.local/liberty/internal/application"
@@ -17,8 +19,12 @@ import (
 // is verified separately against the database emitted by the Rust repository.
 func fixture(t *testing.T, version string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "数据库 # & ?.sqlite3")
-	u := url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
+	name := "数据库 # & ?.sqlite3"
+	if runtime.GOOS == "windows" {
+		name = "数据库 # & %.sqlite3"
+	}
+	path := filepath.Join(t.TempDir(), name)
+	u := fixtureURI(path)
 	db, err := sql.Open("sqlite", u.String())
 	if err != nil {
 		t.Fatal(err)
@@ -52,6 +58,11 @@ func fixture(t *testing.T, version string) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func fixtureURI(path string) url.URL {
+	// Keep the drive letter in the URI path, not its authority.
+	return url.URL{Scheme: "file", Path: "/" + strings.TrimPrefix(filepath.ToSlash(path), "/")}
 }
 
 func TestReadOnlyAndDeletionVisibility(t *testing.T) {

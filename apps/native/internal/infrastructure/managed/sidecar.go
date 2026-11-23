@@ -84,8 +84,8 @@ func resolvedArtifact(directory, filename string, model bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer parent.Close()
 	info, err := parent.Lstat(filepath.Base(filename))
-	parent.Close()
 	if err != nil {
 		return "", err
 	}
@@ -98,6 +98,17 @@ func resolvedArtifact(directory, filename string, model bool) (string, error) {
 	}
 	if linkedFile(info) || (model && !info.IsDir()) || (!model && !info.Mode().IsRegular()) {
 		return "", ErrResources
+	}
+	if !model {
+		file, err := parent.Open(filepath.Base(filename))
+		if err != nil {
+			return "", ErrResources
+		}
+		defer file.Close()
+		opened, err := file.Stat()
+		if err != nil || !os.SameFile(info, opened) || !singleLinkFile(file) {
+			return "", ErrResources
+		}
 	}
 	return filename, nil
 }
@@ -138,7 +149,16 @@ func commandInputSnapshot(ctx context.Context, parent *os.Root, snapshot map[str
 		for filename := range snapshot {
 			info, err := root.Lstat(filename)
 			if err == nil && info.Mode().IsRegular() && !linkedFile(info) {
-				if root.Chmod(filename, 0600) != nil {
+				file, openErr := root.Open(filename)
+				if openErr != nil {
+					failed = true
+					continue
+				}
+				opened, statErr := file.Stat()
+				if statErr != nil || !os.SameFile(info, opened) || !singleLinkFile(file) || file.Chmod(0600) != nil {
+					failed = true
+				}
+				if file.Close() != nil {
 					failed = true
 				}
 			}
@@ -316,12 +336,12 @@ func readRegularFile(root *os.Root, name string, size int64) ([]byte, error) {
 	}
 	defer file.Close()
 	opened, err := file.Stat()
-	if err != nil || !opened.Mode().IsRegular() || linkedFile(opened) || !os.SameFile(before, opened) || opened.Size() != size {
+	if err != nil || !opened.Mode().IsRegular() || linkedFile(opened) || !singleLinkFile(file) || !os.SameFile(before, opened) || opened.Size() != size {
 		return nil, ErrResources
 	}
 	content, err := io.ReadAll(io.LimitReader(file, size+1))
 	after, statErr := root.Lstat(name)
-	if err != nil || statErr != nil || !after.Mode().IsRegular() || linkedFile(after) || !os.SameFile(opened, after) || int64(len(content)) != size {
+	if err != nil || statErr != nil || !after.Mode().IsRegular() || linkedFile(after) || !singleLinkFile(file) || !os.SameFile(opened, after) || int64(len(content)) != size {
 		return nil, ErrResources
 	}
 	return content, nil

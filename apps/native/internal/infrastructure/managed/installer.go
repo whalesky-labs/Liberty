@@ -283,9 +283,21 @@ func (i *Installer) InstallTool(ctx context.Context, component string, generatio
 		if err != nil {
 			return domain.RuntimeArtifact{}, err
 		}
-		if info, err := downloads.Lstat(asset.Name); err == nil && linkedFile(info) {
-			return domain.RuntimeArtifact{}, ErrResources
-		} else if err != nil && !os.IsNotExist(err) {
+		if info, err := downloads.Lstat(asset.Name); err == nil {
+			if !info.Mode().IsRegular() || linkedFile(info) {
+				return domain.RuntimeArtifact{}, ErrResources
+			}
+			file, openErr := downloads.Open(asset.Name)
+			if openErr != nil {
+				return domain.RuntimeArtifact{}, ErrResources
+			}
+			opened, statErr := file.Stat()
+			valid := statErr == nil && os.SameFile(info, opened) && singleLinkFile(file)
+			closeErr := file.Close()
+			if !valid || closeErr != nil {
+				return domain.RuntimeArtifact{}, ErrResources
+			}
+		} else if !os.IsNotExist(err) {
 			return domain.RuntimeArtifact{}, ErrResources
 		}
 		if err := i.Download.Fetch(ctx, downloads, asset.Name, address, asset.SHA256, nil, func(done, total int64) error {

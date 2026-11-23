@@ -20,7 +20,11 @@ func TestProfileLocationsKeepCandidateSeparate(t *testing.T) {
 }
 
 func TestPrepareProfileDirectoryRequiresExplicitCreation(t *testing.T) {
-	directory := filepath.Join(t.TempDir(), "nested", "资料 #?")
+	name := "资料 #?"
+	if runtime.GOOS == "windows" {
+		name = "资料 #%" // A question mark is not a legal Windows filename.
+	}
+	directory := filepath.Join(t.TempDir(), "nested", name)
 	if err := PrepareDirectory(directory, false); !errors.Is(err, ErrLocation) {
 		t.Fatal("missing directory accepted without preparation", err)
 	}

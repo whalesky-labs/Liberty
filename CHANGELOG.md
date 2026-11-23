@@ -36,6 +36,7 @@
 - 修复依赖安全策略与 CI 质量门禁校验，使缺少扫描器、ASR 证据或必要检查时明确阻断而不是跳过。
 - 修复资料导入部分凭据补偿失败后无法重试，以及运行时失败终态被误判为活跃操作的问题；活跃或未知操作仍在写入凭据和发布数据库前拒绝。
 - 修复 Linux 质量检查中非桌面 host 被误报为运行时清单损坏的问题，明确保持本地运行时不可用；更新 `cookie` 0.18.3 与 `url` 2.5.9，处理实际 CI 扫描发现的 Rust 安全公告。
+- 修复 Windows 托管运行时和输入文件的硬链接检查，改为核对已打开的系统句柄；修复 32 位农场/工厂动画帧序号溢出，并纠正 Windows 合成资料夹具的文件名和 SQLite URI。MyGo 的 x86 文字后端仍是发布阻塞，未跳过布局测试。
 - 强化生产托管安装的上游大小限制、私有输入快照、就绪标记和完整解释器版本绑定；macOS ARM 默认生产运行时已完成新安装、两种说话人模式处理及重开持久化验收，其他平台、GUI 和正式分发仍待验证。
 
 ### English
@@ -63,6 +64,8 @@
 - Changed Native compatibility checks to replay sanitized historical golden fixtures from shared resources, removing old-client source dependencies from generation and Native build entries. Production cutover and old-client retirement remain subject to release gates.
 
 #### Fixed
+
+- Fixed Windows managed-runtime and input-file hard-link checks by validating opened system handles. Fixed 32-bit farm/work animation-index overflow and corrected synthetic Windows profile filenames and SQLite URIs. MyGo's missing x86 text backend remains a release blocker; layout tests remain required.
 
 - Corrected native AI, remote, Runner V1 and legacy JSON field-matching boundaries so malformed aliases cannot override valid state or content, with real HTTP/subprocess, SQLite reopen and explicit-retry regressions.
 - Stopped synthesizing default labels when no real diarization result exists; unavailable or failed diarization now preserves the transcript, warnings, and truthful capability state.

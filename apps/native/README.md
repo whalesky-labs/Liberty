@@ -1,6 +1,6 @@
 # Liberty 原生候选客户端
 
-最后核实：2026-11-22。`apps/native` 使用 Go + MyGo，是日常开发、验证和启动入口；**正式生产发布入口暂时仍为 `apps/desktop`**。旧 React/Tauri 仅作为 Native 验收期间冻结的临时生产入口与迁移对照；Native 完整验收与生产切换完成后，旧端及其发布链必须在同一退役变更中删除，不作长期兼容维护。候选包使用独立资料身份。新端开发见[开发指南](../../docs/development.md)，模块职责和数据契约见[原生架构](../../docs/architecture/native-desktop-architecture.md)。
+最后核实：2026-11-23。`apps/native` 使用 Go + MyGo，是日常开发、验证和启动入口；**正式生产发布入口暂时仍为 `apps/desktop`**。旧 React/Tauri 仅作为 Native 验收期间冻结的临时生产入口与迁移对照；Native 完整验收与生产切换完成后，旧端及其发布链必须在同一退役变更中删除，不作长期兼容维护。候选包使用独立资料身份。新端开发见[开发指南](../../docs/development.md)，模块职责和数据契约见[原生架构](../../docs/architecture/native-desktop-architecture.md)。
 
 ## 启动与验证入口
 
@@ -90,6 +90,8 @@ binary='./Liberty Native Candidate.app/Contents/MacOS/liberty-native'
 只读入口不提供可写服务。可写候选关闭前排空设置保存，检查资源编辑器的未保存内容和在途操作，再停止服务和释放锁。OS 强制终止不能等同于未保存表单恢复。
 
 原生设置与主菜单复用同一主题和导航样式；组件测试、截图和平台窗口验收分别记录。历史详细验收从此 README 归档至[模块说明快照](../../docs/ai/reviews/2026-11-20-native-module-reference-snapshot.md)，不再在快速操作入口累积逐次测试日志。
+
+2026-11-23 已在 macOS Apple Silicon 原生窗口完成合成录音选择、转写、测试服务总结、纪要保存、完整结果导出及退出后持久化验收。页面验收覆盖双语主题切换、资源编辑校验、宠物成长、签到、盲盒及工厂练习；范围与提交证据见[发布要求](../../docs/architecture/release-readiness.md#2026-11-23-source-and-interactive-acceptance)。其他平台 GUI、完整输入法组合与系统读屏仍需验收。
 
 ## 运行时与安全候选
 

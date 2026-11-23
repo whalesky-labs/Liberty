@@ -5,15 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"net/url"
-	"path/filepath"
 	"reflect"
 	"testing"
 )
 
 func TestReadRowsRetainIndependentNullableAndJSONValues(test *testing.T) {
 	path := fixture(test, SchemaVersion)
-	uri := url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
+	uri := fixtureURI(path)
 	database, err := sql.Open("sqlite", uri.String())
 	if err != nil {
 		test.Fatal(err)
@@ -151,7 +149,7 @@ func FuzzReadStringArraysPreserveStrictJSON(fuzz *testing.F) {
 
 func TestLongTranscriptPreservesAllRowsAndProjectionOrder(test *testing.T) {
 	path := fixture(test, SchemaVersion)
-	uri := url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
+	uri := fixtureURI(path)
 	database, err := sql.Open("sqlite", uri.String())
 	if err != nil {
 		test.Fatal(err)

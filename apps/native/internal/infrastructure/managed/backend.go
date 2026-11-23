@@ -252,6 +252,11 @@ func (i *Installer) AppendLog(component, text string) error {
 		if err != nil {
 			return ErrResources
 		}
+		opened, statErr := file.Stat()
+		if statErr != nil || !os.SameFile(info, opened) || !singleLinkFile(file) {
+			file.Close()
+			return ErrResources
+		}
 		size := min(info.Size(), int64(512*1024))
 		previous = make([]byte, int(size))
 		_, readErr := file.ReadAt(previous, info.Size()-size)

@@ -391,10 +391,42 @@ Actual CI initially found non-desktop runtime/profile test assumptions and two
 new Rust advisories. `cookie` 0.18.3 and `url` 2.5.9 (with `form_urlencoded` 1.2.3)
 passed a fresh cargo-deny advisories/bans/sources scan and the full legacy checks.
 Linux ARM container execution verifies the corrected host/runtime tests and the
-offline CLI restore against explicit synthetic directories. The second run,
-`45155899649`, passed both real dependency security jobs but retained a CLI test
-failure subsequently corrected; a passing final CI run must still be recorded
-against the final source commit before claiming CI completion.
+offline CLI restore against explicit synthetic directories. The first three CI
+runs also exposed the frozen fixtures' original UTC+08 clock assumption and a
+synthetic host runtime lacking the required production input binding. The fixes
+are limited to explicit test setup; production runtime ownership and the frozen
+golden bytes remain enforced.
+
+Commit `b8ff0baf720ef8444c4e9634a36c2548b9236b2b` passed the full root
+`pnpm check` and the complete frozen compatibility replay with `TZ=UTC`.
+A second clean detached checkout built all four candidate archives and prepared
+their installer inputs. Each archive's architecture, exact source provenance
+and SHA-256 were checked; only the ARM candidate was executed locally. All
+prepared inputs remain non-distributable. The checkout stayed clean.
+CI run `45164966173` targeted this same commit with `publish_release=false`.
+Independent Native quality, both real security jobs, and the ARM and Intel Mac
+candidate jobs passed, including real system-vault recovery and extracted
+candidate execution. Both Windows jobs failed. The failures exposed a missing
+Windows handle-based hard-link check, invalid synthetic filenames/SQLite URIs,
+and a 32-bit animation-index overflow; their fixes require another target run.
+
+The x86 UI failures also establish a separate implementation blocker: the pinned
+MyGo text engine selects its stub on Windows 386, while DirectWrite is built only
+for amd64/arm64. The inspected v0.10.0 release and upstream main retain that
+boundary. The stub does not provide real glyph rasterization or paragraph
+wrapping. A Windows x86 compilation or `--version` result cannot establish a
+working GUI. Closing this target requires a proper MyGo text backend port and
+target verification; tests and the four-target release gate remain enforced.
+
+Additional macOS ARM page acceptance covered English dark and Chinese light
+themes, settings categories and diagnostics, member and custom-template saves,
+required model fields, pet growth, one daily check-in and one blind-box draw.
+The factory practice completed with keyboard input, replayed, paused with Escape
+and returned without a work reward. Reopening the synthetic database verified
+the saved resources and single reward records. The widened English Encourage
+button was visibly verified in the later candidate; normal quit completed.
+This bounded page sample does not establish every state, IME composition,
+screen-reader behavior or gameplay calibration.
 
 ## Manual Desktop Workflow Checks
 

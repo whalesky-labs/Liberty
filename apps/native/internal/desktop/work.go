@@ -192,7 +192,7 @@ func (v *FarmView) View(c *ui.Context) {
 	} else {
 		c.After(90 * time.Millisecond)
 	}
-	frame := int(animationTime.UnixNano()/int64(90*time.Millisecond)) % 8
+	frame := int((animationTime.UnixNano() / int64(90*time.Millisecond)) % 8)
 	root := ui.Box(c).Fill().MinHeight(0).Radius(8).Clip().Background(ui.Hex("#6fa943"))
 	root.Children(func() {
 		focused := ""
@@ -394,7 +394,7 @@ func (v *WorkGameView) View(c *ui.Context) {
 	selected := selectedWorkTask(state.Tasks, v.selected)
 	frame := 0
 	if !c.Preferences().ReduceMotion {
-		frame = int(c.Now().UnixNano()/int64(170*time.Millisecond)) % 9
+		frame = int((c.Now().UnixNano() / int64(170*time.Millisecond)) % 9)
 		c.After(170 * time.Millisecond)
 	}
 	root := ui.Box(c).Fill().MinHeight(0).Radius(8).Clip().Background(ui.Hex("#9cc9e2"))
