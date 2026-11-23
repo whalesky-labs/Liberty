@@ -1,6 +1,6 @@
 # Go + MyGo 原生客户端架构
 
-最后核实：2026-11-22，依据当前 `apps/native`、根脚本、共享契约和共享资源目录。本文维护实现边界，不记录某次测试运行的完成率；阶段证据见[原生实施记录](../ai/plans/2026-11-17-native-desktop-implementation.md)，发布要求见[发布就绪检查](release-readiness.md)。
+最后核实：2026-11-23，依据当前 `apps/native`、根脚本、共享契约和共享资源目录。本文维护实现边界，不记录某次测试运行的完成率；阶段证据见[原生实施记录](../ai/plans/2026-11-17-native-desktop-implementation.md)，发布要求见[发布就绪检查](release-readiness.md)。
 
 ## 客户端与发布状态
 
@@ -75,7 +75,7 @@ API Key 与 Token 只保存在 Keychain / Windows Credential Manager，数据库
 
 `packages/desktop-resources/runtime/runtime-manifest.json` 是两端唯一的运行时清单，同目录 `models.json` 固定默认模型版本。根配置固定生产 Python 3.11.18 和 FunASR local2 元数据修正版。`productionInputs` 绑定标准库 builder、三锁和五件构建输出；安装器校验固定上游原包和所有产物，从私有快照按哈希安装。`candidateProfiles.security-candidate` 仍是独立显式候选配置。固定归档、平台哈希锁、模型映射、输入摘要和安装 profile 必须同时匹配；支持范围限四个固定 FunASR 模型，不包含 Transformers 5.x 的 Torch 后端。
 
-托管安装在 pip 前检查完整 CPython 版本，之后校验依赖、离线预热和模型目录。Go 在从已有就绪标记确认 Python 可用时，核对解释器文件身份、大小、修改时间和 SHA-256。首次检查或指纹变化时重新运行完整版本探针，探针通过且文件未改变才缓存结果。候选随包输入仍需联网安装。Windows x86 保留客户端目标，托管本地 ASR 安装不支持。
+托管安装在 pip 前检查完整 CPython 版本，之后校验依赖、离线预热和模型目录。Go 在从已有就绪标记确认 Python 可用时，核对解释器文件身份、大小、修改时间和 SHA-256。首次检查或指纹变化时重新运行完整版本探针，探针通过且文件未改变才缓存结果。候选随包输入仍需联网安装。Windows x86 保留编译与必需验收目标，托管本地 ASR 安装不支持。2026-11-23 实际 CI 进一步确认固定 MyGo 的窗口及文字后端也不支持 386；该目标尚不能运行原生 GUI，须完成后端移植和目标验收，不能以编译成功关闭此门槛。
 
 | 事实来源 | Go 同步命令 |
 | --- | --- |

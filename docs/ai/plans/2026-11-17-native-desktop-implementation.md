@@ -21,7 +21,7 @@
 - 最新 ARM 候选重新打开既有合成验收资料，签到、盲盒和宠物成长记录保持；切换英文后实看 Encourage 已完整单行显示，随后正常退出，进程已结束。
 - 第四轮 [GitHub CI 45164966173](https://github.com/whalesky-labs/Liberty/actions/runs/45164966173) 绑定相同提交，`publish_release=false`。整仓质量、两项真实依赖安全、Native 独立兼容/race/四目标编译及许可证/SBOM 均通过。ARM 与 Intel Mac 平台任务通过目标测试、真实系统凭据恢复、解包执行和归档核验。Windows 两架构失败，完整 CI 结论为 failure，不能记为四平台通过。
 - Windows 实跑发现 `os.FileInfo.Sys()` 缺少链接计数，托管运行时及 sidecar 的硬链接检查漏拒绝；现改为核对已打开句柄的 `NumberOfLinks` 和 reparse 属性，并覆盖脚本快照、产物、日志与缓存读取。资料/旧库夹具改为合法 Windows 文件名和正确的 file URI；农场/工厂动画先在 int64 内取模，再转为 int，避免 32 位溢出。相邻 managed/legacydb/profile 和场景 race 已通过，Windows 复跑待记录。
-- x86 的文字布局失败另有依赖层阻塞：当前固定 MyGo 对 Windows 386 使用 `stubEngine`，没有真实字形绘制和段落折行；DirectWrite 仅支持 amd64/arm64。核对公开 v0.10.0 及 upstream main 仍相同，未做无效依赖升级。必须完成 MyGo 的 x86 文字后端移植和目标验收才能关闭该项，不能跳过失败 UI 测试或缩减既定四目标门槛。
+- x86 的文字布局失败另有依赖层阻塞：当前固定 MyGo 对 Windows 386 使用 `stubEngine`，没有真实字形绘制和段落折行；DirectWrite 仅支持 amd64/arm64。进一步通过实际 `go list` 选择确认窗口后端也落入 `backend_other.go` 的 unsupported 实现。核对公开 v0.10.0 及 upstream main 的 DirectWrite 仍排除 386，未做无效依赖升级。必须完成 MyGo 的 x86 窗口/文字后端移植和目标验收才能关闭该项，不能跳过失败 UI 测试或缩减既定四目标门槛。证据为忽略目录中的 `mygo-windows386-backend-evidence-20261123.json`。
 
 完整重构仍需关闭下方正式切换门槛；本节不以编译、候选包或测试服务替代目标设备、专用外部服务、人工受控 ASR 和签名安装验收。
 
@@ -35,7 +35,7 @@
 | 4. 宠物与现有练习 | 宠物成长、签到、盲盒持久化；工厂键盘完成、错误扣时、重开、暂停、退出且不误发工作奖励 | 目标平台桌宠视觉/多窗口交互及玩法校准 |
 | 5. 远端服务 | 能力协商、连接绑定和允许操作的实现、测试与验收入口 | 专用外部测试 URL、系统凭据引用、合成任务 ID 当前均未提供 |
 | 6. 运行时安全 | 默认 Python 3.11.18/local2 可复现安装；三平台锁及 ARM 已安装库存通过现有策略；新增 Rust 漏洞已修复 | Torch 2.2.2 无例外扫描仍为 20 组/24 条重叠记录；既有例外于 2026-11-30 到期，未扩大 |
-| 7. 平台执行 | ARM 与 Intel Mac CI 的目标测试、系统凭据、解包执行及归档核验；本机 ARM 真实运行时/GUI | Windows 通用缺陷修复待复跑；MyGo x86 文字后端尚未实现。最低系统、Windows 32 位 OS 和 Intel/Windows 本地 ASR/GUI 仍未验收 |
+| 7. 平台执行 | ARM 与 Intel Mac CI 的目标测试、系统凭据、解包执行及归档核验；本机 ARM 真实运行时/GUI | Windows 通用缺陷修复待复跑；MyGo x86 窗口和文字后端尚未实现。最低系统、Windows 32 位 OS 和 Intel/Windows 本地 ASR/GUI 仍未验收 |
 | 8. 性能与识别质量 | 合成音频的运行时和业务持久化链通过 | 登记的 8 GiB 设备、人工标注受控媒体及 CER/WER/DER/性能门禁；本机 16 GiB 不替代此证据 |
 | 9. 资料迁移恢复 | 只读源、WAL 一致快照、独立凭据、失败补偿/重试、重复导入不覆盖新数据；schema/profile race | 物理中断与实际安装升级回滚；旧端不具有本分支恢复协议，不允许原地写入接管 |
 | 10. 安装分发 | DMG/MSI 实现、66 项自测、固定 WiX 下载摘要、四目标真实候选的分发 prepare | Developer ID/公证凭据、Windows 签名证书及较旧已签名 MSI 缺失；实际签名安装和事务回退未验收 |

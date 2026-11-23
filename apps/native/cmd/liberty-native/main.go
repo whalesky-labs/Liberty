@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -28,10 +29,10 @@ func main() {
 	if err := run(); err != nil {
 		// Repository errors are stable codes, never raw SQL errors or user paths.
 		fmt.Fprintln(os.Stderr, err)
-		if isProfileImportCommand(os.Args[1:]) {
+		if isProfileImportCommand(os.Args[1:]) || !nativeGUIAvailable(runtime.GOOS, runtime.GOARCH) {
 			fmt.Fprintln(os.Stderr, startupFailureMessage(err))
 		}
-		if launchChannel == "candidate" && !eventLoopStarted && !isProfileImportCommand(os.Args[1:]) {
+		if launchChannel == "candidate" && !eventLoopStarted && !isProfileImportCommand(os.Args[1:]) && nativeGUIAvailable(runtime.GOOS, runtime.GOARCH) {
 			showStartupFailure(err)
 		}
 		os.Exit(1)
@@ -60,6 +61,9 @@ func runWithProfileResolver(resolve func(bool) (string, error)) error {
 	if options.importProfile != "" {
 		return importProfileSnapshot(context.Background(), options, resolve, credentials.NewSystem(), os.Stdout)
 	}
+	if options.restoreBackup == "" && !nativeGUIAvailable(runtime.GOOS, runtime.GOARCH) {
+		return errNativeGUIUnsupported
+	}
 	if err := options.resolveProfile(resolve); err != nil {
 		return err
 	}
@@ -68,7 +72,7 @@ func runWithProfileResolver(resolve func(bool) (string, error)) error {
 		if err != nil {
 			return err
 		}
-		if launchChannel == "candidate" {
+		if launchChannel == "candidate" && nativeGUIAvailable(runtime.GOOS, runtime.GOARCH) {
 			showRestoreComplete(result.RestoredVersion, filepath.Base(result.SafetyBackup))
 		}
 		return nil

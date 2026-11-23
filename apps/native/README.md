@@ -59,6 +59,8 @@ binary='./Liberty Native Candidate.app/Contents/MacOS/liberty-native'
 
 Windows 便携目录中的文件名为 `Liberty Native Candidate.exe`；不要把示例中的 macOS 路径当作 Windows 启动命令。
 
+Windows x86 当前仅有编译目标，不能作为可运行的原生客户端：2026-11-23 的实际 CI 和依赖源码核对确认，固定 MyGo 在 386 上选择不支持的窗口后端和占位文字引擎。启动失败不能通过重置资料库解决；64 位 Windows 应使用 x64 候选。x86 仍保留在必需验收矩阵中，待窗口/文字后端移植后通过原有测试，不能凭 `--version` 成功宣称 GUI 可用。
+
 ## 生产资料接管与离线恢复
 
 此处说明的是候选 CLI 的资料操作，不代表生产切换或完整 GUI 恢复已验收。生产目录始终只读；旧发行客户端不具有本分支的锁与恢复协议，因此不允许 Native 原地接管。先让旧端完成或取消在途操作并正常退出，再导入一个尚不存在的独立目录：

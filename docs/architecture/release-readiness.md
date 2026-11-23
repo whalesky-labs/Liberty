@@ -411,12 +411,14 @@ Windows handle-based hard-link check, invalid synthetic filenames/SQLite URIs,
 and a 32-bit animation-index overflow; their fixes require another target run.
 
 The x86 UI failures also establish a separate implementation blocker: the pinned
-MyGo text engine selects its stub on Windows 386, while DirectWrite is built only
-for amd64/arm64. The inspected v0.10.0 release and upstream main retain that
-boundary. The stub does not provide real glyph rasterization or paragraph
-wrapping. A Windows x86 compilation or `--version` result cannot establish a
-working GUI. Closing this target requires a proper MyGo text backend port and
-target verification; tests and the four-target release gate remain enforced.
+MyGo selects both its unsupported window backend and its stub text engine on
+Windows 386. The actual `go list` selections are `backend_other.go` and
+`engine_other.go`; the Windows window backend and DirectWrite are built only for
+amd64/arm64. The inspected v0.10.0 release and upstream main still exclude 386
+from DirectWrite. The text stub draws no glyphs and does not wrap paragraphs.
+A Windows x86 compilation or `--version` result cannot establish a working GUI.
+Closing this target requires a proper MyGo Windows x86 window/text backend port
+and target verification; tests and the four-target release gate remain enforced.
 
 Additional macOS ARM page acceptance covered English dark and Chinese light
 themes, settings categories and diagnostics, member and custom-template saves,

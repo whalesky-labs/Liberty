@@ -155,7 +155,7 @@ func commandInputSnapshot(ctx context.Context, parent *os.Root, snapshot map[str
 					continue
 				}
 				opened, statErr := file.Stat()
-				if statErr != nil || !os.SameFile(info, opened) || !singleLinkFile(file) || file.Chmod(0600) != nil {
+				if statErr != nil || !os.SameFile(info, opened) || !singleLinkFile(file) || root.Chmod(filename, 0600) != nil {
 					failed = true
 				}
 				if file.Close() != nil {
