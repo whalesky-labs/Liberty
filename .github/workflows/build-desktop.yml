@@ -25,7 +25,7 @@ concurrency:
 jobs:
   quality:
     name: Quality Gate
-    uses: ./.github/workflows/quality.yml
+    uses: ./.github/workflows/ci-full.yml
     permissions:
       contents: read
 

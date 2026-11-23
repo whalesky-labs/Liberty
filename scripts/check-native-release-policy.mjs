@@ -7,159 +7,11 @@ import { gunzipSync } from 'node:zlib';
 import { assertCandidateManifest, assertNativeBinary, assertNativeVersion, candidateName, candidatePlist, fileDigest, nativeTargets } from './lib/native-package.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const actions = {
-  checkout: 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10',
-  node: 'actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38',
-  python: 'actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1',
-  go: 'actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16',
-  upload: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
-};
-const tooling = `corepack enable
-corepack prepare pnpm@10.30.3 --activate
-test "$(pnpm --version)" = "10.30.3"
-pnpm --filter liberty-workspace install --frozen-lockfile --ignore-scripts`;
-const scanner = `mkdir -p "\${RUNNER_TEMP}/liberty-native-security"
-curl --location --fail --silent --show-error \\
-  --output "\${RUNNER_TEMP}/liberty-native-security/osv-scanner" \\
-  "https://github.com/google/osv-scanner/releases/download/v2.5.0/osv-scanner_linux_amd64"
-printf '%s  %s\\n' \\
-  'edcfc41d257db36148f065055655fe3fcfc434b0b423ea67468a84c207524e0c' \\
-  "\${RUNNER_TEMP}/liberty-native-security/osv-scanner" | sha256sum --check
-chmod 0755 "\${RUNNER_TEMP}/liberty-native-security/osv-scanner"
-echo "\${RUNNER_TEMP}/liberty-native-security" >> "$GITHUB_PATH"`;
-const targetTests = `test "$(go env GOHOSTOS)" = "$EXPECTED_SYSTEM"
-if [[ "$EXPECTED_SYSTEM" = darwin ]]; then
-  test "$(go env GOHOSTARCH)" = "$GOARCH"
-else
-  test "$(go env GOHOSTARCH)" = amd64
-fi
-go test -count=1 -timeout=30m ./...
-go test -count=1 -tags credentials_acceptance ./internal/infrastructure/credentials`;
-
-// Deliberately accept a small, unambiguous YAML subset. Anchors, aliases, tags,
-// flow collections and duplicate keys cannot hide policy overrides.
-export function parseNativeWorkflow(source) {
-  const lines = source.replaceAll('\r\n', '\n').split('\n');
-  let index = 0;
-  const indent = line => line.match(/^ */)[0].length;
-  const skip = () => { while (index < lines.length && /^\s*(?:#.*)?$/.test(lines[index])) index++; };
-  function scalar(text) {
-    if (text.startsWith('"')) return JSON.parse(text);
-    if (text.startsWith("'")) {
-      if (!/^'(?:[^']|'')*'$/.test(text)) throw new Error('Invalid workflow quote');
-      return text.slice(1, -1).replaceAll("''", "'");
-    }
-    if (/^[&*!\[\]{},]|\s#/.test(text)) throw new Error('Unsupported workflow YAML construct');
-    if (text === 'true' || text === 'false') return text === 'true';
-    if (/^\d+$/.test(text)) return Number(text);
-    return text;
-  }
-  function entry(text) {
-    const match = text.match(/^([A-Za-z][A-Za-z0-9_-]*):(?: +(.*))?$/);
-    if (!match) throw new Error('Unsupported workflow mapping');
-    return [match[1], match[2]];
-  }
-  function value(text, level) {
-    if (text === '|') {
-      const result = [];
-      while (index < lines.length && (!lines[index].trim() || indent(lines[index]) > level)) {
-        if (lines[index].trim() && indent(lines[index]) < level + 2) throw new Error('Invalid workflow block indentation');
-        result.push(lines[index].slice(level + 2));
-        index++;
-      }
-      return result.join('\n').trimEnd();
-    }
-    if (text !== undefined) return scalar(text);
-    skip();
-    return index < lines.length && indent(lines[index]) > level ? block(level + 2) : null;
-  }
-  function mapping(level, initial) {
-    const result = {};
-    if (initial) result[initial[0]] = value(initial[1], level);
-    while (true) {
-      skip();
-      if (index >= lines.length || indent(lines[index]) < level) break;
-      if (indent(lines[index]) !== level || lines[index].trimStart().startsWith('- ')) throw new Error('Invalid workflow mapping indentation');
-      const [key, text] = entry(lines[index].slice(level));
-      if (Object.hasOwn(result, key)) throw new Error(`Duplicate workflow key: ${key}`);
-      index++;
-      result[key] = value(text, level);
-    }
-    return result;
-  }
-  function block(level) {
-    skip();
-    if (indent(lines[index]) !== level) throw new Error('Invalid workflow indentation');
-    if (!lines[index].slice(level).startsWith('- ')) return mapping(level);
-    const result = [];
-    while (true) {
-      skip();
-      if (index >= lines.length || indent(lines[index]) < level) break;
-      if (indent(lines[index]) !== level || !lines[index].slice(level).startsWith('- ')) throw new Error('Invalid workflow sequence');
-      const first = entry(lines[index].slice(level + 2));
-      index++;
-      result.push(mapping(level + 2, first));
-    }
-    return result;
-  }
-  if (source.includes('\t')) throw new Error('Workflow tabs are prohibited');
-  const result = block(0);
-  skip();
-  if (index !== lines.length) throw new Error('Unexpected workflow content');
-  return result;
-}
-
-const checkout = () => ({ name: 'Checkout exact source', uses: actions.checkout, with: { ref: '${{ github.sha }}', 'persist-credentials': false } });
-const node = () => ({ name: 'Setup Node', uses: actions.node, with: { 'node-version': 24 } });
-const go = () => ({ name: 'Setup Go', uses: actions.go, with: { 'go-version': '1.27.4', 'cache-dependency-path': 'apps/native/go.sum' } });
-const install = () => ({ name: 'Install pinned root tooling', shell: 'bash', run: tooling });
-const command = (name, run) => ({ name, run });
+import { assertWorkflow, checkWorkflows } from './ci/workflows.mjs';
+export { parseWorkflow as parseNativeWorkflow } from './ci/yaml.mjs';
 
 export function assertNativeWorkflow(source) {
-  const workflow = parseNativeWorkflow(source);
-  // Closed contracts prevent an appended command, skipped check, elevated
-  // permission or additional publishing job from bypassing the required steps.
-  const expected = {
-    name: 'Build Native Candidates',
-    on: { workflow_dispatch: null, workflow_call: null },
-    permissions: { contents: 'read' },
-    env: { FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true, GOTOOLCHAIN: 'go1.27.4', GOFLAGS: '-mod=readonly' },
-    concurrency: { group: 'native-candidate-${{ github.workflow }}-${{ github.ref }}', 'cancel-in-progress': false },
-    jobs: {
-      quality: {
-        name: 'Independent Native Quality', 'runs-on': 'ubuntu-22.04', 'timeout-minutes': 60,
-        steps: [checkout(), node(), { name: 'Setup Python', uses: actions.python, with: { 'python-version': '3.12' } }, go(), install(),
-          command('Bootstrap Python test tools', 'pnpm python:bootstrap'),
-          command('Verify Native sources, Python and candidate policy', 'pnpm native:verify'),
-          command('Replay frozen Native compatibility fixtures', 'pnpm native:compat'),
-          { name: 'Check Native concurrency', 'working-directory': 'apps/native', run: 'go test -race -count=1 -timeout=30m ./...' },
-          command('Compile all three Native targets', 'pnpm native:build:matrix'),
-          command('Check Native licenses', 'pnpm native:licenses:check'),
-          command('Generate Native SBOM', 'pnpm native:sbom:generate'),
-          { name: 'Upload Native SBOM and notices', uses: actions.upload, with: { name: 'liberty-native-sbom-${{ github.sha }}', path: 'artifacts/sbom/liberty-native.cdx.json\nartifacts/sbom/native-go-NOTICES.txt', 'if-no-files-found': 'error', 'retention-days': 14 } }],
-      },
-      security: {
-        name: 'Required Native Dependency Security', 'runs-on': 'ubuntu-22.04', 'timeout-minutes': 30,
-        steps: [checkout(), node(), go(), install(), { name: 'Install authenticated OSV Scanner', shell: 'bash', run: scanner }, command('Enforce real Native vulnerability scan', 'pnpm native:security:check')],
-      },
-      build: {
-        name: 'Candidate (${{ matrix.target }})', needs: 'quality', 'runs-on': '${{ matrix.runner }}', 'timeout-minutes': 60,
-        strategy: { 'fail-fast': false, matrix: { include: [
-          { target: 'darwin-aarch64', runner: 'macos-latest', system: 'darwin', arch: 'arm64' },
-          { target: 'darwin-x64', runner: 'macos-15-intel', system: 'darwin', arch: 'amd64' },
-          { target: 'windows-x64', runner: 'windows-2022', system: 'windows', arch: 'amd64' },
-        ] } },
-        steps: [checkout(), node(), go(),
-          { name: 'Execute target tests and isolated system credentials', 'working-directory': 'apps/native', shell: 'bash', env: { GOARCH: '${{ matrix.arch }}', CGO_ENABLED: '0', EXPECTED_SYSTEM: '${{ matrix.system }}' }, run: targetTests },
-          { name: 'Package and execute extracted candidate', shell: 'bash', env: { NATIVE_TARGET: '${{ matrix.target }}' }, run: 'node scripts/package-native.mjs --target "$NATIVE_TARGET" --verify-host' },
-          { name: 'Verify exact archive, manifest and checksums', shell: 'bash', env: { NATIVE_TARGET: '${{ matrix.target }}', NATIVE_COMMIT: '${{ github.sha }}' }, run: 'node scripts/check-native-release-policy.mjs verify-artifacts --target "$NATIVE_TARGET" --commit "$NATIVE_COMMIT" --output "artifacts/native/$NATIVE_TARGET"' },
-          { name: 'Upload verified unsigned candidate', uses: actions.upload, with: { name: 'liberty-native-candidate-${{ matrix.target }}-${{ github.sha }}', path: 'artifacts/native/${{ matrix.target }}/', 'if-no-files-found': 'error', 'retention-days': 14 } }],
-      },
-    },
-  };
-  try { assert.deepEqual(workflow, expected); }
-  catch { throw new Error('Native workflow differs from the reviewed read-only candidate, security, quality or three-platform delivery policy'); }
-  return workflow;
+  return assertWorkflow('build-native.yml', source);
 }
 
 const safePath = name => typeof name === 'string' && name && !/[\\:\x00]/.test(name) && !name.startsWith('/') && name.split('/').every(part => part && part !== '.' && part !== '..');
@@ -340,8 +192,8 @@ export async function verifyNativeArtifacts({ rootDirectory = root, target, comm
 async function main() {
   const args = process.argv.slice(2);
   if (!args.length) {
-    assertNativeWorkflow(await readFile(path.join(root, '.github/workflows/build-native.yml'), 'utf8'));
-    console.log('Native candidate workflow preserves independent quality, required security, three execution targets and read-only delivery.');
+    await checkWorkflows();
+    console.log('Native candidates require complete quality and security, three execution targets and read-only delivery.');
     return;
   }
   if (args[0] !== 'verify-artifacts' || args.length !== 7 || args[1] !== '--target' || args[3] !== '--commit' || args[5] !== '--output') throw new Error('Expected verify-artifacts --target <target> --commit <sha> --output <artifact-directory>');

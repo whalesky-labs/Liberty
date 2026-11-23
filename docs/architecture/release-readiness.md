@@ -61,31 +61,31 @@ old Tauri executable or a permanent compatibility release after this change.
 Normal model/token rotation must retain credentials still referenced by a
 restorable snapshot and keep a durable retirement intent for eventual cleanup.
 
-## Independent Native Delivery
+## Native Quality and Candidate Delivery
 
 `pnpm native:verify` is the complete local Native quality entry: Go checks and
 shared generated sources, Python lint/tests, Native version and three-target
 policy, required security regressions, lock integrity, candidate workflow policy,
 and failure fixtures. It does not invoke the old UI or Rust. The root `pnpm check`
-runs it before `legacy:check`; the latter retains the old production checks only
-until the retirement change above.
+runs it before completing the temporary production-client and CI policy checks,
+executing shared Python checks once. Legacy checks remain until retirement.
 
-`.github/workflows/build-native.yml` can run manually or through the root quality
-workflow. Its independent quality job also replays frozen compatibility fixtures,
-runs race checks, cross-compiles all targets, collects Go notices and produces a
-Native lock-inventory SBOM. Three platform jobs execute target tests and isolated
-system-vault acceptance, build portable candidates, execute the extracted version
-check, and verify exact archive contents, manifest, architecture and SHA-256
-before uploading the candidate artifacts.
+PR and main checks select validation suites by changed paths. High-risk changes,
+manual full validation and releases call `ci-full.yml`, covering both clients,
+frozen compatibility fixtures, race, target compilation, actual platform tests,
+isolated system-vault acceptance, Go notices, security and both SBOM inventories.
+There are no scheduled runs. See the [CI/CD rules](ci-cd.md).
 
-The separate real dependency-security job is required: findings or scanner
-errors fail the workflow. Candidate build artifacts may remain available when
-this job fails, as in the existing quality workflow, but cannot establish
-production security clearance. All jobs have read-only repository permissions;
-there is no Release publication, Git-ref mutation, signing or notarization step.
+`.github/workflows/build-native.yml` is only manually triggered or explicitly
+called. It requires the complete gate, including real security scans, to succeed
+before packaging one selected target or all three. Each package runs its extracted
+version check and verifies exact archive contents, manifest, architecture and
+SHA-256 before upload. Ordinary commits do not build candidate archives. Candidate
+jobs have read-only repository permissions; there is no Release publication,
+Git-ref mutation, signing or notarization step.
 `native:security:check`, `native:licenses:check` and `native:sbom:generate` use
-the explicit Native governance mode without Cargo. Existing production Rust
-checks remain in the old production chain until its retirement.
+the explicit Native governance mode without Cargo. Complete CI combines shared
+dependency scans while retaining Cargo coverage until the old client's retirement.
 
 The Native SBOM describes locked Go modules, three production Python targets,
 Python development tools and the transitive root Node build tools. It retains
@@ -179,8 +179,8 @@ not replace a real dependency scan, controlled-media benchmark, native platform
 smoke, signing, notarization, installer test, or published-asset verification.
 
 Native changes also require the appropriate `pnpm native:compat`, Go race checks
-and `pnpm native:build:matrix`. The root quality workflow delegates the complete
-Native quality and platform candidate jobs to `build-native.yml`. Matrix
+and `pnpm native:build:matrix`. The root quality workflow selects suites or calls
+complete validation; candidate packaging uses a separate manual entry. Matrix
 compilation is not execution on those devices. Candidate packaging verifies
 version, identity, architecture and archive contents; Windows portable packages
 are not installers.

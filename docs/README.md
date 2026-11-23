@@ -11,6 +11,7 @@
 | 原生分层、数据、窗口授权和共享来源 | [Go + MyGo 原生架构](architecture/native-desktop-architecture.md) |
 | 候选包、资料目录、显式接管与恢复 | [原生模块说明](../apps/native/README.md) |
 | 平台、安全、安装器与正式发布门槛 | [发布就绪检查](architecture/release-readiness.md) |
+| 按改动范围执行 CI、手动全量与候选构建 | [CI/CD 操作规则](architecture/ci-cd.md) |
 | 宠物、LP、商店、福利、农场和打工 | [宠物系统](pet-system.md) |
 | 图片来源、生成与原生同步 | [素材说明](images/README.md) |
 | 变更记录 | [CHANGELOG](../CHANGELOG.md)，未发布工作只写 Unreleased |

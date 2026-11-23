@@ -20,6 +20,7 @@
 
 #### 调整
 
+- CI 按改动范围选择模块检查，高风险变更、手动全量与发布执行共同完整门禁；取消过时普通 CI，保留累计未验证改动。移除普通提交的默认候选打包，禁止定时任务，合并重复 Python 和共享供应链检查，保留失败阻断与发布资产核验。
 - 运行时清单、模型版本、Word 模板、双语文案和农场/打工素材迁至两端共用的资源目录，保持现有内容和运行时版本不变。
 - 原生系统设置与主菜单共用主题和导航状态配色；项目文档按当前架构、开发/验收入口和历史过程记录重新整理。
 - 独立结果中心并入任务队列；已完成任务直接打开结果工作台，旧结果入口兼容跳转到已完成任务筛选。
@@ -57,6 +58,7 @@
 
 #### Changed
 
+- Changed CI to select module checks by affected paths, with complete validation for high-risk changes, manual full checks and releases. Superseded ordinary runs are cancelled while unverified changes remain in scope. Candidate packaging is on demand, scheduled runs are prohibited, and shared Python and supply-chain checks execute once without removing failure gates or release-asset verification.
 - Moved runtime manifests, model pins, the Word template, bilingual messages, and farm/work assets into a shared directory without changing their content or runtime versions.
 - Unified native Settings and main-navigation theme/state colors, and reorganized project documentation around current architecture, development/acceptance entry points and historical records.
 - Folded the standalone Results Center into the job queue; completed jobs now open the result workbench directly, and legacy result routes redirect to the completed-job filter.

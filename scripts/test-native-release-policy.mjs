@@ -13,52 +13,26 @@ const workflow = await readFile(new URL('../.github/workflows/build-native.yml',
 const commit = 'a'.repeat(40);
 const version = '9.8.7';
 
-test('accepts the complete independent candidate workflow', () => {
+test('candidate builds require complete validation before publishing verified artifacts', () => {
   const parsed = assertNativeWorkflow(workflow);
-  assert.equal(parsed.jobs.build.needs, 'quality');
-  assert.equal(parsed.jobs.security.steps.at(-1).run, 'pnpm native:security:check');
-  assert.equal(parsed.jobs.build.strategy.matrix.include.length, 3);
+  assert.deepEqual(parsed.jobs.build.needs, ['quality', 'select']);
+  assert.equal(parsed.jobs.quality.uses, './.github/workflows/ci-full.yml');
+  assert.equal(parsed.jobs.build.strategy.matrix, '${{ fromJSON(needs.select.outputs.matrix) }}');
 });
 
 for (const [name, before, after] of [
-  ['automatic tag publication', '  workflow_dispatch:', '  push:\n    tags: v*\n  workflow_dispatch:'],
+  ['automatic tag publication', '  workflow_dispatch:', '  push:\n    tags:\n      - "v*"\n  workflow_dispatch:'],
   ['untrusted event', '  workflow_call:', '  pull_request_target:'],
-  ['write token', 'contents: read', 'contents: write'],
-  ['extra token permission', '  contents: read', '  contents: read\n  id-token: write'],
-  ['job permission override', '    name: Independent Native Quality', '    permissions:\n      contents: write\n    name: Independent Native Quality'],
-  ['floating action reference', 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10', 'actions/checkout@v6'],
-  ['different pinned action', 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10', 'actions/checkout@' + 'f'.repeat(40)],
-  ['mutable source checkout', 'ref: ${{ github.sha }}', 'ref: main'],
+  ['write token', 'contents: "read"', 'contents: "write"'],
+  ['mutable source checkout', 'ref: "${{ github.sha }}"', 'ref: "main"'],
   ['persisted checkout token', 'persist-credentials: false', 'persist-credentials: true'],
-  ['unpinned pnpm', 'pnpm@10.30.3', 'pnpm@latest'],
-  ['wrong Go', "go-version: '1.27.4'", "go-version: '1.27.3'"],
-  ['unfrozen install', '--frozen-lockfile', '--no-frozen-lockfile'],
-  ['old client dependency installation', '--filter liberty-workspace install', 'install'],
-  ['missing independent verification', 'run: pnpm native:verify', 'run: pnpm desktop:check'],
-  ['missing frozen fixture replay', 'run: pnpm native:compat', 'run: echo fixtures passed'],
-  ['missing race verification', 'go test -race -count=1', 'go test -count=1'],
-  ['missing target compilation', 'run: pnpm native:build:matrix', 'run: echo compiled'],
-  ['missing license gate', 'run: pnpm native:licenses:check', 'run: echo licenses passed'],
-  ['missing SBOM', 'run: pnpm native:sbom:generate', 'run: echo generated'],
-  ['optional security job', '    name: Required Native Dependency Security', '    if: false\n    name: Required Native Dependency Security'],
-  ['security failure suppression', '    name: Required Native Dependency Security', '    continue-on-error: true\n    name: Required Native Dependency Security'],
-  ['disabled real scan', 'run: pnpm native:security:check', 'run: echo scanner passed'],
-  ['hidden scanner failure', 'run: pnpm native:security:check', 'run: pnpm native:security:check || true'],
-  ['unauthenticated scanner', 'edcfc41d257db36148f065055655fe3fcfc434b0b423ea67468a84c207524e0c', '0'.repeat(64)],
-  ['scanner version drift', 'download/v2.5.0/', 'download/latest/'],
-  ['quality bypass', 'needs: quality', 'needs: security'],
-  ['target tests only compiled', 'go test -count=1 -timeout=30m ./...', 'go test -c ./...'],
-  ['credential acceptance skipped', 'go test -count=1 -tags credentials_acceptance', 'echo go test -count=1 -tags credentials_acceptance'],
-  ['wrong Windows architecture', 'system: windows\n            arch: amd64', 'system: windows\n            arch: arm64'],
-  ['Intel silently cross-compiled', 'runner: macos-15-intel', 'runner: macos-latest'],
+  ['full gate bypass', './.github/workflows/ci-full.yml', './.github/workflows/quality.yml'],
   ['missing runnable archive check', ' --verify-host', ''],
-  ['unverified upload', 'run: node scripts/check-native-release-policy.mjs verify-artifacts', 'run: echo node scripts/check-native-release-policy.mjs verify-artifacts'],
-  ['mixed targets uploaded', 'path: artifacts/native/${{ matrix.target }}/', 'path: target/native/packages/'],
-  ['missing artifact silently accepted', 'if-no-files-found: error', 'if-no-files-found: ignore'],
-  ['added release job', '\n  build:', '\n  publish:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Publish\n        run: gh release create v9.8.7\n\n  build:'],
-  ['arbitrary command appended', 'run: pnpm native:verify', 'run: pnpm native:verify && git push origin HEAD'],
+  ['unverified upload', 'run: "node scripts/check-native-release-policy.mjs verify-artifacts', 'run: "echo node scripts/check-native-release-policy.mjs verify-artifacts'],
+  ['missing artifact silently accepted', 'if-no-files-found: "error"', 'if-no-files-found: "ignore"'],
+  ['Intel silently cross-compiled', '"runner":"macos-15-intel"', '"runner":"macos-latest"'],
 ]) {
-  test(`rejects workflow mutation: ${name}`, () => {
+  test(`rejects candidate workflow mutation: ${name}`, () => {
     assert.ok(workflow.includes(before), 'mutation must affect the actual workflow');
     assert.throws(() => assertNativeWorkflow(workflow.replace(before, after)));
   });
@@ -174,7 +148,8 @@ async function committedFixture(context) {
   const f = await fixture(context);
   await writeFile(path.join(f.directory, '.gitignore'), 'target/\nartifacts/\n');
   await mkdir(path.join(f.directory, 'scripts/lib'), { recursive: true });
-  for (const name of ['check-native-release-policy.mjs', 'lib/native-package.mjs']) {
+  for (const name of ['check-native-release-policy.mjs', 'lib/native-package.mjs', 'ci/workflows.mjs', 'ci/plan.mjs', 'ci/yaml.mjs']) {
+    await mkdir(path.dirname(path.join(f.directory, 'scripts', name)), { recursive: true });
     await writeFile(path.join(f.directory, 'scripts', name), await readFile(new URL(name, import.meta.url)));
   }
   const git = (...args) => execFileSync('git', args, { cwd: f.directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();

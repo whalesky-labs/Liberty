@@ -2,15 +2,20 @@ import { readFileSync } from "node:fs";
 
 const buildWorkflow = readFileSync(".github/workflows/build-desktop.yml", "utf8");
 const qualityWorkflow = readFileSync(".github/workflows/quality.yml", "utf8");
+const suiteWorkflow = readFileSync(".github/workflows/ci-suite.yml", "utf8");
+const fullWorkflow = readFileSync(".github/workflows/ci-full.yml", "utf8");
+const suiteRunner = readFileSync("scripts/ci/run.mjs", "utf8");
 const rustToolchain = readFileSync("rust-toolchain.toml", "utf8");
 const errors = [];
 
 for (const [workflowName, workflow] of [
   ["build-desktop.yml", buildWorkflow],
   ["quality.yml", qualityWorkflow],
+  ["ci-full.yml", fullWorkflow],
+  ["ci-suite.yml", suiteWorkflow],
 ]) {
   for (const match of workflow.matchAll(/^\s*uses:\s*([^\s#]+)/gm)) {
-    const reference = match[1];
+    const reference = match[1].replace(/^["']|["']$/g, "");
     if (reference.startsWith("./")) {
       continue;
     }
@@ -25,9 +30,9 @@ if (!/^channel\s*=\s*"1\.94\.0"\s*$/m.test(rustToolchain)) {
 }
 for (const [workflowName, workflow] of [
   ["build-desktop.yml", buildWorkflow],
-  ["quality.yml", qualityWorkflow],
+  ["ci-suite.yml", suiteWorkflow],
 ]) {
-  if (!/toolchain:\s*1\.94\.0\b/.test(workflow)) {
+  if (!/toolchain:\s*["']?1\.94\.0\b/.test(workflow)) {
     errors.push(`${workflowName} must install the pinned Rust 1.94.0 toolchain`);
   }
 }
@@ -62,8 +67,8 @@ assertMatch(
 );
 assertMatch(
   buildWorkflow,
-  /quality:\s*\n(?:.|\n)*?uses:\s+\.\/\.github\/workflows\/quality\.yml/,
-  "desktop workflow must call the reusable quality gate",
+  /quality:\s*\n(?:.|\n)*?uses:\s+\.\/\.github\/workflows\/ci-full\.yml/,
+  "desktop workflow must call the complete validation gate",
 );
 
 const buildJob = readJob(buildWorkflow, "build");
@@ -154,27 +159,20 @@ for (const stepName of releaseSteps) {
   previousIndex = stepIndex;
 }
 
-for (const trigger of ["workflow_call:", "pull_request:", "push:"]) {
+for (const trigger of ["workflow_dispatch:", "pull_request:", "push:"]) {
   if (!qualityWorkflow.includes(trigger)) {
     errors.push(`quality workflow is missing ${trigger}`);
   }
 }
-if ((qualityWorkflow.match(/- main\b/g) ?? []).length < 2) {
+if ((qualityWorkflow.match(/- ["']?main\b/g) ?? []).length < 2) {
   errors.push("quality workflow must run for pull requests and pushes to main");
 }
 
-for (const command of [
-  "pnpm desktop:typecheck",
-  "pnpm rust:fmt:check",
-  "cargo test --workspace --locked",
-  "cargo clippy --workspace --all-targets --locked -- -D warnings",
-  "pnpm release:check",
-  "node scripts/check-release-policy.mjs",
-  "node scripts/test-release-checks.mjs",
-]) {
-  if (!qualityWorkflow.includes(command)) {
-    errors.push(`quality workflow is missing command: ${command}`);
-  }
+// The generated workflow policy checks the complete job graph, conditions,
+// pinned setup and dispatch. Validate it here as part of the release gate too.
+await import("./ci/workflows.mjs").then(({ checkWorkflows }) => checkWorkflows());
+for (const required of ["desktop:typecheck", "--locked", "-D", "warnings", "release:check", "scripts/check-release-policy.mjs", "scripts/test-release-checks.mjs"]) {
+  if (!suiteRunner.includes(required)) errors.push(`Validation suite dispatcher is missing ${required}`);
 }
 
 for (const [jobName, job, recoveryGuards] of [

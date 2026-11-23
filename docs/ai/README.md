@@ -49,6 +49,7 @@
 
 | 记录 | 状态与范围 |
 | --- | --- |
+| [2026-11-23 Liberty 分层 CI/CD 方案](designs/2026-11-23-layered-ci-cd.md) | 已确认，源码已实施；按变更范围检查、按需全量、无定时任务；实际 CI 与仓库规则待验证 |
 | [2026-11-19 Liberty 原生重构中的小游戏体验工作线](designs/2026-11-19-native-gameplay-experience-design.md) | 已确认，执行中；P5-G0 已实现，P5-G1 玩法校准未完成 |
 | [2026-11-16 Liberty Go + MyGo 原生桌面重构方案](designs/2026-11-16-native-desktop-refactor.md) | 已确认，执行中。阶段证据截至 2026-11-17，后续验收见实施记录。 |
 

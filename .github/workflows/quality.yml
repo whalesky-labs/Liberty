@@ -1,252 +1,109 @@
-name: Quality Gate
-
+# Generated from scripts/ci/workflows.mjs; run pnpm ci:generate.
+name: "Quality Gate"
 on:
-  workflow_call:
   pull_request:
     branches:
-      - main
+      - "main"
   push:
     branches:
-      - main
-
+      - "main"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "On-demand validation"
+        required: true
+        type: "choice"
+        default: "full"
+        options:
+          - "full"
+          - "security"
+permissions:
+  contents: "read"
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
-permissions:
-  contents: read
-
+concurrency:
+  group: "ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: true
 jobs:
-  supply-chain:
-    name: Dependency Security, Licenses, and SBOM
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: 24
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88
-        with:
-          toolchain: 1.94.0
-
-      - name: Dependency Governance Self-Test
-        run: node scripts/test-dependency-governance.mjs
-
-      - name: Setup Go for native license verification
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version: "1.27.4"
-          cache-dependency-path: apps/native/go.sum
-
-      - name: Lock Integrity Policy
-        run: node scripts/check-dependency-governance.mjs locks
-
-      - name: Install Pinned Dependency Scanners
-        shell: bash
-        run: |
-          mkdir -p "${RUNNER_TEMP}/liberty-security-tools" "${HOME}/.local/bin"
-          curl --location --fail --silent --show-error \
-            --output "${RUNNER_TEMP}/liberty-security-tools/cargo-deny.tar.gz" \
-            "https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz"
-          printf '%s  %s\n' \
-            '9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f' \
-            "${RUNNER_TEMP}/liberty-security-tools/cargo-deny.tar.gz" \
-            | sha256sum --check
-          tar --extract --gzip \
-            --file "${RUNNER_TEMP}/liberty-security-tools/cargo-deny.tar.gz" \
-            --directory "${RUNNER_TEMP}/liberty-security-tools"
-          install -m 0755 \
-            "${RUNNER_TEMP}/liberty-security-tools/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny" \
-            "${HOME}/.local/bin/cargo-deny"
-
-          curl --location --fail --silent --show-error \
-            --output "${RUNNER_TEMP}/liberty-security-tools/osv-scanner" \
-            "https://github.com/google/osv-scanner/releases/download/v2.5.0/osv-scanner_linux_amd64"
-          printf '%s  %s\n' \
-            'edcfc41d257db36148f065055655fe3fcfc434b0b423ea67468a84c207524e0c' \
-            "${RUNNER_TEMP}/liberty-security-tools/osv-scanner" \
-            | sha256sum --check
-          install -m 0755 \
-            "${RUNNER_TEMP}/liberty-security-tools/osv-scanner" \
-            "${HOME}/.local/bin/osv-scanner"
-          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
-
-      - name: License Policy
-        run: node scripts/check-dependency-governance.mjs licenses
-
-      - name: Vulnerability and Source Policy
-        run: node scripts/check-dependency-governance.mjs security
-
-      - name: Generate CycloneDX SBOM
-        run: node scripts/generate-sbom.mjs
-
-      - name: Upload SBOM
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: liberty-sbom
-          path: artifacts/sbom/liberty.cdx.json
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload Native Go Notices
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: liberty-native-go-notices
-          path: artifacts/sbom/native-go-NOTICES.txt
-          if-no-files-found: error
-          retention-days: 14
-
-  quality:
-    name: Typecheck, Test, and Release Checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: 24
-
-      - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: "3.12"
-
-      - name: Setup Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version: "1.27.4"
-          cache-dependency-path: apps/native/go.sum
-
-      - name: Enable Corepack PNPM
-        shell: bash
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.30.3 --activate
-          pnpm --version
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88
-        with:
-          toolchain: 1.94.0
-          components: clippy, rustfmt
-
-      - name: Rust Cache
-        uses: swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
-        with:
-          workspaces: apps/desktop/src-tauri -> target
-
-      - name: Install Linux Dependencies
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends \
-            build-essential \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev
-
-      - name: Install Dependencies
-        shell: bash
-        run: pnpm install --frozen-lockfile
-
-      - name: Bootstrap Python Development Environment
-        run: pnpm python:bootstrap
-
-      - name: Contract Drift
-        run: pnpm contracts:check
-
-      - name: Frontend Tests
-        run: pnpm desktop:test
-
-      - name: Python Lint
-        run: pnpm python:lint
-
-      - name: Python Tests
-        run: pnpm python:test
-
-      - name: Typecheck
-        run: pnpm desktop:typecheck
-
-      - name: Rust Format
-        run: pnpm rust:fmt:check
-
-      - name: Rust Tests
-        run: cargo test --workspace --locked
-
-      - name: Rust Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
-
-      - name: Release Checks
-        run: pnpm release:check
-
-      - name: Release Workflow Policy
-        run: node scripts/check-release-policy.mjs
-
-      - name: Release Checks Self-Test
-        run: node scripts/test-release-checks.mjs
-
-  native-delivery:
-    name: Native Quality, Supply Chain, and Candidate Packages
-    uses: ./.github/workflows/build-native.yml
+  plan:
+    name: "Select checks"
+    runs-on: "ubuntu-22.04"
+    timeout-minutes: 5
     permissions:
-      contents: read
-
-  windows-compile:
-    name: Windows Compile (${{ matrix.name }})
-    runs-on: windows-latest
-    timeout-minutes: 45
+      contents: "read"
+      actions: "read"
+    outputs:
+      plan: "${{ steps.select.outputs.plan }}"
+      full: "${{ steps.select.outputs.full }}"
+      matrix: "${{ steps.select.outputs.matrix }}"
+    steps:
+      - name: "Checkout exact source"
+        uses: "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10"
+        with:
+          ref: "${{ github.sha }}"
+          persist-credentials: false
+          fetch-depth: 0
+      - name: "Setup Node"
+        uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
+        with:
+          node-version: 24
+      - name: "Classify with trusted base rules"
+        id: "select"
+        shell: "bash"
+        env:
+          TRUSTED_BASE: "${{ github.event.pull_request.base.sha || github.event.before || github.event_name == 'workflow_dispatch' && github.sha }}"
+          GH_TOKEN: "${{ github.token }}"
+        run: |
+          if [[ "$TRUSTED_BASE" =~ ^[a-f0-9]{40}$ ]] && git show "$TRUSTED_BASE:scripts/ci/plan.mjs" > "$RUNNER_TEMP/liberty-ci-plan.mjs"; then
+            node "$RUNNER_TEMP/liberty-ci-plan.mjs"
+          else
+            node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          const plan = { format: 1, head: process.env.GITHUB_SHA, base: null, mode: 'full', full: true, suites: ["docs","native","python","frontend","rust","policy","compat","race","matrix","target-arm","target-intel","target-windows","windows-rust","windows-release","security"], reasons: ['trusted-planner-unavailable'], changedFiles: 0 };
+          appendFileSync(process.env.GITHUB_OUTPUT, 'plan=' + JSON.stringify(plan) + '\nfull=true\nmatrix={"suite":["docs"]}\n');
+          console.log(JSON.stringify(plan, null, 2));
+          JS
+          fi
+  checks:
+    name: "Selected (${{ matrix.suite }})"
+    needs: "plan"
+    if: "${{ needs.plan.outputs.full == 'false' }}"
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: x64
-            rust_target: x86_64-pc-windows-msvc
-
+      matrix: "${{ fromJSON(needs.plan.outputs.matrix) }}"
+    uses: "./.github/workflows/ci-suite.yml"
+    with:
+      suite: "${{ matrix.suite }}"
+    permissions:
+      contents: "read"
+  full:
+    name: "Full validation"
+    needs: "plan"
+    if: "${{ needs.plan.outputs.full == 'true' }}"
+    uses: "./.github/workflows/ci-full.yml"
+    permissions:
+      contents: "read"
+  gate:
+    name: "${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'security' && 'security-gate' || 'ci-gate' }}"
+    if: "${{ always() }}"
+    needs:
+      - "plan"
+      - "checks"
+      - "full"
+    runs-on: "ubuntu-22.04"
+    timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88
+      - name: "Checkout exact source"
+        uses: "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10"
         with:
-          toolchain: 1.94.0
-          targets: ${{ matrix.rust_target }}
-
-      - name: Rust Cache
-        uses: swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
-        with:
-          workspaces: apps/desktop/src-tauri -> target
-          key: windows-${{ matrix.rust_target }}
-
-      - name: Compile Windows Target
-        shell: bash
-        run: cargo check --workspace --all-targets --locked --target ${{ matrix.rust_target }}
-
-  windows-release-checks:
-    name: Windows Release Checks
-    runs-on: windows-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+          ref: "${{ github.sha }}"
+          persist-credentials: false
+      - name: "Setup Node"
+        uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
         with:
           node-version: 24
-
-      - name: Test Windows Release Validation
-        run: node scripts/test-windows-release-checks.mjs
+      - name: "Require every selected check"
+        env:
+          CI_PLAN: "${{ needs.plan.outputs.plan }}"
+          CI_RESULTS: "{\"plan\":\"${{ needs.plan.result }}\",\"checks\":\"${{ needs.checks.result }}\",\"full\":\"${{ needs.full.result }}\"}"
+        run: "node scripts/ci/gate.mjs"

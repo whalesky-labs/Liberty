@@ -1,6 +1,6 @@
 # 开发、验证与候选启动
 
-最后核实：2026-11-22。命令依据根 `package.json`、`scripts/run-native.mjs`、`scripts/package-native.mjs` 和两个质量/候选工作流。本页是操作说明，不表示以下所有检查已在某台设备执行。
+最后核实：2026-11-23。命令依据根 `package.json`、`scripts/run-native.mjs`、`scripts/package-native.mjs` 和当前质量/候选工作流。本页是操作说明，不表示以下所有检查已在某台设备执行。
 
 ## 工具链
 
@@ -65,9 +65,11 @@ GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly go -C apps/native run ./cmd/liberty-n
 
 黄金样本和校验边界见[样本说明](../packages/desktop-resources/fixtures/native-v10/README.md)。跨进程锁、恢复 journal 和文件写入由 Native 回归验证；历史 Go/Rust 双向互读仅是原测试流程的历史证据。旧 `native:inventory` 命令、基线和专用测试已移除，完整界面差分仍需实机验收。
 
-`pnpm check` 先执行 `native:verify`，再执行暂存旧生产端的 `legacy:check`。`check:fast` 也先执行原生整体检查；`legacy:check` 与 `legacy:check:fast` 明确限定旧生产端职责，随退役变更一起删除。完整兼容/race/matrix、真实漏洞扫描和发布验收分别执行。
+`pnpm check` 先执行 `native:verify`，再通过 `legacy:check:fast:without-python`、Web 构建、Clippy、发布与 CI 策略检查完成临时生产端验证；共享 Python 只执行一次。单独 `legacy:check` 仍包含 Python，随旧端退役一起删除。完整兼容/race/matrix、真实漏洞扫描和发布验收分别执行。
 
-`.github/workflows/build-native.yml` 是不依赖旧端工作流的三目标候选链，可手动运行，也由 Quality Gate 复用。它执行原生质量、冻结兼容、race、三目标编译、许可证/SBOM，并在对应系统执行测试、隔离系统凭据验收和解包后的版本检查。上传前独立核对候选文件集合、架构、manifest、归档与 SHA-256。真实漏洞扫描是必需的独立 job；扫描失败时整个工作流失败，已生成的候选资产不能被当作生产安全放行。此工作流只有读取仓库的权限，没有发布 Release、写标签或签名的步骤。配置存在不等于某次 GitHub 执行已通过。
+PR 和 main 的 `quality.yml` 按改动范围选择检查，未知或高风险改动执行 `ci-full.yml`；没有定时任务，也不自动构建候选。`ci-gate` 汇总所有所需结果，取消的未验证改动会保留在后续 main 提交的检查范围中。操作和分类规则见 [CI/CD 说明](architecture/ci-cd.md)。
+
+`.github/workflows/build-native.yml` 只供手动或显式调用，选择单个目标或全部三目标。它先执行共同完整门禁，包含 Native、临时生产端、冻结兼容、race、三目标编译、实际系统测试与隔离凭据验收、真实漏洞扫描、许可证/SBOM。全部通过后才打包，执行解包后的版本检查，并独立核对候选文件集合、架构、manifest、归档与 SHA-256。此工作流只有读取仓库的权限，没有发布 Release、写标签或签名的步骤。配置存在不等于某次 GitHub 执行已通过。
 
 只改文档时核对源码、相对链接、Markdown 围栏、命令存在性和历史状态即可；不把旧日志冒充本轮构建结果。
 

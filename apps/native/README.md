@@ -11,7 +11,7 @@ pnpm native:check
 pnpm native:launch
 ```
 
-完整本地质量入口为 `pnpm native:verify`，包括 Go/生成物、Python 和原生发布策略，不调用 React/Tauri 或 Rust。独立的 `build-native.yml` 工作流执行三目标候选测试、打包及归档核验，并保留真实供应链阻断；它不发布正式 Release。命令与验证边界见[开发指南](../../docs/development.md)。
+完整本地质量入口为 `pnpm native:verify`，包括 Go/生成物、Python 和原生发布策略，不调用 React/Tauri 或 Rust。PR/main CI 按改动范围选择检查；手动 `build-native.yml` 在共同完整门禁通过后打包所选目标并核验归档，门禁在旧端退役前仍包含临时生产端检查及真实供应链扫描。普通提交不打候选包，没有定时任务。命令与边界见[开发指南](../../docs/development.md)和 [CI/CD 规则](../../docs/architecture/ci-cd.md)。
 
 `native:launch` 校验候选包清单、文件大小与 SHA-256 后，选择当前平台 SemVer 最高的候选；同版本按包目录修改时间选择。它只启动已打包文件，不编译当前源码，也不会通过通用应用名解析旧 Tauri 客户端。检测到原生进程的可执行文件路径与所选候选不同时，启动器拒绝启动并要求先从界面正常退出；不会强杀或主动结束任何运行进程。尚无候选包时先运行：
 

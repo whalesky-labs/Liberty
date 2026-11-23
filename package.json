@@ -46,11 +46,11 @@
     "native:distribution:verify": "node scripts/package-native-distribution.mjs verify",
     "native:distribution:accept-install": "node scripts/package-native-distribution.mjs accept-install",
     "native:verify": "pnpm native:check && pnpm python:lint && pnpm python:test && pnpm native:release:check",
-    "native:release:check": "node scripts/check-version-consistency.mjs --native && node scripts/check-native-platform-matrix.mjs && node scripts/check-native-security-baseline.mjs && node scripts/check-runtime-locks.mjs && node scripts/check-dependency-governance.mjs locks --native && node scripts/check-native-release-policy.mjs && pnpm native:distribution:check && node --test scripts/test-native-release-policy.mjs scripts/test-native-platform-matrix.mjs scripts/test-native-security-baseline.mjs && node scripts/test-dependency-governance.mjs && node scripts/test-redeem-key.mjs && node scripts/test-asr-validation.mjs",
+    "native:release:check": "pnpm native:policy:check && node scripts/check-native-security-baseline.mjs",
     "native:security:check": "node scripts/check-dependency-governance.mjs security --native",
     "native:licenses:check": "node scripts/check-dependency-governance.mjs licenses --native",
     "native:sbom:generate": "node scripts/generate-sbom.mjs --native",
-    "check": "pnpm native:verify && pnpm legacy:check",
+    "check": "pnpm native:verify && pnpm legacy:check:fast:without-python && pnpm desktop:build:web && pnpm rust:clippy && pnpm release:check && pnpm ci:check",
     "check:fast": "pnpm native:check && pnpm legacy:check:fast",
     "legacy:check": "pnpm legacy:check:fast && pnpm desktop:build:web && pnpm rust:clippy && pnpm release:check",
     "legacy:check:fast": "pnpm contracts:check && pnpm desktop:typecheck && pnpm desktop:test && pnpm python:lint && pnpm python:test && pnpm rust:fmt:check && pnpm rust:test",
@@ -83,7 +83,12 @@
     "rust:fmt:check": "cargo fmt --all -- --check",
     "rust:test": "cargo test --workspace",
     "rust:clippy": "cargo clippy --workspace --all-targets -- -D warnings",
-    "rust:check": "pnpm release:check && pnpm rust:fmt:check && pnpm rust:test && pnpm rust:clippy"
+    "rust:check": "pnpm release:check && pnpm rust:fmt:check && pnpm rust:test && pnpm rust:clippy",
+    "ci:generate": "node scripts/ci/workflows.mjs --write",
+    "ci:check": "node scripts/ci/workflows.mjs --check && node --test scripts/ci/test-plan.mjs scripts/ci/test-workflows.mjs",
+    "ci:docs": "node scripts/ci/check-docs.mjs",
+    "native:policy:check": "node scripts/check-version-consistency.mjs --native && node scripts/check-native-platform-matrix.mjs && node scripts/check-runtime-locks.mjs && node scripts/check-dependency-governance.mjs locks --native && node scripts/check-native-release-policy.mjs && pnpm native:distribution:check && node --test scripts/test-native-release-policy.mjs scripts/test-native-platform-matrix.mjs scripts/test-native-security-baseline.mjs && node scripts/test-dependency-governance.mjs && node scripts/test-redeem-key.mjs && node scripts/test-asr-validation.mjs",
+    "legacy:check:fast:without-python": "pnpm contracts:check && pnpm desktop:typecheck && pnpm desktop:test && pnpm rust:fmt:check && pnpm rust:test"
   },
   "devDependencies": {
     "@iconify-json/f7": "1.2.2",

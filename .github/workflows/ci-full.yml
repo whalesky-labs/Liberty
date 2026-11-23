@@ -1,0 +1,46 @@
+# Generated from scripts/ci/workflows.mjs; run pnpm ci:generate.
+name: "Complete Validation"
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: "read"
+jobs:
+  checks:
+    name: "Full (${{ matrix.suite }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - "docs"
+          - "native"
+          - "python"
+          - "frontend"
+          - "rust"
+          - "policy"
+          - "compat"
+          - "race"
+          - "matrix"
+          - "target-arm"
+          - "target-intel"
+          - "target-windows"
+          - "windows-rust"
+          - "windows-release"
+          - "security"
+    uses: "./.github/workflows/ci-suite.yml"
+    with:
+      suite: "${{ matrix.suite }}"
+    permissions:
+      contents: "read"
+  gate:
+    name: "full-gate"
+    if: "${{ always() }}"
+    needs: "checks"
+    runs-on: "ubuntu-22.04"
+    timeout-minutes: 5
+    steps:
+      - name: "Require all tests and security"
+        shell: "bash"
+        env:
+          CHECKS_RESULT: "${{ needs.checks.result }}"
+        run: "test \"$CHECKS_RESULT\" = success"

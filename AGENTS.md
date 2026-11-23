@@ -90,7 +90,7 @@
   - Rust：相邻测试或目标 package 测试，然后 `pnpm rust:fmt:check`；影响公共 Rust 路径时再运行 workspace tests 与 Clippy。
   - 运行时/平台/安全/版本：运行对应的 `pnpm release:check-*`；涉及发布流程时再运行 policy 与自测脚本。
   - 跨层、数据库、Tauri command、权限或发布相关变更：完成前运行与 CI 等价的 `pnpm check`，并补充任务特定验证。
-  - 仅文档：核实源码、命令、链接、围栏和状态边界，不把历史测试记录改写为本轮已执行验证。`pnpm check` 先运行 `native:verify`，再运行临时生产端的 `legacy:check`；Native 可独立执行 `pnpm native:verify`。这两个入口均不包含真实漏洞扫描，CI 还单独配置原生兼容、race、平台测试与安全扫描。
+  - 仅文档：核实源码、命令、链接、围栏和状态边界，可运行 `pnpm ci:docs`；不把历史测试记录改写为本轮已执行验证。`pnpm check` 先运行 `native:verify`，再完成临时生产端、发布与 CI 策略检查，共享 Python 只执行一次；Native 可独立执行 `pnpm native:verify`。这两个入口均不包含真实漏洞扫描。PR/main CI 按改动范围执行，高风险、手动全量及发布通过 `ci-full.yml` 补齐兼容、race、平台与安全；不配置定时任务，普通提交不自动打包。规则见 `docs/architecture/ci-cd.md`，修改受控工作流须更新 `scripts/ci/workflows.mjs` 并运行 `pnpm ci:generate` 和 `pnpm ci:check`。
 - 不把“命令退出 0”“进程存在”“文件非空”单独当成功证据；应验证用户可观察结果、持久化结果或目标产物。
 - 当前 Go + MyGo 重构任务中，用户要求“启动客户端”或“新版”时，启动 `apps/native` 的原生候选客户端。先核实已运行的新版进程并优先激活其主窗口；需要新构建时使用 `pnpm native:package`，依据实际输出的确切候选应用路径启动，并确认 `liberty-native` 进程及原生主窗口。不要通过通用 `Liberty` 应用名解析或打开旧 Tauri bundle。候选版使用独立资料目录，此启动约定不代表默认生产入口已经切换。
 - 旧客户端不作为默认启动或排障入口；用户仅要求“客户端”时不得启动旧端。原生进程与窗口才是客户端启动证据。

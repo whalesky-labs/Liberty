@@ -104,7 +104,7 @@ pnpm native:build:matrix
 pnpm check
 ```
 
-`pnpm check` 先运行原生完整入口 `native:verify`（Go、共享生成源、Python 与 Native 发布策略），再运行暂存旧生产端的 `legacy:check`。原生独立候选工作流 `build-native.yml` 覆盖三目标测试、打包和资产核验，真实供应链扫描失败仍会阻断整个工作流。完整兼容、race、实机交互和正式发布验收按[开发指南](docs/development.md)分别执行；旧端检查随退役变更一并删除。
+`pnpm check` 执行原生与临时生产端检查，共享 Python 只执行一次。PR 和 main CI 按改动范围选择检查，高风险变更、手动全量及发布执行完整门禁；没有定时任务，普通提交不自动打候选包。手动 `build-native.yml` 在完整门禁通过后才构建和核验所选目标。兼容、race、安全、实机及正式发布验收见 [CI/CD 规则](docs/architecture/ci-cd.md)和[开发指南](docs/development.md)；旧端检查随退役变更一并删除。
 
 ## 平台
 

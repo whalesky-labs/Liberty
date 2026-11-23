@@ -104,7 +104,7 @@ For cross-layer changes and shared-source checks:
 pnpm check
 ```
 
-`pnpm check` runs `native:verify` first (Go, shared generators, Python and Native release policy), then `legacy:check` for the temporary production client. The independent `build-native.yml` candidate workflow covers three-target tests, packaging and artifact verification; a failed real supply-chain scan fails the workflow. Full compatibility, race, device interactions and production release acceptance are described separately in the [development guide](docs/development.md). Legacy checks are removed with the old client in the retirement change.
+`pnpm check` runs Native and temporary production-client checks, with shared Python checks executed once. PR and main CI select checks by changed paths; high-risk changes, manual full validation and releases run the complete gate. There are no scheduled runs or automatic candidate packages on ordinary commits. The manual `build-native.yml` workflow requires the complete gate before packaging and verifying the selected targets. See [CI/CD rules](docs/architecture/ci-cd.md) and the [development guide](docs/development.md) for compatibility, race, security, device and release acceptance. Legacy checks are removed with the old client in the retirement change.
 
 ## Platforms
 

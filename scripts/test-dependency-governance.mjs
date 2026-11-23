@@ -175,6 +175,13 @@ if(name==='osv-scanner') {
   const runtimeScans = scans.filter(({ args }) => args[1] === "source");
   assert.equal(runtimeScans.length, 6);
   assert(runtimeScans.every(({ args }) => args.filter(argument => argument === "-L").length === 2 && args.includes("--all-packages")));
+  await writeFile(toolLog, "");
+  succeeds(invoke("check-dependency-governance.mjs", ["security"]));
+  const combinedCalls = (await readFile(toolLog, "utf8")).trim().split("\n").map(JSON.parse);
+  assert(combinedCalls.some(({ name, args }) => name === "cargo-deny" && args[0] === "check"));
+  const combinedScans = combinedCalls.filter(({ name, args }) => name === "osv-scanner" && args[0] === "scan");
+  assert.equal(combinedScans.length, 9, "combined CI must scan shared inputs once without omitting development tools");
+  assert.deepEqual(new Set(combinedScans.filter(({ args }) => args[1] !== "source").map(({ args }) => args[2])), new Set(["pnpm-lock.yaml", "apps/native/go.mod", PYTHON_LOCK_FILES[0]]));
   assert.equal(invoke("check-dependency-governance.mjs", ["security", "--native"], { OSV_EXIT: "1" }).status, 1);
   assert.equal(invoke("check-dependency-governance.mjs", ["security", "--native"], { OSV_EXIT: "2" }).status, 2);
   assert.equal(invoke("check-dependency-governance.mjs", ["security", "--native"], { BAD_OSV_VERSION: "0.0.1" }).status, 2);

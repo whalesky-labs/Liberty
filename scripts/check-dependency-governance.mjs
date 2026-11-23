@@ -67,10 +67,10 @@ if (!native) {
 if (mode === "security") {
   // Local vendor versions are not published on PyPI. Scan the production locks
   // as pinned SBOMs together with the authenticated upstream identity instead.
-  const locks = [...OSV_LOCK_FILES.filter((lock) => !lock.startsWith("python/")), ...(native ? [PYTHON_LOCK_FILES[0]] : [])];
+  const locks = [...OSV_LOCK_FILES.filter((lock) => !lock.startsWith("python/")), PYTHON_LOCK_FILES[0]];
   for (const lockFile of locks) {
     await access(path.join(repositoryRoot, lockFile));
-    const scan = spawnSync("osv-scanner", ["scan", "-L", lockFile, ...(native && lockFile.startsWith("python/") ? ["--config", OSV_EXCEPTION_CONFIG] : [])], {
+    const scan = spawnSync("osv-scanner", ["scan", "-L", lockFile, ...(lockFile.startsWith("python/") ? ["--config", OSV_EXCEPTION_CONFIG] : [])], {
       cwd: repositoryRoot,
       stdio: "inherit",
     });
