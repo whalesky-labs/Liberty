@@ -35,6 +35,7 @@
 - 强化 AI/远端网络目标、系统凭据补偿、原子导出、结构化脱敏日志、WebView 策略和按窗口最小权限。
 - 修复依赖安全策略与 CI 质量门禁校验，使缺少扫描器、ASR 证据或必要检查时明确阻断而不是跳过。
 - 修复资料导入部分凭据补偿失败后无法重试，以及运行时失败终态被误判为活跃操作的问题；活跃或未知操作仍在写入凭据和发布数据库前拒绝。
+- 修复 Linux 质量检查中非桌面 host 被误报为运行时清单损坏的问题，明确保持本地运行时不可用；更新 `cookie` 0.18.3 与 `url` 2.5.9，处理实际 CI 扫描发现的 Rust 安全公告。
 - 强化生产托管安装的上游大小限制、私有输入快照、就绪标记和完整解释器版本绑定；macOS ARM 默认生产运行时已完成新安装、两种说话人模式处理及重开持久化验收，其他平台、GUI 和正式分发仍待验证。
 
 ### English
@@ -68,6 +69,7 @@
 - Hardened AI and remote network targets, credential compensation, atomic exports, structured redacted logs, WebView policy, and least-privilege window capabilities.
 - Fixed dependency-security policy and CI quality-gate validation so missing scanners, ASR evidence, or required checks block explicitly instead of being skipped.
 - Fixed profile import retries after partial credential compensation and stopped treating failed runtime operations as active work. Active or unknown operations are still rejected before credential writes or database publication.
+- Fixed non-desktop host composition reporting an invalid runtime manifest during Linux quality checks while retaining unavailable local-runtime status. Updated `cookie` to 0.18.3 and `url` to 2.5.9 for Rust advisories found by the actual CI scan.
 - Hardened production managed installation with upstream size limits, private input snapshots, ready-marker binding and exact interpreter-version checks. Fresh default-production installation, both speaker modes and persistence after reopening passed on macOS ARM; other platforms, GUI workflows and formal distribution remain unverified.
 
 ## 1.1.24 - 2026-07-30

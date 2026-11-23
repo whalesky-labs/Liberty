@@ -71,12 +71,8 @@ func TestMeetingWindowAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal("allocate isolated meeting database", err)
 	}
-	createdInfo, err := created.Stat()
-	if err != nil {
-		created.Close()
-		t.Fatal("identify isolated meeting database", err)
-	}
 	t.Cleanup(func() {
+		defer created.Close()
 		// All connection/GUI defers have completed before Cleanup runs. A new
 		// owner or replaced database prevents cleanup rather than risking data.
 		owner, err := profile.Acquire(cache)
@@ -85,8 +81,12 @@ func TestMeetingWindowAcceptance(t *testing.T) {
 			return
 		}
 		defer owner.Close()
+		// Keep the original descriptor open: some external filesystems replace
+		// their provisional inode number on the first SQLite write. Re-stat
+		// the owned descriptor instead of trusting its pre-write FileInfo.
+		createdInfo, ownedErr := created.Stat()
 		current, err := os.Lstat(database)
-		if err != nil || !current.Mode().IsRegular() || !os.SameFile(createdInfo, current) {
+		if ownedErr != nil || err != nil || !current.Mode().IsRegular() || !os.SameFile(createdInfo, current) {
 			t.Error("meeting database cleanup refused changed database identity")
 			return
 		}
@@ -101,7 +101,8 @@ func TestMeetingWindowAcceptance(t *testing.T) {
 				continue
 			}
 			sidecar := name == "liberty.sqlite3-wal" || name == "liberty.sqlite3-shm" || name == "liberty.sqlite3-journal"
-			backup := strings.HasPrefix(name, "liberty.sqlite3.pre-") && strings.HasSuffix(name, ".bak")
+			backupName := strings.TrimSuffix(strings.TrimSuffix(name, "-wal"), "-shm")
+			backup := strings.HasPrefix(backupName, "liberty.sqlite3.pre-") && strings.HasSuffix(backupName, ".bak")
 			if !sidecar && !backup {
 				continue
 			}
@@ -120,9 +121,6 @@ func TestMeetingWindowAcceptance(t *testing.T) {
 			t.Error("remove isolated meeting database", err)
 		}
 	})
-	if err := created.Close(); err != nil {
-		t.Fatal("close isolated meeting database allocation", err)
-	}
 	if err := lock.Close(); err != nil {
 		t.Fatal("transfer meeting profile ownership", err)
 	}

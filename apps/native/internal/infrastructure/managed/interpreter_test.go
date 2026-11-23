@@ -131,7 +131,7 @@ func TestSystemPythonValidationKeepsUnpinnedInterpreterPolicy(t *testing.T) {
 
 func managedPythonArtifactFixture(t *testing.T) (*Installer, domain.RuntimeComponent, string) {
 	t.Helper()
-	installer, err := NewInstaller(t.TempDir(), CurrentPlatform())
+	installer, err := NewInstaller(t.TempDir(), "windows-x64")
 	if err != nil {
 		t.Fatal("synthetic managed installer failed", err)
 	}
@@ -265,7 +265,7 @@ func TestReconcileInvalidatesInPlaceInterpreterWithRestoredMetadata(t *testing.T
 }
 
 func TestReconcileDoesNotPinExplicitSystemPython(t *testing.T) {
-	installer, err := NewInstaller(t.TempDir(), CurrentPlatform())
+	installer, err := NewInstaller(t.TempDir(), "windows-x64")
 	if err != nil {
 		t.Fatal("synthetic installer failed", err)
 	}

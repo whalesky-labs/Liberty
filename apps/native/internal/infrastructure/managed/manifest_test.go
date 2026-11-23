@@ -1,13 +1,42 @@
 package managed
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"liberty.local/liberty/internal/domain"
 )
+
+func TestUnsupportedHostKeepsRuntimeUnavailableWithoutBorrowingTargetAssets(t *testing.T) {
+	installer, err := NewInstaller(t.TempDir(), "unsupported")
+	if err != nil {
+		t.Fatal("non-desktop host cannot compose non-runtime services", err)
+	}
+	definition := installer.Definition()
+	if definition.Platform != "unsupported" || definition.UnsupportedReason == "" || installer.Platform.Python != nil || installer.Platform.FFmpeg != nil {
+		t.Fatal("non-desktop host borrowed supported runtime assets")
+	}
+	ctx := context.Background()
+	if _, err := installer.InstallTool(ctx, "python", 1, "official", nil); !errors.Is(err, domain.ErrRuntimeUnsupported) {
+		t.Fatal("unsupported host attempted managed installation", err)
+	}
+	if _, err := installer.Detect(ctx, "python", domain.RuntimeSettings{}, nil); !errors.Is(err, domain.ErrRuntimeUnsupported) {
+		t.Fatal("unsupported host attempted runtime detection", err)
+	}
+	if err := installer.AcquireModels(ctx, 1, "official", nil); !errors.Is(err, domain.ErrRuntimeUnsupported) {
+		t.Fatal("unsupported host attempted model download", err)
+	}
+	if _, err := NewInstaller(t.TempDir(), "misspelled-target"); !errors.Is(err, ErrManifest) {
+		t.Fatal("unknown manifest target was accepted", err)
+	}
+	if _, err := NewInstallerWithProfile(t.TempDir(), "unsupported", SecurityCandidateProfile); !errors.Is(err, domain.ErrRuntimeUnsupported) {
+		t.Fatal("unsupported host accepted a candidate runtime", err)
+	}
+}
 
 func TestLegacyManagedPythonRequiresTheRecordedLockVersion(t *testing.T) {
 	installer, err := NewInstaller(t.TempDir(), "darwin-aarch64")

@@ -245,7 +245,7 @@ func TestReviewReadyBindingRejectsLinkedArtifactAndKeepsInternalExecutableAlias(
 func TestReviewProductionRejectsUnboundAndCandidateReady(t *testing.T) {
 	for _, profileID := range []string{"", ProductionRuntimeProfile, SecurityCandidateProfile} {
 		t.Run("profile-"+profileID, func(t *testing.T) {
-			installer, err := NewInstaller(t.TempDir(), CurrentPlatform())
+			installer, err := NewInstaller(t.TempDir(), "windows-x64")
 			if err != nil {
 				t.Fatal("synthetic production installer failed")
 			}

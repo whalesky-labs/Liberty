@@ -148,6 +148,12 @@ func newInstallerWithProfile(rootDirectory, platform, profileID string, manifest
 	}
 	root.Close()
 	target, err := manifest.Platform(platform)
+	if err != nil && platform == "unsupported" && profileID == ProductionRuntimeProfile {
+		// Non-desktop hosts may use repositories and remote services, but must
+		// expose an unavailable runtime without borrowing another target's assets.
+		target = Platform{ID: platform, UnsupportedReason: "runtime_platform_unsupported"}
+		err = nil
+	}
 	if err != nil {
 		return nil, err
 	}
