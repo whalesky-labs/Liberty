@@ -1,8 +1,8 @@
 # Liberty 分层 CI/CD 方案
 
 文档类型：设计方案<br>
-状态：已确认，源码已实施；实际 CI 与仓库规则待验证<br>
-创建与核实日期：2026-11-23<br>
+状态：已实施，完整 CI 验证通过；文档通道与服务端规则另行核实<br>
+创建日期：2026-11-23；最后核实：2026-11-24（Asia/Shanghai）<br>
 适用范围：Liberty `main`，基线提交 `23022fe638da30c5e465971e7bb794e020f36592`；macOS Apple Silicon、macOS Intel、Windows x64<br>
 权威边界：本文保留设计与实施证据，不代表未执行的目标已通过。当前操作规则见 [CI/CD 说明](../../architecture/ci-cd.md)，执行来源为 `.github/workflows/`、发布策略脚本和[发布要求](../../architecture/release-readiness.md)。<br>
 依据：当前工作流、根 `package.json`、`scripts/run-native.mjs`、两套发布策略校验脚本、GitHub 仓库规则查询，以及文末 GitHub 官方文档。
@@ -145,11 +145,17 @@ flowchart LR
 
 共同完整门禁在旧端退役前包含临时生产端检查，候选打包必须等待全部检查成功。原生本地 `native:verify` 继续独立；未对安装器、签名、GUI、真实模型和生产切换作出新增验收结论。
 
-截至此记录，本地 `pnpm check`、分类与工作流、候选资产、分发回归、依赖治理自测和 actionlint 1.7.12 工作流语法检查已通过；其后补充的中性文件名条件编译分类回归也通过。提交后的真实完整 CI、纯文档快速通道和 main 服务端保护仍待核实，后续须记录确切 SHA 与运行链接。
+本地验证：完整 `pnpm check` 在初次实现及后续修复后各通过一次；175 项分类/工作流、候选资产与分发回归通过，修复后更新的 60 项分类/工作流回归也通过。依赖治理自测、39 篇文档的链接/围栏检查、actionlint 1.7.12 工作流语法检查均通过。
 
-首次远端运行 [45202919905](https://github.com/whalesky-labs/Liberty/actions/runs/45202919905) 对应 `58c714508d66cb3fb987f0c171351a3b83b52001`。15 个检查单元中 14 个通过，包括三平台执行与真实安全扫描；race 中 V1 合成子进程的身份读取返回 `runner_identity_unverified`，完整汇总与 `ci-gate` 均失败，不能将该次运行记为完整通过。测试夹具随后改为由稳定的 POSIX 启动进程等待合成 Go 子进程退出，保留真实身份记录和 Attach/permit 屏障；本机该用例连续 20 次 race 通过，生产身份校验未更改。
+首次远端运行 [45202919905](https://github.com/whalesky-labs/Liberty/actions/runs/45202919905) 对应 `58c714508d66cb3fb987f0c171351a3b83b52001`。15 个检查单元中 14 个通过，包括三平台执行与真实安全扫描；race 中 V1 合成子进程的身份读取返回 `runner_identity_unverified`，完整汇总与 `ci-gate` 均失败，不能将该次运行记为完整通过。测试夹具随后改为由稳定的 POSIX 启动进程等待合成 Go 子进程退出，保留真实身份记录和 Attach/permit 屏障；该用例在本机 macOS ARM 与独立 Linux ARM 容器各连续 20 次 race 通过，生产身份校验未更改。原夹具在 Linux ARM 10 次未复现失败，因此不将启动时序推测记为已确认根因。
 
 该次运行还显示默认 Go 依赖缓存不能可靠保留不同编译模式的产物。race 与跨目标编译增加各自的构建缓存，以模式、工具链、系统/架构、锁和提交区分，避免普通检查先写缓存后反复冷编译。
+
+2026-11-24（Asia/Shanghai），修复提交 `311717dff55d1ad8f74d1ae6d2d1ad0a681cc1b6` 的 [完整 CI 45210000093](https://github.com/whalesky-labs/Liberty/actions/runs/45210000093) 全部成功：15 个检查单元、`full-gate` 和 `ci-gate` 均通过，包含 Linux x64 全包 race、完整冻结兼容、三目标编译、macOS ARM/Intel 和 Windows x64 实际测试与隔离系统凭据验收、Rust、Python、前端、发布策略及真实供应链扫描。main 分类基准为最近成功的 `23022fe6`，包含前一次失败的完整改动范围。
+
+该运行唯一上传的 artifact 为 `liberty-inventories-311717dff55d1ad8f74d1ae6d2d1ad0a681cc1b6`。下载核实其中有标准 SBOM（1143 components）、Native SBOM（135 components）和 `native-go-NOTICES.txt`，未生成候选包。race 专用编译缓存已实际保存。macOS ARM 曾等待托管 runner，排队时间不能作为测试执行耗时。
+
+此后的验收记录更新只涉及 Markdown，以真实 push 检查文档通道。该提交的运行结果应按其 SHA 在 Actions 核实，不能将自身未来结果预先写为通过。main 保护待该次推送通过后设置为 GitHub Actions `ci-gate` 必需且 strict、对管理员同样生效、禁止强推和删除；不配置单人仓库无法自行满足的人工批准人数。服务端配置以 GitHub API 返回为准。
 
 ## 参考
 
