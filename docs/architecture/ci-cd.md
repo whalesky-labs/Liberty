@@ -75,6 +75,8 @@ gh workflow run build-native.yml --ref main -f target=windows-x64
 
 按需安装对应语言工具链，文档任务只需要 Node。缓存锁定 pnpm store、Go 和 Cargo 依赖/编译缓存、Python 开发工具下载；缓存不提供测试通过证明。共享 Python 不再重复测试，完整供应链任务统一扫描 Node、Go、Python 开发工具和三个生产运行时，并保留 Rust cargo-deny 与两种 SBOM。现有例外的范围和到期时间保持原规则，发布前重新扫描。
 
+Go race 与跨目标编译使用各自的构建缓存，按工具链、系统、架构、锁和提交区分，并从相同模式恢复。普通 Go 检查先写入依赖缓存时，不会让 race 和跨平台编译一直重复冷构建。
+
 默认权限是 `contents: read`，只有 main 分类的基准查询增加 `actions: read`。Action 使用固定 SHA；安装使用固定工具链和锁文件；生产凭据与数据库不入缓存。候选归档上传前重新验证文件集合、架构、manifest 和 SHA-256，保留 14 天。正式发布的写权限只用于既有发布事务。
 
 main 的合并门槛应使用 GitHub Actions 的 `ci-gate`，禁止强推和删除，不用 `security-gate` 或条件性单项检查替代。仓库保护是 GitHub 服务端设置，须单独核实；工作流文件本身不证明保护已经生效。当前规则与实际运行证据记录在[实施记录](../ai/designs/2026-11-23-layered-ci-cd.md#实施与验证记录)。

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -49,6 +50,17 @@ func TestV1FailureCannotPersistSuccessAndExplicitRetryKeepsExactTranscript(t *te
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal("test executable unavailable")
+	}
+	if runtime.GOOS != "windows" {
+		// Keep a stable launcher alive through the attachment/permit fence.
+		// The synthetic Go helper's race-runtime startup must not change the
+		// process image whose identity this persistence test is recording.
+		t.Setenv("LIBERTY_V1_TEST_EXECUTABLE", executable)
+		launcher := "\"$LIBERTY_V1_TEST_EXECUTABLE\" \"$@\"\nfixture_status=$?\nexit \"$fixture_status\"\n"
+		if os.WriteFile(script, []byte(launcher), 0600) != nil {
+			t.Fatal("synthetic launcher unavailable")
+		}
+		executable = "/bin/sh"
 	}
 	files, err := runner.OpenFiles(directory)
 	if err != nil {

@@ -105,6 +105,16 @@ export const workflows = {
         'timeout-minutes': 60,
         steps: [checkout(), node(),
           { ...go(), if: only(['native', 'policy', 'compat', 'race', 'matrix', 'target-arm', 'target-intel', 'target-windows', 'security']) },
+          { name: 'Locate specialized Go build cache', id: 'go-build-cache', if: only(['race', 'matrix']), shell: 'bash', run: `node --input-type=module <<'JS'
+import { execFileSync } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
+appendFileSync(process.env.GITHUB_OUTPUT, 'path=' + execFileSync('go', ['env', 'GOCACHE'], { encoding: 'utf8' }).trim() + '\\n');
+JS` },
+          { name: 'Go race and cross-compilation cache', if: only(['race', 'matrix']), uses: actions.cache, with: {
+            path: '${{ steps.go-build-cache.outputs.path }}',
+            key: "go-build-${{ runner.os }}-${{ runner.arch }}-1.27.4-${{ inputs.suite }}-${{ hashFiles('apps/native/go.sum') }}-${{ github.sha }}",
+            'restore-keys': "go-build-${{ runner.os }}-${{ runner.arch }}-1.27.4-${{ inputs.suite }}-${{ hashFiles('apps/native/go.sum') }}-",
+          } },
           { name: 'Setup Python', if: only(['python', 'rust']), uses: actions.python, with: { 'python-version': '3.12', cache: 'pip', 'cache-dependency-path': 'python/funasr-runner/requirements-dev-lock.txt' } },
           { name: 'Setup Rust', if: only(['rust', 'windows-rust', 'security']), uses: actions.rust, with: { toolchain: '1.94.0', components: 'clippy,rustfmt' } },
           { name: 'Rust cache', if: only(['rust', 'windows-rust', 'security']), uses: actions.rustCache, with: { workspaces: '. -> target', key: '${{ runner.os }}-${{ runner.arch }}-${{ inputs.suite }}' } },

@@ -28,6 +28,15 @@ test('ordinary CI selects suites without building candidate archives', () => {
   assert.ok(!JSON.stringify(quality).includes('build-native.yml'));
   assert.ok(!JSON.stringify(suiteCommands).includes('package-native.mjs'));
 });
+test('race and cross-compilation caches cannot be shadowed by the ordinary Go cache', () => {
+  const steps = workflows['ci-suite.yml'].jobs.run.steps;
+  const cache = steps.find(step => step.name === 'Go race and cross-compilation cache');
+  assert.match(cache.if, /"race","matrix"/);
+  assert.match(cache.with.key, /inputs.suite/);
+  assert.match(cache.with.key, /github.sha/);
+  assert.ok(cache.with['restore-keys'].endsWith('-'));
+  assert.ok(steps.indexOf(cache) < steps.findIndex(step => step.name === 'Execute required suite'));
+});
 test('complete gate retains all suites, target vault execution and shared scanner coverage', async () => {
   assert.deepEqual(workflows['ci-full.yml'].jobs.checks.strategy.matrix.suite, fullSuites);
   for (const target of ['target-arm', 'target-intel', 'target-windows']) assert.ok(suiteCommands[target].some(args => args.includes('credentials_acceptance')));

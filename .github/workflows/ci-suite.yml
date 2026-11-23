@@ -34,6 +34,23 @@ jobs:
           go-version: "1.27.4"
           cache-dependency-path: "apps/native/go.sum"
         if: "${{ contains(fromJSON('[\"native\",\"policy\",\"compat\",\"race\",\"matrix\",\"target-arm\",\"target-intel\",\"target-windows\",\"security\"]'), inputs.suite) }}"
+      - name: "Locate specialized Go build cache"
+        id: "go-build-cache"
+        if: "${{ contains(fromJSON('[\"race\",\"matrix\"]'), inputs.suite) }}"
+        shell: "bash"
+        run: |
+          node --input-type=module <<'JS'
+          import { execFileSync } from 'node:child_process';
+          import { appendFileSync } from 'node:fs';
+          appendFileSync(process.env.GITHUB_OUTPUT, 'path=' + execFileSync('go', ['env', 'GOCACHE'], { encoding: 'utf8' }).trim() + '\n');
+          JS
+      - name: "Go race and cross-compilation cache"
+        if: "${{ contains(fromJSON('[\"race\",\"matrix\"]'), inputs.suite) }}"
+        uses: "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830"
+        with:
+          path: "${{ steps.go-build-cache.outputs.path }}"
+          key: "go-build-${{ runner.os }}-${{ runner.arch }}-1.27.4-${{ inputs.suite }}-${{ hashFiles('apps/native/go.sum') }}-${{ github.sha }}"
+          restore-keys: "go-build-${{ runner.os }}-${{ runner.arch }}-1.27.4-${{ inputs.suite }}-${{ hashFiles('apps/native/go.sum') }}-"
       - name: "Setup Python"
         if: "${{ contains(fromJSON('[\"python\",\"rust\"]'), inputs.suite) }}"
         uses: "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"

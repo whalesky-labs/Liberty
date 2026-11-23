@@ -147,6 +147,10 @@ flowchart LR
 
 截至此记录，本地 `pnpm check`、分类与工作流、候选资产、分发回归、依赖治理自测和 actionlint 1.7.12 工作流语法检查已通过；其后补充的中性文件名条件编译分类回归也通过。提交后的真实完整 CI、纯文档快速通道和 main 服务端保护仍待核实，后续须记录确切 SHA 与运行链接。
 
+首次远端运行 [45202919905](https://github.com/whalesky-labs/Liberty/actions/runs/45202919905) 对应 `58c714508d66cb3fb987f0c171351a3b83b52001`。15 个检查单元中 14 个通过，包括三平台执行与真实安全扫描；race 中 V1 合成子进程的身份读取返回 `runner_identity_unverified`，完整汇总与 `ci-gate` 均失败，不能将该次运行记为完整通过。测试夹具随后改为由稳定的 POSIX 启动进程等待合成 Go 子进程退出，保留真实身份记录和 Attach/permit 屏障；本机该用例连续 20 次 race 通过，生产身份校验未更改。
+
+该次运行还显示默认 Go 依赖缓存不能可靠保留不同编译模式的产物。race 与跨目标编译增加各自的构建缓存，以模式、工具链、系统/架构、锁和提交区分，避免普通检查先写缓存后反复冷编译。
+
 ## 参考
 
 - [GitHub：工作流触发与路径过滤](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)：整体工作流被路径过滤跳过后，required checks 可能保持 pending。
