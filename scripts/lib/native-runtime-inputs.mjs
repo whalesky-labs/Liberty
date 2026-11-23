@@ -21,7 +21,7 @@ export function runtimeInputProfile(manifest, profileID = securityRuntimeProfile
 export function runtimeInputPins(manifest, profileID = securityRuntimeProfile) {
   const profile = runtimeInputProfile(manifest, profileID);
   if (!profile || !Array.isArray(profile.platforms) || profile.platforms.length !== 3 || !Array.isArray(profile.files)) throw new Error("Unknown or incomplete runtime profile");
-  if (new Set(profile.platforms.map((platform) => platform.platformId)).size !== 3 || profile.platforms.some((platform) => !Object.hasOwn(nativeTargets, platform.platformId) || platform.platformId === "windows-x86")) throw new Error("Invalid candidate runtime platforms");
+  if (new Set(profile.platforms.map((platform) => platform.platformId)).size !== 3 || profile.platforms.some((platform) => !Object.hasOwn(nativeTargets, platform.platformId))) throw new Error("Invalid candidate runtime platforms");
   const names = new Set([...vendorRuntimeFiles, ...profile.platforms.map((platform) => `requirements-lock-${platform.platformId}.txt`)]);
   const seen = new Set();
   let size = 0;
@@ -183,7 +183,6 @@ export function runtimePackageOptions(args) {
     else throw new Error("Expected --target, optional --verify-host and optional --runtime-input-directory <absolute-directory>");
   }
   const targetID = packageTarget(targetArgs);
-  if (inputDirectory && targetID === "windows-x86") throw new Error("The security candidate runtime does not support Windows x86");
   return { targetID, inputDirectory, verifyHost };
 }
 

@@ -9,9 +9,27 @@ import (
 	"testing"
 )
 
+func TestNativeGUIAvailableMatchesSupportedPlatforms(t *testing.T) {
+	for _, target := range []struct {
+		os, arch  string
+		supported bool
+	}{
+		{"darwin", "arm64", true},
+		{"darwin", "amd64", true},
+		{"windows", "amd64", true},
+		{"windows", "386", false},
+		{"windows", "arm64", false},
+		{"linux", "amd64", false},
+	} {
+		if nativeGUIAvailable(target.os, target.arch) != target.supported {
+			t.Fatalf("unexpected GUI support for %s/%s", target.os, target.arch)
+		}
+	}
+}
+
 func TestUnsupportedNativeGUIStopsBeforeProfileResolution(t *testing.T) {
 	if nativeGUIAvailable(runtime.GOOS, runtime.GOARCH) {
-		return // The unsupported path is executed by Linux and Windows x86 CI.
+		return // The unsupported path is executed by Linux CI.
 	}
 	oldArgs, oldChannel := os.Args, launchChannel
 	t.Cleanup(func() { os.Args, launchChannel = oldArgs, oldChannel })
@@ -29,7 +47,7 @@ func TestUnsupportedNativeGUIStopsBeforeProfileResolution(t *testing.T) {
 		t.Fatal("unsupported GUI created a profile", err)
 	}
 	message := startupFailureMessage(errNativeGUIUnsupported)
-	if !strings.Contains(message, "32 位 Windows") || !strings.Contains(message, "32-bit Windows") || !strings.Contains(message, "x64") {
+	if !strings.Contains(message, "此系统架构不受支持") || !strings.Contains(message, "This system architecture is unsupported") || !strings.Contains(message, "Windows x64") {
 		t.Fatal("unsupported GUI lacks actionable bilingual guidance")
 	}
 	os.Args = []string{"liberty-native", "--version"}

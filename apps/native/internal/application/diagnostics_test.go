@@ -26,7 +26,7 @@ func TestDiagnosticsProjectsHealthWithoutPathsOrErrors(t *testing.T) {
 	for _, failure := range []error{nil, errors.New("/synthetic/profile secret")} {
 		d := NewDiagnostics("1.1.24", "darwin-aarch64", diagnosticDB{}, diagnosticRuntime{failure}, nil)
 		report, err := d.Report(context.Background())
-		if err != nil || report.SchemaVersion != 10 || report.CurrentPlatform == nil || len(report.SupportedPlatforms) != 4 {
+		if err != nil || report.SchemaVersion != 10 || report.CurrentPlatform == nil || len(report.SupportedPlatforms) != 3 {
 			t.Fatal(report, err)
 		}
 		data, _ := json.Marshal(report)

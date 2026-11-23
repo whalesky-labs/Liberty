@@ -99,9 +99,9 @@ test("the shared model registry requires all roles and distinct immutable model 
 test("runtime package flags preserve explicit target and reject ambiguous or unsupported profiles", () => {
   const absolute = path.resolve("synthetic-runtime-inputs");
   assert.deepEqual(runtimePackageOptions(["--runtime-input-directory", absolute, "--target", "windows-x64"]), { targetID: "windows-x64", inputDirectory: absolute, verifyHost: false });
-  assert.deepEqual(runtimePackageOptions(["--verify-host", "--target", "windows-x86"]), { targetID: "windows-x86", inputDirectory: undefined, verifyHost: true });
+  assert.deepEqual(runtimePackageOptions(["--verify-host", "--target", "windows-x64"]), { targetID: "windows-x64", inputDirectory: undefined, verifyHost: true });
   assert.equal(runtimePackageOptions(["--target", "darwin-arm64"]).targetID, "darwin-aarch64");
-  for (const args of [["--runtime-input-directory", "relative"], ["--runtime-input-directory", absolute, "--runtime-input-directory", absolute], ["--target", "windows-x86", "--runtime-input-directory", absolute], ["--target", "windows-x64", "--target", "darwin-x64"], ["--runtime-profile", "security-candidate"], ["--verify-host", "--verify-host"], ["--verify-host", "true"]]) assert.throws(() => runtimePackageOptions(args));
+  for (const args of [["--runtime-input-directory", "relative"], ["--runtime-input-directory", absolute, "--runtime-input-directory", absolute], ["--target", "unsupported-platform", "--runtime-input-directory", absolute], ["--target", "windows-x64", "--target", "darwin-x64"], ["--runtime-profile", "security-candidate"], ["--verify-host", "--verify-host"], ["--verify-host", "true"]]) assert.throws(() => runtimePackageOptions(args));
 });
 
 test("candidate locks discard local comments without changing exact versions and hashes", () => {
@@ -131,7 +131,7 @@ test("installed runtime inventory requires exact locked versions, input digest a
   const manifest = manifestFor(files);
   const inventory = { runtimeProfile: "security-candidate", runtimeInputSha256: runtimeInputDigest(files), platform, components: [{ name: "funasr", version: "1.3.9+liberty.local2" }, { name: "pip", version: "26.3" }] };
   assert.equal(validateInstalledRuntimeInventory(inventory, files, manifest).components.length, 2);
-  for (const mutate of [(changed) => { changed.runtimeProfile = "production"; }, (changed) => { changed.runtimeInputSha256 = "0".repeat(64); }, (changed) => { changed.platform = "windows-x86"; }, (changed) => { changed.components[0].version = "1.3.9"; }, (changed) => { changed.components.push({ name: "oss2", version: "1" }); }, (changed) => { changed.components.push(changed.components[0]); }, (changed) => { changed.components.pop(); }]) {
+  for (const mutate of [(changed) => { changed.runtimeProfile = "production"; }, (changed) => { changed.runtimeInputSha256 = "0".repeat(64); }, (changed) => { changed.platform = "unsupported-platform"; }, (changed) => { changed.components[0].version = "1.3.9"; }, (changed) => { changed.components.push({ name: "oss2", version: "1" }); }, (changed) => { changed.components.push(changed.components[0]); }, (changed) => { changed.components.pop(); }]) {
     const changed = structuredClone(inventory);
     mutate(changed);
     assert.throws(() => validateInstalledRuntimeInventory(changed, files, manifest));
@@ -142,7 +142,7 @@ test("runtime pins require all eight fixed inputs and three supported unique pla
   const manifest = manifestFor(fixtureFiles());
   assert.equal(runtimeInputPins(manifest).length, 8);
   assert.throws(() => runtimeInputPins(manifest, "production"));
-  for (const mutate of [(profile) => profile.files.pop(), (profile) => profile.files.push(profile.files[0]), (profile) => { profile.files[0].fileName = "../escape"; }, (profile) => { profile.files[0].sha256 = "invalid"; }, (profile) => { profile.platforms[0].platformId = "windows-x86"; }, (profile) => { profile.platforms[1].platformId = profile.platforms[0].platformId; }]) {
+  for (const mutate of [(profile) => profile.files.pop(), (profile) => profile.files.push(profile.files[0]), (profile) => { profile.files[0].fileName = "../escape"; }, (profile) => { profile.files[0].sha256 = "invalid"; }, (profile) => { profile.platforms[0].platformId = "unsupported-platform"; }, (profile) => { profile.platforms[1].platformId = profile.platforms[0].platformId; }]) {
     const changed = structuredClone(manifest);
     mutate(changed.candidateProfiles["security-candidate"]);
     assert.throws(() => runtimeInputPins(changed));
@@ -153,7 +153,7 @@ test("candidate package metadata binds the selected runtime to the packaged file
   const inputs = runtimeInputPins(manifestFor(fixtureFiles()));
   const manifest = { format: 1, channel: "candidate", identity: candidateIdentity, version: "1.1.24", target: "darwin-x64", productionReady: false, signed: false, notarized: false, defaultRuntimeProfile: "production", availableRuntimeProfiles: ["production", "security-candidate"], candidateRuntimeVersion: "synthetic-candidate-1", runtimeInputs: inputs, files: inputs.map(({ fileName, bytes, sha256 }) => ({ path: `App/Contents/Resources/runtime-inputs/${fileName}`, bytes, sha256 })) };
   assert.doesNotThrow(() => assertCandidateManifest(manifest));
-  for (const mutate of [(changed) => { changed.defaultRuntimeProfile = "security-candidate"; }, (changed) => { changed.target = "windows-x86"; }, (changed) => { changed.files[0].sha256 = "a".repeat(64); }, (changed) => { changed.runtimeInputs[0] = changed.runtimeInputs[1]; }, (changed) => { changed.availableRuntimeProfiles = ["production"]; }]) {
+  for (const mutate of [(changed) => { changed.defaultRuntimeProfile = "security-candidate"; }, (changed) => { changed.target = "unsupported-platform"; }, (changed) => { changed.files[0].sha256 = "a".repeat(64); }, (changed) => { changed.runtimeInputs[0] = changed.runtimeInputs[1]; }, (changed) => { changed.availableRuntimeProfiles = ["production"]; }]) {
     const changed = structuredClone(manifest);
     mutate(changed);
     assert.throws(() => assertCandidateManifest(changed));

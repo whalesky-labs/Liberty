@@ -81,14 +81,12 @@ func (s CommandSpec) command(ctx context.Context) (*exec.Cmd, error) {
 		overrides["LIBERTY_FFMPEG_PATH"] = s.FFmpeg
 	}
 	if s.Models != "" {
-		if s.Backend != "sherpa-onnx" {
-			models, err := s.ModelPaths.Environment(s.Models)
-			if err != nil {
-				return nil, err
-			}
-			for key, value := range models {
-				overrides[key] = value
-			}
+		models, err := s.ModelPaths.Environment(s.Models)
+		if err != nil {
+			return nil, err
+		}
+		for key, value := range models {
+			overrides[key] = value
 		}
 		for key, child := range map[string]string{"MODELSCOPE_CACHE": "modelscope", "HF_HOME": "huggingface", "TORCH_HOME": "torch"} {
 			overrides[key] = filepath.Join(s.Models, child)

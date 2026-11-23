@@ -6,7 +6,7 @@
 状态：2026-11-19 试验快照；2026-11-20 后续已隔离接入候选 manifest，生产切换仍阻断<br>
 创建日期：2026-11-19<br>
 最后核实：2026-11-20（仅核对后续状态标注）<br>
-适用范围：Liberty 1.1.24；macOS ARM 实际推理，Intel Mac / Windows x64 资产和扫描；不改变 Windows x86 的既有运行时限制。<br>
+适用范围：Liberty 1.1.24；macOS ARM 实际推理，Intel Mac / Windows x64 资产和扫描。<br>
 权威边界：正文记录 2026-11-19 的一次有界试验；其后本候选已由独立固定 manifest 接入原生侧包并通过 2026-11-20 macOS ARM 运行时验收，但不构成生产安全放行、完整模型兼容或其他平台运行证明。当前正式发布结论以 `docs/architecture/release-readiness.md` 和实施计划后续快照为准。<br>
 依据：当前生产文件、固定 OSV Scanner 2.5.0 的原始输出、官方 PyPI 元数据及资产哈希、原 validator/warmup/Runner 的隔离执行结果。完整本机证据位于忽略的 `target/native/security-remediation-20261119/REPORT.md`，不随源码分发。
 

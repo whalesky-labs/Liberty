@@ -877,7 +877,7 @@ export interface ProcessMetrics {
   memoryMb: number;
 }
 
-export type PlatformValidationLevel = "primary" | "extended";
+export type PlatformValidationLevel = "primary";
 
 export interface SupportedPlatform {
   id: string;

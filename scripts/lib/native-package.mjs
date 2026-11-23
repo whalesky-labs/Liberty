@@ -6,21 +6,20 @@ export const nativeTargets = Object.freeze({
   "darwin-aarch64": { os: "darwin", arch: "arm64", machine: 0x100000c },
   "darwin-x64": { os: "darwin", arch: "amd64", machine: 0x1000007 },
   "windows-x64": { os: "windows", arch: "amd64", machine: 0x8664 },
-  "windows-x86": { os: "windows", arch: "386", machine: 0x14c },
 });
 
 export function packageTarget(args, platform = process.platform, arch = process.arch) {
-  const fallback = Object.entries(nativeTargets).find(([, target]) => target.os === (platform === "win32" ? "windows" : platform) && target.arch === (arch === "x64" ? "amd64" : arch === "ia32" ? "386" : arch))?.[0];
+  const fallback = Object.entries(nativeTargets).find(([, target]) => target.os === (platform === "win32" ? "windows" : platform) && target.arch === (arch === "x64" ? "amd64" : arch))?.[0];
   if (args.length === 0 && fallback) return fallback;
   if (args.length === 2 && args[0] === "--target" && args[1] === "darwin-arm64") return packageTarget([], "darwin", "arm64");
   if (args.length === 2 && args[0] === "--target" && Object.hasOwn(nativeTargets, args[1])) return args[1];
-  throw new Error("Expected --target darwin-aarch64, darwin-x64, windows-x64 or windows-x86; only isolated candidate packages are supported");
+  throw new Error("Expected --target darwin-aarch64, darwin-x64 or windows-x64; only isolated candidate packages are supported");
 }
 
 export function assertRunnableTarget(targetID, platform = process.platform, arch = process.arch) {
   const hostTarget = packageTarget([], platform, arch);
-  if (targetID !== hostTarget && !(hostTarget === "windows-x64" && targetID === "windows-x86")) {
-    throw new Error("Candidate execution requires a matching host, or Windows x64 for the x86 candidate");
+  if (targetID !== hostTarget) {
+    throw new Error("Candidate execution requires a matching host");
   }
 }
 
@@ -76,7 +75,7 @@ export function assertCandidateManifest(manifest) {
     const profiles = JSON.stringify(manifest.availableRuntimeProfiles);
     if (manifest.defaultRuntimeProfile !== "production" || !['["production"]', '["production","security-candidate"]'].includes(profiles)) throw new Error("Invalid candidate runtime selection policy");
     if (manifest.availableRuntimeProfiles.length === 2) {
-      if (manifest.target === "windows-x86" || !manifest.candidateRuntimeVersion || !Array.isArray(manifest.runtimeInputs) || manifest.runtimeInputs.length !== 8) throw new Error("Incomplete candidate runtime metadata");
+      if (!manifest.candidateRuntimeVersion || !Array.isArray(manifest.runtimeInputs) || manifest.runtimeInputs.length !== 8) throw new Error("Incomplete candidate runtime metadata");
       const runtimeNames = new Set();
       for (const input of manifest.runtimeInputs) {
         const matches = manifest.files.filter((file) => file.path.endsWith(`/runtime-inputs/${input.fileName}`) || file.path === `runtime-inputs/${input.fileName}`);

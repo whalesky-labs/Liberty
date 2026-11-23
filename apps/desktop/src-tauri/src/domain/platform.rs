@@ -4,7 +4,6 @@ use serde::Serialize;
 #[serde(rename_all = "camelCase")]
 pub enum PlatformValidationLevel {
     Primary,
-    Extended,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -16,7 +15,7 @@ pub struct SupportedPlatform {
     pub validation_level: PlatformValidationLevel,
 }
 
-pub const SUPPORTED_PLATFORMS: [SupportedPlatform; 4] = [
+pub const SUPPORTED_PLATFORMS: [SupportedPlatform; 3] = [
     SupportedPlatform {
         id: "darwin-aarch64",
         label: "macOS Apple Silicon",
@@ -35,12 +34,6 @@ pub const SUPPORTED_PLATFORMS: [SupportedPlatform; 4] = [
         rust_target: "x86_64-pc-windows-msvc",
         validation_level: PlatformValidationLevel::Primary,
     },
-    SupportedPlatform {
-        id: "windows-x86",
-        label: "Windows x86",
-        rust_target: "i686-pc-windows-msvc",
-        validation_level: PlatformValidationLevel::Extended,
-    },
 ];
 
 pub fn current_platform() -> Option<SupportedPlatform> {
@@ -50,8 +43,6 @@ pub fn current_platform() -> Option<SupportedPlatform> {
         platform_by_id("darwin-x64")
     } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
         platform_by_id("windows-x64")
-    } else if cfg!(all(target_os = "windows", target_arch = "x86")) {
-        platform_by_id("windows-x86")
     } else {
         None
     }

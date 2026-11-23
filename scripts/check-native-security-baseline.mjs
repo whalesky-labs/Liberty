@@ -96,7 +96,7 @@ export async function checkNativeSecurityBaseline() {
   // Subprocess fixture modes must not affect the selected regression process.
   for (const name of Object.keys(env)) if (name.startsWith("LIBERTY_")) delete env[name];
   assertNativeProductionBlock();
-  for (const [goos, goarch] of [["darwin", "arm64"], ["darwin", "amd64"], ["windows", "amd64"], ["windows", "386"], ["linux", "amd64"]]) {
+  for (const [goos, goarch] of [["darwin", "arm64"], ["darwin", "amd64"], ["windows", "amd64"], ["linux", "amd64"]]) {
     const { stdout } = await execute("go", ["list", "-json", "./internal/infrastructure/credentials"], { cwd: native, env: { ...env, GOOS: goos, GOARCH: goarch, CGO_ENABLED: "0" }, maxBuffer: 4 * 1024 * 1024 });
     assertCredentialImports(JSON.parse(stdout).Imports);
   }

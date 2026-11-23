@@ -286,8 +286,6 @@ func CurrentPlatform() string {
 		return "darwin-x64"
 	case "windows/amd64":
 		return "windows-x64"
-	case "windows/386":
-		return "windows-x86"
 	}
 	return "unsupported"
 }

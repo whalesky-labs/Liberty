@@ -12,7 +12,6 @@ func DiagnosticPlatforms() []DiagnosticPlatform {
 		{"darwin-aarch64", "macOS Apple Silicon", "darwin/arm64", "primary"},
 		{"darwin-x64", "macOS Intel", "darwin/amd64", "primary"},
 		{"windows-x64", "Windows x64", "windows/amd64", "primary"},
-		{"windows-x86", "Windows x86", "windows/386", "extended"},
 	}
 }
 

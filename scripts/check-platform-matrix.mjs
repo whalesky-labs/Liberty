@@ -28,15 +28,6 @@ const buildMatrix = [
     artifact_name: "liberty-windows-x64",
     architecture: "x86_64",
   },
-  {
-    name: "Windows x86",
-    os: "windows-2022",
-    platform_id: "windows-x86",
-    rust_target: "i686-pc-windows-msvc",
-    asset_kinds: "msi,nsis",
-    artifact_name: "liberty-windows-x86",
-    architecture: "x86",
-  },
 ];
 
 if (process.argv.includes("--print-matrix")) {
@@ -82,13 +73,6 @@ for (const platformId of manifestPlatformIds) {
   if (!expectedByPlatform.has(platformId)) {
     errors.push(`runtime manifest contains unknown platform ${platformId}`);
   }
-}
-
-const windowsX86 = manifestPlatforms.find(
-  (platform) => platform.platformId === "windows-x86",
-);
-if (!windowsX86?.unsupportedReason && windowsX86?.asrBackend !== "sherpa-onnx") {
-  errors.push("windows-x86 must use the separately validated sherpa-onnx backend when it is enabled");
 }
 
 if (!workflow.includes("matrix: ${{ fromJSON(needs.prepare.outputs.build_matrix) }}")) {

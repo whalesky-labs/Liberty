@@ -356,7 +356,7 @@ mod tests {
             let (name, content) = embedded_lock(platform).unwrap();
             verify_bytes(content, input_pin(&manifest, name).unwrap()).unwrap();
         }
-        assert!(embedded_lock("windows-x86").is_err());
+        assert!(embedded_lock("unsupported-platform").is_err());
     }
 
     #[test]

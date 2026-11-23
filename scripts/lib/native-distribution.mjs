@@ -15,12 +15,11 @@ export const wixTool = Object.freeze({
 });
 export const upgradeCodes = Object.freeze({
   'windows-x64': 'D13F1484-68EA-4ABA-B1A8-926C3DE98A02',
-  'windows-x86': '1D39F433-6185-46D2-B511-59BFC10D1FA6',
 });
 export const productionPromotion = Object.freeze({
   productionIdentity: 'com.westng.liberty',
   requiredChange: 'Reviewed cutover must switch Go launch channel/profile, bundle identity, input manifest policy, installer UpgradeCodes and the release entry together, then retire the old client.',
-  requiredEvidence: ['all-four-target-execution', 'ui-accessibility-parity', 'runtime-security-clearance', 'data-migration-and-restore', 'installer-upgrade-and-rollback', 'signing-and-notarization', 'production-observation'],
+  requiredEvidence: ['all-three-target-execution', 'ui-accessibility-parity', 'runtime-security-clearance', 'data-migration-and-restore', 'installer-upgrade-and-rollback', 'signing-and-notarization', 'production-observation'],
 });
 const env = { ...process.env, GOTOOLCHAIN: 'go1.27.4', GOFLAGS: '-mod=readonly', GOWORK: 'off' };
 const xml = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;');
@@ -53,13 +52,13 @@ export function msiVersion(version) {
 }
 
 export function renderWix(template, { target, version, files }) {
-  if (!Object.hasOwn(upgradeCodes, target)) throw new Error('MSI target must be Windows x64 or x86');
+  if (!Object.hasOwn(upgradeCodes, target)) throw new Error('MSI target must be Windows x64');
   msiVersion(version);
   const expected = [`${candidateName}.exe`, 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'];
   assert.deepEqual([...files].sort(), expected.sort(), 'Installer payload must be the exact verified candidate file set');
-  const win64 = target === 'windows-x64' ? 'yes' : 'no';
+  const win64 = 'yes';
   const components = files.map((name, index) => `            <Component Id="Payload${index}" Guid="*" Win64="${win64}">\n              <File Id="File${index}" Source="payload\\${xml(name)}" Name="${xml(name)}" Checksum="yes" />\n              <RegistryValue Root="HKCU" Key="Software\\Liberty\\NativeCandidate\\${target}" Name="File${index}" Type="integer" Value="1" KeyPath="yes" />\n            </Component>`).join('\n');
-  const values = { TARGET: target, VERSION: version, UPGRADE_CODE: upgradeCodes[target], PLATFORM: target === 'windows-x64' ? 'x64' : 'x86', WIN64: win64, ARCH_CONDITION: target === 'windows-x64' ? 'VersionNT64' : 'VersionNT', COMPONENTS: components, COMPONENT_REFS: files.map((_, i) => `      <ComponentRef Id="Payload${i}" />`).join('\n') };
+  const values = { TARGET: target, VERSION: version, UPGRADE_CODE: upgradeCodes[target], PLATFORM: 'x64', WIN64: win64, ARCH_CONDITION: 'VersionNT64', COMPONENTS: components, COMPONENT_REFS: files.map((_, i) => `      <ComponentRef Id="Payload${i}" />`).join('\n') };
   const rendered = template.replace(/@([A-Z_]+)@/g, (_, key) => {
     if (!Object.hasOwn(values, key)) throw new Error('Unknown installer template placeholder');
     return values[key];
@@ -98,8 +97,8 @@ export function distributionPlan(target) {
   return {
     target, channel: 'candidate', identity: candidateIdentity, productionReady: false,
     format: target.startsWith('darwin-') ? 'signed-notarized-dmg' : 'signed-per-user-msi',
-    requirements: target.startsWith('darwin-') ? ['matching macOS host', 'Developer ID Application identity in keychain', 'notarytool keychain profile', 'Apple codesign, ditto, hdiutil, spctl and Xcode command-line tools'] : ['matching Windows host (x64 can execute x86)', 'WiX 3.14.1 pinned ZIP', 'CurrentUser certificate with code-signing private key', 'trusted RFC3161/Authenticode timestamp service'],
-    installer: { removesUserData: false, upgrade: target.startsWith('windows-') ? 'MSI MajorUpgrade afterInstallInitialize transaction; explicit downgrade refusal; separate x86/x64 UpgradeCodes' : 'Replace the stopped candidate .app through Finder; retain prior signed DMG for rollback', databaseRollbackVerified: false },
+    requirements: target.startsWith('darwin-') ? ['matching macOS host', 'Developer ID Application identity in keychain', 'notarytool keychain profile', 'Apple codesign, ditto, hdiutil, spctl and Xcode command-line tools'] : ['matching Windows x64 host', 'WiX 3.14.1 pinned ZIP', 'CurrentUser certificate with code-signing private key', 'trusted RFC3161/Authenticode timestamp service'],
+    installer: { removesUserData: false, upgrade: target.startsWith('windows-') ? 'MSI MajorUpgrade afterInstallInitialize transaction; explicit downgrade refusal; isolated candidate UpgradeCode' : 'Replace the stopped candidate .app through Finder; retain prior signed DMG for rollback', databaseRollbackVerified: false },
     productionPromotion,
   };
 }
@@ -268,8 +267,9 @@ export function msiQueryScript(file) {
   return `$i=New-Object -ComObject WindowsInstaller.Installer; $d=$i.OpenDatabase(${ps(file)},0); $p=@{}; $q=$d.OpenView('SELECT \`Property\`,\`Value\` FROM \`Property\`'); $q.Execute(); while($r=$q.Fetch()){$p[$r.StringData(1)]=$r.StringData(2)}; $f=@(); $q=$d.OpenView('SELECT \`FileName\` FROM \`File\`'); $q.Execute(); while($r=$q.Fetch()){$f+=($r.StringData(1) -split '\\|')[-1]}; @{properties=$p;files=@($f);template=$d.SummaryInformation(0).Property(7)} | ConvertTo-Json -Depth 5 -Compress`;
 }
 export function assertMsiMetadata(metadata, target, version) {
+  if (!Object.hasOwn(upgradeCodes, target)) throw new Error('MSI target must be Windows x64');
   const properties = metadata.properties ?? {};
-  if (properties.ProductName !== `Liberty Native Candidate (${target})` || properties.ProductVersion !== msiVersion(version) || properties.UpgradeCode?.replace(/[{}]/g, '').toUpperCase() !== upgradeCodes[target] || properties.ALLUSERS || metadata.template?.split(';')[0] !== (target === 'windows-x64' ? 'x64' : 'Intel')) throw new Error('MSI product, version, identity, per-user scope or architecture mismatch');
+  if (properties.ProductName !== `Liberty Native Candidate (${target})` || properties.ProductVersion !== msiVersion(version) || properties.UpgradeCode?.replace(/[{}]/g, '').toUpperCase() !== upgradeCodes[target] || properties.ALLUSERS || metadata.template?.split(';')[0] !== 'x64') throw new Error('MSI product, version, identity, per-user scope or architecture mismatch');
   assert.deepEqual([...metadata.files].sort(), [`${candidateName}.exe`, 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'].sort(), 'MSI must embed the exact file set');
   if (!/^\{[A-F0-9-]{36}\}$/i.test(properties.ProductCode ?? '')) throw new Error('MSI ProductCode missing');
   return properties;
@@ -301,7 +301,7 @@ async function verifyMsi(file, target, version, stage, comparePayload = false, e
 async function windowsBuild(stage, target, version) {
   const tools = await installWix(stage);
   powershell(authenticodeScript(path.join(stage, 'payload', `${candidateName}.exe`), true));
-  run(path.join(tools, 'candle.exe'), ['-nologo', '-arch', target === 'windows-x64' ? 'x64' : 'x86', '-out', 'installer.wixobj', 'installer.wxs'], { cwd: stage });
+  run(path.join(tools, 'candle.exe'), ['-nologo', '-arch', 'x64', '-out', 'installer.wixobj', 'installer.wxs'], { cwd: stage });
   const file = `liberty-native-candidate-${version}-${target}.msi`;
   run(path.join(tools, 'light.exe'), ['-nologo', '-out', file, 'installer.wixobj'], { cwd: stage });
   powershell(authenticodeScript(path.join(stage, file), true));
@@ -323,9 +323,6 @@ export async function buildDistribution(options) {
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (pnpm(['--version']) !== '10.30.3') throw new Error('Distribution requires pnpm 10.30.3');
   for (const gate of ['native:verify', 'native:compat', 'native:build:matrix', 'native:security:check', 'native:licenses:check', 'native:sbom:generate']) pnpm([gate]);
-  // The race runtime is unavailable for Windows/386; those binaries still run
-  // the complete target test suite on a Windows x64 host.
-  if (process.arch === 'ia32') throw new Error('Build Windows x86 installers on a Windows x64 host so required race checks remain available');
   run('go', ['test', '-race', '-count=1', '-timeout=30m', './...'], { cwd: path.join(rootDirectory, 'apps/native') });
   const targetEnvironment = { ...env, CGO_ENABLED: '0', GOOS: nativeTargets[target].os, GOARCH: nativeTargets[target].arch };
   run('go', ['test', '-count=1', '-timeout=30m', './...'], { cwd: path.join(rootDirectory, 'apps/native'), environment: targetEnvironment });

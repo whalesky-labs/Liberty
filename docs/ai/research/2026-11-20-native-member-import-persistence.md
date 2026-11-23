@@ -51,6 +51,6 @@ GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly go -C apps/native test -race ./intern
 
 `pnpm native:check` 退出 1：`TestSettingsTrailingControlsAlignAcrossEverySection` 在运行时分区找不到原来的“下载/Download”控件标签。另一次完整 `memberxlsx` race 遇到并行工作线新增的 `TestMemberWorkbookDecodesSpreadsheetEscapes` 红测。它们不由本项修改解决，不能将定向通过写成全量原生通过。
 
-Intel Mac、Windows x64/x86 的 desktop 与 memberxlsx 测试包编译及六个文件头检查通过；目标程序未实际执行。原生文件对话框使用替身，仅文件、应用服务和数据库是真实实现；未读写用户资料，也未访问系统凭据。
+Intel Mac、Windows x64 的 desktop 与 memberxlsx 测试包编译及对应文件头检查通过；目标程序未实际执行。原生文件对话框使用替身，仅文件、应用服务和数据库是真实实现；未读写用户资料，也未访问系统凭据。
 
 本地忽略目录 `target/native/member-persistence-20261120/` 保存 `before-persistence.log`、`final-race.log`、`structure-race.log`、`workspace-check.log`、`native-check.log` 和跨平台编译记录。此前 `target/native/member-parser-session/` 保存解析器初始红测和原始源码快照。长期行为说明见[人员 Excel 模块文档](../../../apps/native/internal/infrastructure/memberxlsx/README.md)，持续回归见[持久化测试](../../../apps/native/internal/desktop/member_files_persistence_test.go)。

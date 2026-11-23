@@ -75,7 +75,7 @@ test("maps supported hosts to the exact candidate target", () => {
   assert.equal(nativeLaunchTarget("darwin", "arm64"), "darwin-aarch64");
   assert.equal(nativeLaunchTarget("darwin", "x64"), "darwin-x64");
   assert.equal(nativeLaunchTarget("win32", "x64"), "windows-x64");
-  assert.equal(nativeLaunchTarget("win32", "ia32"), "windows-x86");
+  assert.throws(() => nativeLaunchTarget("win32", "ia32"), /Native candidate launch is unsupported/);
   assert.throws(() => nativeLaunchTarget("linux", "x64"), /unsupported/);
 });
 

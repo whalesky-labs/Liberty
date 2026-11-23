@@ -8,13 +8,14 @@
 
 #### 新增
 
-- 新增 Go + MyGo 原生候选客户端，覆盖会议、资源、设置、宠物与打工流程；提供独立资料身份、显式接管/备份/恢复、兼容差分和四目标候选打包。
+- 桌面支持范围统一为 macOS Apple Silicon、macOS Intel 和 Windows x64；同步清理其他架构的构建、安装器、运行时和验收配置。
+- 新增 Go + MyGo 原生候选客户端，覆盖会议、资源、设置、宠物与打工流程；提供独立资料身份、显式接管/备份/恢复、兼容差分和三目标候选打包。
 - 新增原生工厂装配练习，仅保存局内状态，不结算 LP 或商品。
 - 新增聚合工作台，集中展示任务指标、处理趋势、结果完整度、最近任务、资源配置和桌宠状态。
 - 新增按任务来源、任务 ID 与临时作用域令牌授权的独立结果工作台，可重命名已验证说话人、导出结果，并安全请求 AI 总结与会议纪要窗口。
 - 新增跨 Rust、TypeScript 与 Python 的版本化 Runner/IPC 契约，以及前端、Python、依赖治理和 ASR 证据阻断测试。
-- 新增独立 Native 质量、安全与四平台候选 CI 构建链，以及原生许可证和 SBOM 归档；保留失败阻断、固定工具来源和只读交付权限。
-- 新增 macOS 签名/公证 DMG 与 Windows x64/x86 MSI 的分发构建、核验及安装事务验收入口；缺少身份或证据时拒绝，当前仍为隔离候选，真实签名与安装验收尚未完成。
+- 新增独立 Native 质量、安全与三平台候选 CI 构建链，以及原生许可证和 SBOM 归档；保留失败阻断、固定工具来源和只读交付权限。
+- 新增 macOS 签名/公证 DMG 与 Windows x64 MSI 的分发构建、核验及安装事务验收入口；缺少身份或证据时拒绝，当前仍为隔离候选，真实签名与安装验收尚未完成。
 - 新增离线资料快照导入，将 WAL 一致性数据迁入独立 Native 目录并复制凭据到新引用；生产资料保持只读，恢复保留安全快照及凭据补偿记录。
 
 #### 调整
@@ -36,21 +37,22 @@
 - 修复依赖安全策略与 CI 质量门禁校验，使缺少扫描器、ASR 证据或必要检查时明确阻断而不是跳过。
 - 修复资料导入部分凭据补偿失败后无法重试，以及运行时失败终态被误判为活跃操作的问题；活跃或未知操作仍在写入凭据和发布数据库前拒绝。
 - 修复 Linux 质量检查中非桌面 host 被误报为运行时清单损坏的问题，明确保持本地运行时不可用；更新 `cookie` 0.18.3 与 `url` 2.5.9，处理实际 CI 扫描发现的 Rust 安全公告。
-- 修复 Windows 托管运行时和输入文件的硬链接检查，改为核对已打开的系统句柄；修复 32 位农场/工厂动画帧序号溢出，并纠正 Windows 合成资料夹具的文件名和 SQLite URI。MyGo 的 x86 文字后端仍是发布阻塞，未跳过布局测试。
-- 不支持的原生 GUI 架构在创建或打开资料库前停止，并提供双语启动指引；离线资料操作与版本查询保持可用。Windows x86 的 MyGo 窗口/文字后端仍未实现，四目标验收继续阻断发布。
+- 修复 Windows 托管运行时和输入文件的硬链接检查，改为核对已打开的系统句柄；修复农场/工厂动画帧序号计算，并纠正 Windows 合成资料夹具的文件名和 SQLite URI。
+- 不支持的原生 GUI 架构在创建或打开资料库前停止，并提供双语启动指引；离线资料操作与版本查询保持可用。
 - 强化生产托管安装的上游大小限制、私有输入快照、就绪标记和完整解释器版本绑定；macOS ARM 默认生产运行时已完成新安装、两种说话人模式处理及重开持久化验收，其他平台、GUI 和正式分发仍待验证。
 
 ### English
 
 #### Added
 
-- Added an isolated Go + MyGo native candidate for meeting, resource, settings, companion and work-game flows, with separate profile identity, explicit handover/backup/restore, compatibility comparisons and four-target candidate packaging.
+- Desktop support now covers macOS Apple Silicon, macOS Intel and Windows x64, with build, installer, runtime and acceptance configuration aligned to these targets.
+- Added an isolated Go + MyGo native candidate for meeting, resource, settings, companion and work-game flows, with separate profile identity, explicit handover/backup/restore, compatibility comparisons and three-target candidate packaging.
 - Added native factory assembly practice with session-only state and no LP or item rewards.
 - Added an aggregate dashboard for job metrics, processing trends, result completeness, recent jobs, resources, and desktop-companion state.
 - Added a dedicated result workbench authorized by job source, job ID, and an ephemeral scope token, with verified-speaker renaming, exports, and scoped AI-summary or meeting-notes requests.
 - Added versioned Runner/IPC contracts across Rust, TypeScript, and Python, plus frontend, Python, dependency-governance, and ASR evidence blocking tests.
-- Added independent Native quality, security and four-platform candidate CI delivery, with license and SBOM artifacts, required failure gates, pinned tools and read-only delivery permissions.
-- Added build, verification and installation-transaction acceptance entries for signed/notarized macOS DMGs and Windows x64/x86 MSIs. Missing identities or evidence block execution; distributions retain the isolated candidate identity, and actual signing and installation acceptance remain incomplete.
+- Added independent Native quality, security and three-platform candidate CI delivery, with license and SBOM artifacts, required failure gates, pinned tools and read-only delivery permissions.
+- Added build, verification and installation-transaction acceptance entries for signed/notarized macOS DMGs and Windows x64 MSIs. Missing identities or evidence block execution; distributions retain the isolated candidate identity, and actual signing and installation acceptance remain incomplete.
 - Added offline profile snapshot import with WAL-consistent data and newly owned credential references in a separate Native directory. Production profiles remain read only, and restore retains safety snapshots and credential compensation records.
 
 #### Changed
@@ -66,8 +68,8 @@
 
 #### Fixed
 
-- Fixed Windows managed-runtime and input-file hard-link checks by validating opened system handles. Fixed 32-bit farm/work animation-index overflow and corrected synthetic Windows profile filenames and SQLite URIs. MyGo's missing x86 text backend remains a release blocker; layout tests remain required.
-- Unsupported native GUI architectures stop before creating or opening a profile and provide bilingual startup guidance. Offline profile operations and version queries remain available. MyGo's Windows x86 window/text backends remain unimplemented, and required four-target acceptance continues to block release.
+- Fixed Windows managed-runtime and input-file hard-link checks by validating opened system handles. Fixed farm/work animation-index calculations and corrected synthetic Windows profile filenames and SQLite URIs.
+- Unsupported native GUI architectures stop before creating or opening a profile and provide bilingual startup guidance. Offline profile operations and version queries remain available.
 
 - Corrected native AI, remote, Runner V1 and legacy JSON field-matching boundaries so malformed aliases cannot override valid state or content, with real HTTP/subprocess, SQLite reopen and explicit-retry regressions.
 - Stopped synthesizing default labels when no real diarization result exists; unavailable or failed diarization now preserves the transcript, warnings, and truthful capability state.
@@ -96,7 +98,7 @@
 #### 修复
 
 - 修复 Word 会议纪要导出偶发遗漏参会人员或内容的问题，导出时以用户选定的完整 AI 总结结果为唯一数据源并保持纪要格式。
-- 修复 Windows x64/x86 编译、安装包生成及 MSI/NSIS 发布资产校验问题。
+- 修复 Windows x64 编译、安装包生成及 MSI/NSIS 发布资产校验问题。
 - 修复桌面发布流程复用草稿时因权限隔离和跨作业输出过滤导致构建完成后无法发布的问题，改为先预留草稿并按唯一 Release ID 上传、校验及发布资产。
 - 修复桌宠渲染和平台相关代码在严格格式、Clippy 与 Windows 编译检查中的兼容性问题。
 
@@ -117,7 +119,7 @@
 #### Fixed
 
 - Fixed intermittent missing attendees or content in exported Word meeting notes by using the complete user-selected AI summary run as the authoritative export source while preserving note formatting.
-- Fixed Windows x64/x86 compilation, installer generation, and MSI/NSIS release asset validation.
+- Fixed Windows x64 compilation, installer generation, and MSI/NSIS release asset validation.
 - Fixed draft-resume publishing failures caused by permission isolation and filtered cross-job outputs by reserving the draft first and binding asset upload, verification, and publication to its exact Release ID.
 - Fixed desktop pet rendering and platform-specific compatibility issues caught by strict formatting, Clippy, and Windows compile checks.
 

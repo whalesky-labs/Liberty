@@ -17,7 +17,7 @@ test('accepts the complete independent candidate workflow', () => {
   const parsed = assertNativeWorkflow(workflow);
   assert.equal(parsed.jobs.build.needs, 'quality');
   assert.equal(parsed.jobs.security.steps.at(-1).run, 'pnpm native:security:check');
-  assert.equal(parsed.jobs.build.strategy.matrix.include.length, 4);
+  assert.equal(parsed.jobs.build.strategy.matrix.include.length, 3);
 });
 
 for (const [name, before, after] of [
@@ -49,7 +49,7 @@ for (const [name, before, after] of [
   ['quality bypass', 'needs: quality', 'needs: security'],
   ['target tests only compiled', 'go test -count=1 -timeout=30m ./...', 'go test -c ./...'],
   ['credential acceptance skipped', 'go test -count=1 -tags credentials_acceptance', 'echo go test -count=1 -tags credentials_acceptance'],
-  ['wrong x86 architecture', "arch: '386'", 'arch: amd64'],
+  ['wrong Windows architecture', 'system: windows\n            arch: amd64', 'system: windows\n            arch: arm64'],
   ['Intel silently cross-compiled', 'runner: macos-15-intel', 'runner: macos-latest'],
   ['missing runnable archive check', ' --verify-host', ''],
   ['unverified upload', 'run: node scripts/check-native-release-policy.mjs verify-artifacts', 'run: echo node scripts/check-native-release-policy.mjs verify-artifacts'],
@@ -99,7 +99,7 @@ function tar(records) {
   return gzipSync(Buffer.concat([...blocks, Buffer.alloc(1024)]));
 }
 
-async function fixture(context, target = 'windows-x86') {
+async function fixture(context, target = 'windows-x64') {
   const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), 'liberty-native-policy-')));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const name = `liberty-native-candidate-${version}-${target}`;
@@ -244,13 +244,13 @@ for (const [name, mutate] of [
   ['claim of notarization', async f => { f.manifest.notarized = true; await f.refresh(); }],
   ['production identity', async f => { f.manifest.identity = 'com.westng.liberty'; await f.refresh(); }],
   ['wrong runtime default', async f => { f.manifest.defaultRuntimeProfile = 'security-candidate'; await f.refresh(); }],
-  ['wrong target', async f => { f.manifest.target = 'windows-x64'; await f.refresh(); }],
+  ['wrong target', async f => { f.manifest.target = 'darwin-x64'; await f.refresh(); }],
   ['wrong source commit', async f => { f.options.currentCommit = 'b'.repeat(40); }],
   ['wrong version', async f => { f.manifest.version = '9.8.6'; await f.refresh(); }],
   ['unknown package metadata', async f => { f.manifest.installer = true; await f.refresh(); }],
   ['extra executable with matching digest', async f => { f.files.set('installer.exe', Buffer.from('unreviewed')); await f.refresh(); }],
   ['modified binary and stale manifest', async f => { await writeFile(path.join(f.payload, f.binary), Buffer.from('tampered')); }],
-  ['wrong binary architecture with matching digest', async f => { f.files.get(f.binary).writeUInt16LE(0x8664, 68); await f.refresh(); }],
+  ['wrong binary architecture with matching digest', async f => { f.files.get(f.binary).writeUInt16LE(0xaa64, 68); await f.refresh(); }],
   ['missing archive', async f => { await rm(path.join(f.parent, `${f.name}.tar.gz`)); }],
   ['unexpected sibling asset', async f => { await writeFile(path.join(f.parent, 'extra.zip'), 'bad'); }],
   ['second candidate package', async f => { await mkdir(path.join(f.directory, 'target/native/packages', `${f.name}-old`)); }],
@@ -295,7 +295,7 @@ test('rejects a symlink replacing the authenticated archive', async context => {
 });
 
 test('candidate verification CLI fails closed on unknown or incomplete flags', () => {
-  for (const args of [['--publish'], ['verify-artifacts'], ['verify-artifacts', '--target', 'windows-x86', '--commit', commit, '--output', 'artifacts/native/windows-x86', '--force']]) {
+  for (const args of [['--publish'], ['verify-artifacts'], ['verify-artifacts', '--target', 'windows-x64', '--commit', commit, '--output', 'artifacts/native/windows-x64', '--force']]) {
     const result = spawnSync(process.execPath, [fileURLToPath(new URL('./check-native-release-policy.mjs', import.meta.url)), ...args], { encoding: 'utf8' });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /Expected verify-artifacts/);

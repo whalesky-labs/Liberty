@@ -3,8 +3,8 @@
 文档类型：计划（含阶段验收快照）<br>
 状态：已确认，执行中；完整重构未完成<br>
 创建日期：2026-11-17<br>
-最后核实：2026-11-23（源码已推送，最新整仓检查、干净检出和三平台 CI 通过；x86 窗口/文字后端仍阻塞，完整生产切换未完成。其他阶段证据日期见各节）<br>
-适用范围：Liberty 1.1.24，`codex/native-architecture`，Go/MyGo 原生迁移<br>
+最后核实：2026-11-23（源码已推送，最新整仓检查、干净检出和三平台 CI 通过，完整生产切换未完成。其他阶段证据日期见各节）<br>
+适用范围：Liberty 1.1.24，`main`，Go/MyGo 原生迁移<br>
 权威边界：记录已实现能力及验证边界，不代表全部业务等价、全部 UI 相同或具备发布条件。当前行为分别以两端源码、共享契约、运行时清单和正式架构为准；有意修正的旧端缺陷不作为新端兼容要求。<br>
 依据：[已确认方案](../designs/2026-11-16-native-desktop-refactor.md)、当前工作区代码、Rust 生成的合成库、Go 测试与本机运行记录。
 
@@ -12,26 +12,30 @@
 
 > 文档整理说明（2026-11-20）：本文件按批次保留证据，PID、候选包路径、测试数量和“当前”均限各条记录的核验时点，不代表持续运行状态。日常操作请从[开发指南](../../development.md)与[原生模块说明](../../../apps/native/README.md)进入；长期约束见[原生架构](../../architecture/native-desktop-architecture.md)，剩余发布门槛见[发布要求](../../architecture/release-readiness.md)。
 
+## 2026-11-23 支持范围调整
+
+按已确认的产品范围，桌面目标统一为 macOS Apple Silicon、macOS Intel 和 Windows x64。构建、CI、运行时清单、诊断、安装器和性能验收配置使用同一范围。此前撤销目标的专属实现、待办和文档已清理；下文历史结果保留其原始日期和结论，不构成本次修改的验证证据。
+
+本批完整 `pnpm check` 通过：47 项 TypeScript、107 项 Python、288 项 Rust（18 项既定忽略）、42 项 Native 强制安全回归，以及 Web、fmt、Clippy 和发布检查。三目标 `native:build:matrix` 的主程序与测试包编译通过，Mach-O/PE 架构核对通过；另有 198 项候选打包、启动、分发、运行时与策略测试通过。已核对修改文档的链接与围栏。以上是本地检查与交叉编译证据；新提交的实际三平台 CI 仍单独核验。
+
 ## 2026-11-23 Windows 实跑整改与最终源码
 
-最新产品源码为 `22aaabbe74eb4958b86e5db7233186fd7eaeb087`，已推送。`d9fbd920` 修复已打开句柄的硬链接校验、Windows 合法夹具路径与 URI、32 位动画溢出；随后 `22aaabbe` 修复只读输入快照清理所需权限，并在不支持的 GUI 架构创建/打开资料库前拒绝启动。离线导入/恢复与版本查询保持可用，未跳过 x86 布局测试。
+以下记录的已验证产品源码为 `22aaabbe74eb4958b86e5db7233186fd7eaeb087`，已推送。`d9fbd920` 修复已打开句柄的硬链接校验、Windows 合法夹具路径与 URI、动画帧序号计算；随后 `22aaabbe` 修复只读输入快照清理所需权限，并在不支持的 GUI 架构创建/打开资料库前拒绝启动。离线导入/恢复与版本查询保持可用。
 
 - 最新源码的完整 `pnpm check` 通过：47 项 TS、105 项 Python、288 项 Rust（18 项既定忽略）、42 项强制安全回归、Web 构建、fmt/Clippy 与发布检查。CLI/managed 相邻 race 通过；不支持 GUI 的前置拒绝在无网络、只读根的 Linux ARM 容器实际通过，确认目录未创建。
 - 新干净检出重新安装固定根 Node 工具，ARM 候选构建、解包运行及归档核验通过，前后检出干净。归档 SHA-256 为 `238121c0686dffa1260f5e0e480f6aba24a7162e4174502331953bff1e0ce6d9`；证据为 `clean-22aaabbe-package-report.json`。这不替代其他平台执行。
-- 第五轮 CI `45172418182` 确认前述硬链接、文件名/URI、动画溢出失败消失；Windows 剩余共通失败为只读快照清理，已在最终源码修复。最终 [CI 45175760469](https://github.com/whalesky-labs/Liberty/actions/runs/45175760469) 绑定 `22aaabbe`、`publish_release=false`。Native 独立质量与两项真实安全通过，ARM、Intel 和 Windows x64 目标测试、真实系统凭据恢复、解包执行及归档核验均通过；x86 的 managed/profile/host/legacydb 已通过，剩余失败为 desktop 包的 8 项文字/布局测试，其后独立凭据验收未执行。整轮结论为 **failure**，发布预留、旧端 bundle 构建及 Release 发布步骤均跳过，未创建标签或 Release。
+- 第五轮 CI `45172418182` 确认前述硬链接、文件名/URI、动画溢出失败消失；Windows 剩余共通失败为只读快照清理，已在最终源码修复。最终 [CI 45175760469](https://github.com/whalesky-labs/Liberty/actions/runs/45175760469) 绑定 `22aaabbe`、`publish_release=false`。Native 独立质量与两项真实安全通过，ARM、Intel 和 Windows x64 目标测试、真实系统凭据恢复、解包执行及归档核验均通过。该历史运行包含已撤销支持目标的失败，整轮结论为 **failure**，发布预留、旧端 bundle 构建及 Release 发布步骤均跳过，未创建标签或 Release。
 - 三个平台的真实 CI 产物均已下载，分别核对 GitHub ZIP 摘要、精确文件集合、架构、包内/包外 manifest 与文件 SHA-256；均绑定 `22aaabbe`，未签名且 `productionReady:false`。报告为忽略目录中的 `ci-45175760469-downloaded/verified-artifacts.json`，确切归档摘要同步到[正式发布要求](../../architecture/release-readiness.md#2026-11-23-source-and-interactive-acceptance)。本地当前工作区也重新打包该源码，`native:launch` 可选择最新 ARM 候选；本轮最终打包仅执行解包版本命令，没有打开用户资料或留下运行实例。
-- 当前固定 MyGo 的 Windows x86 窗口后端为 unsupported，文字引擎为不绘制字形且不折行的 stub。固定上游提交 `eadf1fce6af3bdb9f7cacf649823de2bee2737f2` 的 [窗口选择](https://github.com/egoist/mygo/blob/eadf1fce6af3bdb9f7cacf649823de2bee2737f2/backend_other.go) 与 [文字选择](https://github.com/egoist/mygo/blob/eadf1fce6af3bdb9f7cacf649823de2bee2737f2/internal/text/engine_other.go) 均可核对。隔离模块副本将 81 处架构标记放开后，编译仍缺少 `putBounds`、`putZoom`、`zoomByScript` 等架构实现；探针不进入项目依赖或交付代码。该项是尚未完成的窗口/文字后端移植，不只是缺少实机验收。
 
 ## 2026-11-23 最新候选验证
 
 本节补充下方按批次记录的结果，源码绑定 `b8ff0baf720ef8444c4e9634a36c2548b9236b2b`，已推送至原分支；没有创建发行标签或发布 Release。
 
 - 最新整仓 `pnpm check` 完整通过，包含 Native 独立校验、临时生产端测试、Web 构建、Rust fmt/Clippy 与发布检查；`TZ=UTC pnpm native:compat` 全部通过，jobdb 写入重放耗时 638.048 秒，host 的真实子进程及持久化重放也通过。
-- 对该提交重新创建干净检出，四目标候选打包和分发 prepare 全部通过，逐件核对架构、提交、归档摘要及嵌入 provenance，执行后检出仍干净。本机仅实际执行 ARM 候选的版本命令；其他目标此处仍是交叉构建。所有输出保持 `productionReady:false`、`distributable:false`。证据为忽略目录中的 `clean-b8ff0baf-packages.json`。
+- 对该提交重新创建干净检出，跨目标候选打包和分发 prepare 全部通过，逐件核对架构、提交、归档摘要及嵌入 provenance，执行后检出仍干净。本机仅实际执行 ARM 候选的版本命令；其他目标此处仍是交叉构建。所有输出保持 `productionReady:false`、`distributable:false`。证据为忽略目录中的 `clean-b8ff0baf-packages.json`。
 - 最新 ARM 候选重新打开既有合成验收资料，签到、盲盒和宠物成长记录保持；切换英文后实看 Encourage 已完整单行显示，随后正常退出，进程已结束。
-- 第四轮 [GitHub CI 45164966173](https://github.com/whalesky-labs/Liberty/actions/runs/45164966173) 绑定相同提交，`publish_release=false`。整仓质量、两项真实依赖安全、Native 独立兼容/race/四目标编译及许可证/SBOM 均通过。ARM 与 Intel Mac 平台任务通过目标测试、真实系统凭据恢复、解包执行和归档核验。Windows 两架构失败，完整 CI 结论为 failure，不能记为四平台通过。
-- Windows 实跑发现 `os.FileInfo.Sys()` 缺少链接计数，托管运行时及 sidecar 的硬链接检查漏拒绝；现改为核对已打开句柄的 `NumberOfLinks` 和 reparse 属性，并覆盖脚本快照、产物、日志与缓存读取。资料/旧库夹具改为合法 Windows 文件名和正确的 file URI；农场/工厂动画先在 int64 内取模，再转为 int，避免 32 位溢出。相邻 managed/legacydb/profile 和场景 race 已通过，Windows 复跑待记录。
-- x86 的文字布局失败另有依赖层阻塞：当前固定 MyGo 对 Windows 386 使用 `stubEngine`，没有真实字形绘制和段落折行；DirectWrite 仅支持 amd64/arm64。进一步通过实际 `go list` 选择确认窗口后端也落入 `backend_other.go` 的 unsupported 实现。核对公开 v0.10.0 及 upstream main 的 DirectWrite 仍排除 386，未做无效依赖升级。必须完成 MyGo 的 x86 窗口/文字后端移植和目标验收才能关闭该项，不能跳过失败 UI 测试或缩减既定四目标门槛。证据为忽略目录中的 `mygo-windows386-backend-evidence-20261123.json`。
+- 第四轮 [GitHub CI 45164966173](https://github.com/whalesky-labs/Liberty/actions/runs/45164966173) 绑定相同提交，`publish_release=false`。整仓质量、两项真实依赖安全、Native 独立兼容/race/跨目标编译及许可证/SBOM 均通过。ARM 与 Intel Mac 平台任务通过目标测试、真实系统凭据恢复、解包执行和归档核验。当时 Windows 平台任务失败，完整 CI 结论为 failure，不能记为跨平台通过。
+- Windows 实跑发现 `os.FileInfo.Sys()` 缺少链接计数，托管运行时及 sidecar 的硬链接检查漏拒绝；现改为核对已打开句柄的 `NumberOfLinks` 和 reparse 属性，并覆盖脚本快照、产物、日志与缓存读取。资料/旧库夹具改为合法 Windows 文件名和正确的 file URI；农场/工厂动画先在 int64 内取模，再转为 int，避免整数转换溢出。相邻 managed/legacydb/profile 和场景 race 已通过，Windows 复跑待记录。
 
 完整重构仍需关闭下方正式切换门槛；本节不以编译、候选包或测试服务替代目标设备、专用外部服务、人工受控 ASR 和签名安装验收。
 
@@ -39,26 +43,26 @@
 
 | 项目 | 已完成且有证据的部分 | 尚未关闭的验收 |
 | --- | --- | --- |
-| 1. 源码与复现 | 正式提交/推送、真实提交的干净检出、独立工具安装、完整本地检查、四目标编译；最新三平台 CI 和真实产物下载核验 | 实际四目标 CI 仍因 x86 后端缺失失败，不能标记全绿 |
+| 1. 源码与复现 | 正式提交/推送、真实提交的干净检出、独立工具安装、完整本地检查、跨目标编译；最新三平台 CI 和真实产物下载核验 | 历史 CI 整轮结论仍为 failure；变更后的三平台矩阵需按新提交验证 |
 | 2. 会议主流程 | macOS ARM 原生系统文件选择、转写、总结、纪要保存、导出及重开持久化；业务奖励各一次 | 其他系统窗口流程；测试 AI 服务不代替专用外部服务 |
 | 3. 页面与交互 | 页面/控制器、作用域授权回归；双语主题、设置、资源保存和校验的原生实测 | 全页面全部状态、完整 IME 组合、焦点与系统读屏验收 |
 | 4. 宠物与现有练习 | 宠物成长、签到、盲盒持久化；工厂键盘完成、错误扣时、重开、暂停、退出且不误发工作奖励 | 目标平台桌宠视觉/多窗口交互及玩法校准 |
 | 5. 远端服务 | 能力协商、连接绑定和允许操作的实现、测试与验收入口 | 专用外部测试 URL、系统凭据引用、合成任务 ID 当前均未提供 |
 | 6. 运行时安全 | 默认 Python 3.11.18/local2 可复现安装；三平台锁及 ARM 已安装库存通过现有策略；新增 Rust 漏洞已修复 | Torch 2.2.2 无例外扫描仍为 20 组/24 条重叠记录；既有例外于 2026-11-30 到期，未扩大 |
-| 7. 平台执行 | ARM、Intel Mac 和 Windows x64 CI 的目标测试、真实系统凭据、解包执行及归档核验；本机 ARM 真实运行时/GUI | MyGo x86 窗口和文字后端尚未实现。最低系统、Windows 32 位 OS 和 Intel/Windows 本地 ASR/GUI 仍未验收 |
+| 7. 平台执行 | ARM、Intel Mac 和 Windows x64 CI 的目标测试、真实系统凭据、解包执行及归档核验；本机 ARM 真实运行时/GUI | 最低系统和 Intel/Windows 本地 ASR/GUI 仍未验收 |
 | 8. 性能与识别质量 | 合成音频的运行时和业务持久化链通过 | 登记的 8 GiB 设备、人工标注受控媒体及 CER/WER/DER/性能门禁；本机 16 GiB 不替代此证据 |
 | 9. 资料迁移恢复 | 只读源、WAL 一致快照、独立凭据、失败补偿/重试、重复导入不覆盖新数据；schema/profile race | 物理中断与实际安装升级回滚；旧端不具有本分支恢复协议，不允许原地写入接管 |
-| 10. 安装分发 | DMG/MSI 实现、66 项自测、固定 WiX 下载摘要、四目标真实候选的分发 prepare | Developer ID/公证凭据、Windows 签名证书及较旧已签名 MSI 缺失；实际签名安装和事务回退未验收 |
+| 10. 安装分发 | DMG/MSI 实现、分发自测、固定 WiX 下载摘要、跨目标真实候选的分发 prepare | Developer ID/公证凭据、Windows 签名证书及较旧已签名 MSI 缺失；实际签名安装和事务回退未验收 |
 | 11. 切换与旧端删除 | Native 事实源和独立检查已迁出旧端；切换、身份、安装器与退役要求已明确 | 上述门槛和生产观察通过后，在同一变更切换生产入口并删除旧 GUI、专属依赖与发布链 |
 
 ## 2026-11-23 正式源码追踪与实际 CI
 
-- 原生实现、共享资源和验收/分发脚本已在 `codex/native-architecture` 提交并推送，基准提交为 `5e055a6e729b5e856f1011ed4f559fa1e14abce1`。该提交未包含下载物、缓存、日志、用户数据库或打包输出；新增 Markdown 的硬换行转为显式 `<br>`，暂存内容空白检查通过。
+- 原生实现、共享资源和验收/分发脚本已在 `main` 提交并推送，基准提交为 `5e055a6e729b5e856f1011ed4f559fa1e14abce1`。该提交未包含下载物、缓存、日志、用户数据库或打包输出；新增 Markdown 的硬换行转为显式 `<br>`，暂存内容空白检查通过。
 - 对该真实提交创建独立干净检出，重新安装 23 个 Node 包及独立 `.venv-dev` 的哈希锁开发依赖；根工具解析路径均位于新检出，Go 使用固定工具链与现有模块缓存。`native:verify`、许可证归集、135 组件 SBOM 和 `go mod verify` 全部通过，执行前后检出均干净。证据为忽略目录中的 `clean-5e055a6e-summary.json`。此前空合成提交的源隔离检查已不再是唯一复现证据。
-- 根完整检查记录覆盖 47 项前端测试、105 项 Python 测试、288 项 Rust 测试和 18 项约定忽略，以及 42 项具名原生安全回归、Web 构建、Clippy 和发布策略。四目标主程序及测试包编译通过架构核验；完整 Go race 27 包通过，desktop 包耗时 972.917 秒。本机是 Apple Silicon，不能把 Rosetta shell 或交叉编译当作 Intel 实机证据。
+- 根完整检查记录覆盖 47 项前端测试、105 项 Python 测试、288 项 Rust 测试和 18 项约定忽略，以及 42 项具名原生安全回归、Web 构建、Clippy 和发布策略。跨目标主程序及测试包编译通过架构核验；完整 Go race 27 包通过，desktop 包耗时 972.917 秒。本机是 Apple Silicon，不能把 Rosetta shell 或交叉编译当作 Intel 实机证据。
 - 从干净检出实际构建 ARM 候选并执行解包后的 `--version`；分发 prepare 成功绑定同一提交、核对原归档摘要不变，嵌入 provenance 的质量与安全放行字段保持 false，`distributable:false`、`productionReady:false`。这只是可审核的安装输入，不是签名 DMG。
 - 本轮原生界面控制恢复可用。通过系统文件选择器导入合成录音，任务完成后显示 4 段逐字稿和说话人结果；生成并保存回环测试服务返回的总结/纪要，再经系统保存对话框导出完整结果。重开数据库的业务断言及五类工作流奖励各一次均通过。首次测试仅在临时资料清理的文件身份检查失败：外置盘在首次写入后改变新文件的临时 inode。夹具现保留原始创建句柄并在清理时重新核对身份，拒绝覆盖已有资料；首次合成文件单独保留，修复后的整项复验仍须实际完成。
-- 实际 GitHub run `45151415646` 绑定上述提交，`publish_release=false`。Native 真实依赖安全、旧端 Windows x64/x86 编译和 Windows 发布策略通过；Native Linux 质量检查因 unsupported host 无清单目标失败，旧端依赖扫描新发现 RUSTSEC-2026-0594（cookie）和 RUSTSEC-2026-0592（url）。现修正非桌面 host 的不可用运行时装配，合成解释器测试显式选择受支持目标；`cookie` 升至 0.18.3、`url` 升至 2.5.9（带 `form_urlencoded` 1.2.3）。修复后相邻 managed/host race、Linux ARM 容器真实执行及 cargo-deny advisories/bans/sources 均通过，CI 最终结果仍需绑定后续提交核对。
+- 实际 GitHub run `45151415646` 绑定上述提交，`publish_release=false`。Native 真实依赖安全、旧端 Windows x64 编译和 Windows 发布策略通过；Native Linux 质量检查因 unsupported host 无清单目标失败，旧端依赖扫描新发现 RUSTSEC-2026-0594（cookie）和 RUSTSEC-2026-0592（url）。现修正非桌面 host 的不可用运行时装配，合成解释器测试显式选择受支持目标；`cookie` 升至 0.18.3、`url` 升至 2.5.9（带 `form_urlencoded` 1.2.3）。修复后相邻 managed/host race、Linux ARM 容器真实执行及 cargo-deny advisories/bans/sources 均通过，CI 最终结果仍需绑定后续提交核对。
 
 后续实跑：会议 GUI 整项复验 `TestMeetingWindowAcceptance` 通过（1194.68 秒，包含人工窗口操作等待），五类业务奖励各一次、重开数据和导出正文通过，默认合成数据库及附件已清理；此前失败样本保留在隔离目录中。Rust 补丁后的完整 `legacy:check` 通过。第二轮 CI `45155899649` 两条真实依赖安全均通过，唯一原生失败为 CLI 恢复测试调用不支持 Linux 的默认桌面目录；现由真实 CLI 核心接受测试注入的隔离目录，普通运行仍使用原平台解析器。CLI 整包 race 及 Linux ARM 容器实跑通过。不得把这些 Linux 工程检查视为新增 Linux 桌面发布支持。
 
@@ -83,7 +87,7 @@
 ## 2026-11-21 工程收尾：独立 Native 质量与候选交付
 
 - `pnpm native:verify` 已成为不读取旧 UI 或 Rust 的完整本地质量入口，串联 Native 生成物/Go 检查、Python lint/测试和 `native:release:check`。根 `pnpm check` 先执行它，再执行显式的 `legacy:check`；临时生产端的既有质量与安全检查没有被削弱。Native 的长期事实源位于共享资源和原生目录，兼容入口重放 175 个经过 SHA-256 校验的历史合成黄金文件。
-- 新增独立 `build-native.yml`，供手动调用和根质量工作流复用。固定工具链与 Action SHA、按确切源码提交检出、仅有仓库读取权限；配置完整兼容、race、四目标编译、许可证/SBOM、四平台目标测试/系统凭据验收和候选包核验。独立真实安全扫描失败仍使工作流失败；候选产物可保留供检查，不获得生产安全放行。工作流未在本轮实际提交至 GitHub 执行，也不提供 Release、标签、签名或公证入口。
+- 新增独立 `build-native.yml`，供手动调用和根质量工作流复用。固定工具链与 Action SHA、按确切源码提交检出、仅有仓库读取权限；配置完整兼容、race、跨目标编译、许可证/SBOM、跨平台目标测试/系统凭据验收和候选包核验。独立真实安全扫描失败仍使工作流失败；候选产物可保留供检查，不获得生产安全放行。工作流未在本轮实际提交至 GitHub 执行，也不提供 Release、标签、签名或公证入口。
 - 候选验证器检查精确文件集合、manifest、二进制架构、归档内容及所有摘要，拒绝脏 Native 构建输入和软链接输出祖先。默认 CLI 核对实际 HEAD，合成单测注入值不能作为真实提交归因。策略/平台/安全脚本的 86 项 Node 测试通过；另有 25 项具名 Go 安全回归逐项通过，缺失或跳过不能充当通过。
 - `native:security:check`、`native:licenses:check` 和 `native:sbom:generate` 已完全独立于 Cargo。真实许可证归集通过，收集 Go 工具链及 17 个锁定模块的 50 份通知；Native SBOM 为 17 Go、23 Node、83 Python，共 123 项锁文件库存，不包含旧端 importer/Rust、解释器、FFmpeg、模型或安全候选运行时输入，也不冒充已安装库存。
 - 本轮根 `pnpm check` 完整退出 0，包含 Native 验证、47 项前端测试、105 项 Python 测试、280 项 Rust 测试及 18 项约定忽略、Web 构建、fmt、Clippy 和发布/阻断夹具检查。普通 Go 检查部分使用缓存。独立发布策略与资产自测也通过；外置盘硬链接回退和既有 Web chunk 提示仍存在。
@@ -106,12 +110,12 @@
 
 - 当前 `native:compat`、preview 和读取 benchmark 已改用共享的[冻结黄金样本](../../../packages/desktop-resources/fixtures/native-v10/README.md)，不再启动 Rust oracle。175 个合成文件由压缩包和逐文件 SHA-256 校验。旧 inventory 脚本、基线和专用测试已移除；上文 25 路由、90 command 和 8 capability 是历史迁移基线，不能视为当前检查持续验证的计数。原有 Go/Rust 双向 journal、锁互斥和 Rust 回读 Go XLSX 的通过记录也仅限原流程。
 - 本轮检查先暴露两处新测试入口问题：ES 模块中的八进制 NUL 转义无法解析；无 tag 的恢复测试引用了只在 `compatibility` tag 下定义的快照辅助函数。分别改为等值合法转义、将辅助函数原样移入无 tag 的共享测试文件；没有改变生产 Runner 或迁移逻辑。最终 `GOMAXPROCS=2 node scripts/run-native.mjs check` 通过 61 项 Node 测试、生成物漂移、格式、模块校验、vet 和 26 个 Go 包测试，部分 Go 结果使用缓存。
-- 独立审查继续发现编辑器几何测试仍读取旧 `windows.ts`。核实三类历史尺寸后将其固定在现有测试中，保留双语、新建/编辑、四项几何及标题断言，移除对旧源文件的读取；相邻普通/race 和四目标 desktop 测试包编译通过。随后 `GOMAXPROCS=2 pnpm native:check` 再次完整通过。
+- 独立审查继续发现编辑器几何测试仍读取旧 `windows.ts`。核实三类历史尺寸后将其固定在现有测试中，保留双语、新建/编辑、四项几何及标题断言，移除对旧源文件的读取；相邻普通/race 和跨目标 desktop 测试包编译通过。随后 `GOMAXPROCS=2 pnpm native:check` 再次完整通过。
 - 无旧端的隔离源快照含 1,139 个 allowlist 文件，未包含 `apps/desktop`、Cargo、`.git` 或 `node_modules`。Node 从祖先目录解析现有固定依赖，Go 使用已缓存的固定工具链与模块。完成九生成器的检查、删除输出后重建及再检查，283 个输出 SHA-256 一致；61 项 Node 测试、几何回归、契约/展示包以及本机 ARM CLI 构建和版本输出通过。该结果证明所测源快照的生成与最小构建独立性，不替代 Git 干净检出、完整测试或平台实机。
 - 恢复固定 `pnpm 10.30.3` 的可用入口后，`GOMAXPROCS=2 pnpm check` 完整退出 0：TypeScript 47 项、Python 105 项、Rust 280 项通过及 18 项约定忽略，Web 构建、fmt、Clippy 和静态发布/阻断夹具检查通过。独立发布策略及资产自测也通过。外置盘增量缓存的硬链接回退和既有 Web 大 chunk 提示仍存在；没有删除或重装 `node_modules`，也不把静态安全基线当成真实漏洞扫描通过。
 - 新样本入口的最小重放通过 28 个顶层测试，涵盖文本/纪要/AI、旧库读取、v0–v10 迁移、Native 恢复 journal 与跨进程锁、XLSX 和 18 个 DOCX 案例。schema、profile、XLSX 和 DOCX 定向启用 race。该最小重放未覆盖完整经济差分；较早动态兼容与当前冻结样本重放应分别理解。
 - 随后 `GOMAXPROCS=2 pnpm native:compat` 完整退出 0，冻结样本下的宠物核心、商店、盲盒、签到补签、兑换、农场与打工全动作差分及失败回滚/重开通过，jobdb 包耗时 774.480 秒；执行服务、host、XLSX 和 DOCX 也通过。日志发现 profile 筛选仍指向已删除的 Rust 用例，故将筛选替换为现有 `TestLock`，再按同一参数定向 race 补跑资料锁通过。子进程 helper 顶层按设计跳过，父测试实际启动并核验互斥；筛选前后比对确认仅增加三项 Native profile 函数，其他包所选测试未变，没有重复执行整套经济差分。修改后的入口相关 43 项 Node 测试和语法检查通过。
-- 四目标完整编译于 22:48–22:54（UTC+8）通过，独立核对 4 个主程序和 104 个测试可执行文件的 Mach-O/PE 架构、Go 1.27.4、目标设置及生成时间。快照辅助函数随后迁移，再定向补编译四目标 schema 测试包通过。此处均为编译与产物检查，不是其他平台实跑。
+- 跨目标完整编译于 22:48–22:54（UTC+8）通过，独立核对 4 个主程序和 104 个测试可执行文件的 Mach-O/PE 架构、Go 1.27.4、目标设置及生成时间。快照辅助函数随后迁移，再定向补编译跨目标 schema 测试包通过。此处均为编译与产物检查，不是其他平台实跑。
 - 最新含安全候选输入的 ARM 包为 `target/native/packages/liberty-native-candidate-1.1.24-darwin-aarch64-security-runtime-yn9pR9/`，归档 SHA-256 为 `baad2f1b0d0ea21dc4f563395facf9163f62b396bf849f7cad0b959e4e834de7`。14 项文件及 8 件输入摘要独立复核一致，包含最新装配练习反馈；215 项产品 Go/依赖输入与打包时一致。包为 1.1.24、候选身份、默认 `production`、可选 `.2` 安全运行时、`productionReady:false`，只有可执行文件 ad hoc 签名，没有分发签名或公证。
 - 同日生产运行时与 `.2` 安全候选的真实 Runner/host 两种说话人模式均通过，结果和奖励在重开后保持；候选的 82 项安装库存通过精确锁和当前策略扫描。最新包再次完成三平台当前策略及未过滤扫描，覆盖完整；当前策略通过、未过滤均有发现，生产安全门禁未解除。这些不构成多说话人准确率或 Intel/Windows 实机证据。
 - 会议 GUI 验收未通过。一次会话中断后原进程已结束，重新建立的隔离窗口因原生界面控制工具不再可用而受控结束，尚未创建任务，测试以未满足完成任务断言退出 1。该结果既不是 GUI 通过证据，也不足以认定会议功能故障。验收临时凭据已清理，未读取生产资料；完整 GUI/IME/读屏、P5-G1、真实远端、受控 ASR/8 GiB 设备、生产依赖整改、Intel/Windows 实机、安装升级回退及签名公证仍须完成。
@@ -122,7 +126,7 @@
 - 复核上一会话已落盘的 Dashboard 来源绑定和设置失败重试实现；进一步复现“第一笔模式切换已成功保存，第二笔排队保存未完成或失败时，主窗口仍保留旧模式”的边界。修复前新增回归的 8 个中英文、本地↔远端、后续线程修改/反向模式修改场景均失败。
 - `SettingsController.OnSaved` 现在逐笔通知成功持久化的快照，工作区立即更新生效模式及读取代次；`SaveThen`/`Flush` 仍等待整批草稿保存成功。后续失败保留草稿供重试，不撤回已提交模式，也不在手动重试时重放此前失败动作的回调。长期约束同步至[原生架构](../../architecture/native-desktop-architecture.md)。
 - 修复后定向测试、设置与模式相关 `go test -race ./internal/client ./internal/desktop -run 'Settings|ProcessingMode|SavedSettings|DashboardActivity' -count=1 -timeout=900s`、`pnpm native:check` 和 `pnpm check` 均通过。Go 检查使用 `GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly`。这是控制器及 headless UI 验证，本批未重建、重启或目视验收原生候选。
-- 初次 `pnpm security:check` 因缺少扫描器退出 2；随后在仓库外临时目录取得并校验固定版本工具，重跑后 Rust advisories/bans/sources、pnpm 和 Go 依赖扫描通过，门禁在首个生产 Python 锁退出 1。独立复扫另两份生产锁也退出 1，三平台各有 54 组未被现有例外过滤的漏洞，涉及 `filelock`、`pillow`、`transformers`；平台计数不能相加。未修改生产依赖锁或例外，最新结论同步至[发布要求](../../architecture/release-readiness.md)。本批未执行兼容全量、四目标编译、目标机安装、签名公证、提交或发布。
+- 初次 `pnpm security:check` 因缺少扫描器退出 2；随后在仓库外临时目录取得并校验固定版本工具，重跑后 Rust advisories/bans/sources、pnpm 和 Go 依赖扫描通过，门禁在首个生产 Python 锁退出 1。独立复扫另两份生产锁也退出 1，三平台各有 54 组未被现有例外过滤的漏洞，涉及 `filelock`、`pillow`、`transformers`；平台计数不能相加。未修改生产依赖锁或例外，最新结论同步至[发布要求](../../architecture/release-readiness.md)。本批未执行兼容全量、跨目标编译、目标机安装、签名公证、提交或发布。
 
 ## 2026-11-21 新版入口收口与切换回归补充
 
@@ -174,7 +178,7 @@
 - 只读对照确认原端 25 条路由在原生端均有映射；这只证明路由入口覆盖，不等于逐页布局、视觉、交互状态和系统行为等价。历史本机证据覆盖部分 macOS ARM 窗口与流程，完整同数据截图差分、中英文/主题矩阵、系统读屏、全部 IME、文件对话框和多窗口焦点验收仍未完成。
 - 原生远端读取能力按协商开放，但远端新建任务在原生端明确不可用。旧 React 页面虽保留创建入口，其提交链也明确因安全分块上传协议未实现而失败；因此这是两端共有的未实现能力，不应描述为原生已兼容，也不能在缺少服务端协议的情况下臆造上传实现。切换前需由产品明确远端创建是否属于本次发布范围。
 - 当前 checkout 中 `apps/desktop`、Tauri/Rust 源码、旧端质量检查与 `build-desktop.yml` 仍保留；原生生成器仍从旧端读取 schema/迁移、运行时清单、消息、图标及素材。候选包仍为 `productionReady:false`、未签名且未公证。不能删除整个旧端或停用旧端发布链来声称已切换；应先迁出事实源、替代兼容 oracle、完成原生发布链和观察期，再按批准计划分阶段退役。
-- 退役审查确认当前没有可直接删除的完整旧端源码范围。生产 Python 依赖扫描、Intel/Windows 目标实机、安装升级/回退、签名/公证、生产资料接管及全量 UI 验收仍是独立门槛；本机候选运行和四目标编译不能替代这些证据。
+- 退役审查确认当前没有可直接删除的完整旧端源码范围。生产 Python 依赖扫描、Intel/Windows 目标实机、安装升级/回退、签名/公证、生产资料接管及全量 UI 验收仍是独立门槛；本机候选运行和跨目标编译不能替代这些证据。
 
 ## 2026-11-20 新版窗口验收与单实例收口
 
@@ -187,7 +191,7 @@
 
 - 新建会议表单继续对照旧 React 行为：取消重新选择时保留已有错误、媒体授权和表单内容；读取失败保留当前选择并显示中英文可恢复提示；只有成功选择新媒体后才替换授权并清除错误。新增客户端和桌面组件回归覆盖取消、失败、成功重选及远端创建禁用边界。
 - 托管 Python 启动 reconciliation 不再只信任 `ready.json`、路径和声明版本；显式 managed Python 会执行 `runtime_validate.py --interpreter-only`，错误解释器降为 `interpreter_invalid`，不会继续显示 ready。成功探针缓存现在同时绑定文件身份、大小、修改时间和 SHA-256 内容摘要，并在探针前后确认文件未变化；显式 system Python 保持原有未固定版本策略。新增同 inode、同大小、恢复修改时间后的原位替换回归，避免旧缓存绕过版本校验。
-- 定向 `go test -race`（managed、client、desktop）通过；`pnpm native:check` 首次运行时，一个 macOS SIGKILL 恢复用例失败，单测单独通过，随后整条命令串行重跑退出 0。首次失败与同时运行的四目标构建存在时间重叠，但因果未证实，故记录为未复现失败，不改弱测试。`pnpm native:build:matrix` 重新确认 macOS ARM/Intel 与 Windows x64/x86 的 Mach-O/PE 编译格式。`pnpm native:package` 重新生成 `target/native/packages/liberty-native-candidate-1.1.24-darwin-aarch64-mcBG2i/`，包内清单和归档校验通过，仍标记未签名、未公证、`productionReady:false`。
+- 定向 `go test -race`（managed、client、desktop）通过；`pnpm native:check` 首次运行时，一个 macOS SIGKILL 恢复用例失败，单测单独通过，随后整条命令串行重跑退出 0。首次失败与同时运行的跨目标构建存在时间重叠，但因果未证实，故记录为未复现失败，不改弱测试。`pnpm native:build:matrix` 重新确认 macOS ARM/Intel 与 Windows x64 的 Mach-O/PE 编译格式。`pnpm native:package` 重新生成 `target/native/packages/liberty-native-candidate-1.1.24-darwin-aarch64-mcBG2i/`，包内清单和归档校验通过，仍标记未签名、未公证、`productionReady:false`。
 - 为响应“启动新版”，从该确切包路径启动 PID `18480`，使用 `target/native/launch-profile.uPdFbb/` 独立临时资料目录并确认 SQLite/WAL 已打开；未发现旧 React/Tauri 进程。较早候选 PID `22352` 因可能存在未保存窗口状态未强制结束，因此当前存在两个资料隔离的原生候选进程；这不代表生产入口已切换，正常退出旧窗口后应只保留一个候选实例。
 - 旧 React/Tauri 仍为默认生产入口和部分共享事实来源；Python 生产锁 OSV 门禁、完整 UI/IME/读屏、真实远端、Intel/Windows 实机、安装升级回退、签名公证及全量业务差分仍未关闭。上述代码和候选验证不构成删除旧端或生产切换授权。
 
@@ -203,9 +207,9 @@
 
 - 重新分析先前 `native:compat` 日志：jobdb 在目标宠物核心场景开始前，包内其他长差分已累计运行约 1,583 秒；未发现死锁或数据库泄漏。将六组相互独立、各使用隔离资料库的差分并行执行，场景内动作顺序与完整比较保持不变，并去掉规范化快照上重复 JSON 编解码，新增整数精度和快照隔离测试；没有删减差分或提高 30 分钟 timeout。jobdb 六组写入差分全套 race 通过，统一 `pnpm native:compat` 现已完整退出 0，jobdb 包耗时 945.730 秒，profile、执行、host、XLSX、DOCX 及双向凭据互读也通过。
 - 对照旧版队列交互，长任务标题在保持单行固定列宽时新增悬停完整标题 tooltip；覆盖中英文、明暗主题、1100/1440 窗口宽度、Escape 关闭、数据刷新和行删除。相邻桌面完整测试及此用例 race 通过；这是组件交互测试，不代表原生系统窗口的逐页视觉验收。
-- `pnpm check` 通过：前端 47 项、Python 105 项、Rust 278 项通过、18 项按约定忽略，Web 构建、Rust fmt/Clippy 和静态发布检查均通过。另有 `pnpm native:check`、修复后的 `pnpm native:compat`、四目标 `pnpm native:build:matrix`、启动器 11 项与打包 4 项测试以及独立 `pnpm licenses:check` 通过；`git diff --check` 通过。许可证检查有既存的未命中 BSD-2-Clause allowance 提示；外置盘增量编译硬链接回退提示仍存在。
+- `pnpm check` 通过：前端 47 项、Python 105 项、Rust 278 项通过、18 项按约定忽略，Web 构建、Rust fmt/Clippy 和静态发布检查均通过。另有 `pnpm native:check`、修复后的 `pnpm native:compat`、跨目标 `pnpm native:build:matrix`、启动器 11 项与打包 4 项测试以及独立 `pnpm licenses:check` 通过；`git diff --check` 通过。许可证检查有既存的未命中 BSD-2-Clause allowance 提示；外置盘增量编译硬链接回退提示仍存在。
 - 固定 `cargo-deny 0.20.2` 和 OSV Scanner `2.5.0` 重跑安全门禁：Rust advisories/bans/sources 通过；三份 Python 生产平台锁逐份均报告 3 个包、54 组漏洞（6 Critical、29 High、16 Medium、2 Low、1 Unknown），总 `pnpm security:check` 仍以退出 1 阻断。未改生产锁、扩大例外或降低门禁；`pnpm check` 的静态发布安全基线不是实际漏洞扫描。
-- 以本批源码重新打包 `darwin-aarch64`、`darwin-x64`、`windows-x64`、`windows-x86` 四个候选，候选清单逐文件/归档校验成功，均标记 `productionReady:false`、未签名、未公证。ARM 最新包 `target/native/packages/liberty-native-candidate-1.1.24-darwin-aarch64-BA9NcO/` 离线 `--version` 为 `Liberty Native 1.1.24 (candidate)`，主程序 SHA-256 为 `5ec10d6ca01fb38fe13333401c0b820421b3e1e9c77f8d4ccee65272945a28e8`。四目标打包/编译不替代目标机运行、安装器及 UI/IME 验收。
+- 以本批源码重新打包 `darwin-aarch64`、`darwin-x64`、`windows-x64` 各目标候选，候选清单逐文件/归档校验成功，均标记 `productionReady:false`、未签名、未公证。ARM 最新包 `target/native/packages/liberty-native-candidate-1.1.24-darwin-aarch64-BA9NcO/` 离线 `--version` 为 `Liberty Native 1.1.24 (candidate)`，主程序 SHA-256 为 `5ec10d6ca01fb38fe13333401c0b820421b3e1e9c77f8d4ccee65272945a28e8`。跨目标打包/编译不替代目标机运行、安装器及 UI/IME 验收。
 - 当前唯一 Liberty 客户端进程仍是 Go/MyGo `liberty-native`，PID `22352`，从前一 ARM 候选包 `...-Bve1Bb/` 运行；本轮未发现旧 React/Tauri 进程。新打包源包含队列 tooltip，而正在运行二进制 SHA 为 `7892eb...`，与最新包不同；未因无法确认窗口未保存状态而强制重启，也未启动第二个争用候选资料库的实例。需先在当前窗口正常退出，再运行 `pnpm native:launch` 才会加载本轮最新 UI。未通过当前 GUI 画面验收。
 
 旧 React/Tauri 仍是默认生产发布入口与共享事实来源，不能称为已下线；生产漏洞门禁、完整 UI/IME/读屏与业务差分、真实远端、Intel/Windows 实机、安装升级回退及签名公证仍未全部通过，故默认切换和删除旧端继续禁止。
@@ -216,7 +220,7 @@
 - 结果工作台新增当前 AI 总结选择状态：只在活动 ID 对应实际总结记录时提示可导出；缺失或失配显示无总结状态。双语与无效 ID 有组件回归。
 - `native:launch` 修正候选版本排序对 SemVer build metadata 使用数字转换造成 `NaN` 的问题；忽略 `+build` 比较 precedence，并对超出安全整数的 numeric identifier 使用字符串长度/字典序比较。启动器和打包自测共 14 项通过。
 - 本批定向 `go test ./internal/desktop -run 'TestAssembly|TestWorkCarePractice|TestWorkbenchShowsWhetherAnAISummaryResultIsSelected' -count=1` 通过，覆盖新增 care 流程及并行的结果状态差距。固定 OSV Scanner 2.5.0 的实际 `pnpm security:check` 退出 1；另分别扫描三份 Python 生产锁，均退出 1，各报 54 组（6 Critical、29 High、16 Medium、2 Low、1 Unknown）。主安全门禁中的 pnpm/Go 锁扫描以及独立 `cargo-deny 0.20.2 check advisories bans sources` 通过；未扩大例外或升级产品锁。
-- 候选启动器 SemVer 自测、Node 语法检查、差异空白检查、四目标 `native:build:matrix` 以及定向桌面 race 通过。已将本批更改打包为 `target/native/packages/liberty-native-candidate-1.1.24-darwin-aarch64-Bve1Bb/`；包内 `--version` 为 `Liberty Native 1.1.24 (candidate)`，清单有 6 个文件，声明 `productionReady:false`、未签名/未公证，主程序 SHA-256 为 `7892eb2083609c3633c421d1379ee1da64644f025cdc480b1c14efc0179c5943`。实测 `pnpm native:launch` 先发现旧候选仍运行时曾因脚本漏定义平台 target 报错，随后修复并以 11 项测试及真实启动复核；最终 PID `22352` 的进程和 `lsof` 均指向新包 `...-Bve1Bb/`，`--version` 和摘要与包一致，持有独立候选 SQLite/WAL。当前仅一个 `liberty-native` 进程，没有启动旧 React/Tauri、生产资料或第二个写实例。当前 GUI 的逐项画面未通过自动化检查，不以进程/摘要替代 UI 目视验收。
+- 候选启动器 SemVer 自测、Node 语法检查、差异空白检查、跨目标 `native:build:matrix` 以及定向桌面 race 通过。已将本批更改打包为 `target/native/packages/liberty-native-candidate-1.1.24-darwin-aarch64-Bve1Bb/`；包内 `--version` 为 `Liberty Native 1.1.24 (candidate)`，清单有 6 个文件，声明 `productionReady:false`、未签名/未公证，主程序 SHA-256 为 `7892eb2083609c3633c421d1379ee1da64644f025cdc480b1c14efc0179c5943`。实测 `pnpm native:launch` 先发现旧候选仍运行时曾因脚本漏定义平台 target 报错，随后修复并以 11 项测试及真实启动复核；最终 PID `22352` 的进程和 `lsof` 均指向新包 `...-Bve1Bb/`，`--version` 和摘要与包一致，持有独立候选 SQLite/WAL。当前仅一个 `liberty-native` 进程，没有启动旧 React/Tauri、生产资料或第二个写实例。当前 GUI 的逐项画面未通过自动化检查，不以进程/摘要替代 UI 目视验收。
 - 旧 React/Tauri 仍保留并承担默认发布入口、兼容/生成来源及回退职责；没有删除、切换、提交、发布或部署。安全门禁、P5-G1、完整页面/UI/IME/读屏差分、其他平台实机、真实远端、安装升级/回退及签名公证仍阻断生产切换。
 
 ## 2026-11-20 候选与检查状态快照（非实时状态）
@@ -225,7 +229,7 @@
 - `pnpm native:launch` 已逐文件校验清单、SHA-256 和符号链接边界，并按确切 `.app` 路径启动最新候选；另增加运行中可执行文件路径检查，不会把不同构建静默报告为新版。候选清单仍声明 `productionReady:false`、未签名、未公证。
 - 固定版 `cargo-deny 0.20.2` 的 advisories/bans/sources 检查通过；OSV Scanner `2.5.0` 对三个当前 Python 生产锁分别退出 `1`，每份均为 54 组漏洞（6 Critical、29 High、16 Medium、2 Low、1 Unknown）。未扩大例外或升级不兼容依赖，`pnpm security:check` 因此仍阻止生产切换。
 - 本轮没有强制结束带未保存内容的窗口，也没有并行启动第二个 Liberty 实例；启动器复用现有候选资料目录和窗口。
-- 本轮 `native:check`、四目标 `native:build:matrix`、care/结果状态定向 race、11 项启动器和 4 项打包 Node 测试、`git diff --check` 均通过。旧 Tauri 窗口配置差分不能替代逐页新旧 GUI 目视验收；本次未声称完整 UI/IME/读屏等价。
+- 本轮 `native:check`、跨目标 `native:build:matrix`、care/结果状态定向 race、11 项启动器和 4 项打包 Node 测试、`git diff --check` 均通过。旧 Tauri 窗口配置差分不能替代逐页新旧 GUI 目视验收；本次未声称完整 UI/IME/读屏等价。
 - 真实供应链结果仍不能视为通过：OSV Scanner `2.5.0` 对三个当前 Python 生产锁各报告 54 组漏洞（含 6 Critical），未扩大例外；候选运行时的覆盖扫描通过不等于生产安全门禁解除。
 - 旧 React/Tauri 源码仍在仓库，仍是默认生产发布入口，`.github/workflows/build-desktop.yml` 仍构建 Tauri；原生生成器和兼容检查仍从旧端读取 schema/迁移、运行时清单、双语消息与素材。没有删除、下线或切换默认入口。
 - 已完成的主窗口、Shell 与部分页面对照不等于完整 UI 等价；跨平台实机、完整交互/IME/读屏、真实远端、生产依赖安全门禁、安装升级回退、签名与公证仍是独立切换条件。
@@ -245,19 +249,19 @@
 - 总结窗口补齐旧端显示的源文件名、已有保存结果的完成状态和任务不存在文案；纪要重试期间保留已保存内容、显示加载语义并隐藏重复重试按钮，失败后恢复可重试状态。农场/打工接受新操作时清除旧成功反馈，忙碌或忽略操作不清除；schema 接管迁移失败重试继续复用首次恢复点。
 - 本批验证（随后状态更新见下一条）：完成提示/标题栏定向 `go test -race`、队列轮询完成/失败集成测试、设置/运行时/总结/纪要/工作定向测试、schema 包 `go test -race`、`gofmt`、`git diff --check` 和修复后的 `pnpm native:check` 已通过；本机 ARM 新候选包已重建并通过包内/归档校验。当批检查时桌面仍运行重建前的隔离候选，未强制退出或尝试同资料第二实例；该现场结论已被下条记录更新。
 - 随后已从该次重建的精确包路径启动新版原生候选；核验时进程 `19029` 的可执行文件来自 `target/native/packages/liberty-native-candidate-1.1.24-darwin-aarch64-WKXXFD/`，SHA-256 为 `7f5d9404dee49588667c023409578a4ae0f9eaab2ae514b030d09593916165e`，`--version` 输出 `Liberty Native 1.1.24 (candidate)`。进程持有独立 `com.westng.liberty.native-candidate` 资料库及 WAL。核验未发现旧 React/Tauri 主程序；未启动旧版、未接管生产资料。
-- 旧 React/Tauri 仍是默认生产入口，且仍被原生生成器、共享 schema/消息/运行时清单和发布工作流引用；本轮没有删除或下线。完整 UI 截图/交互、输入法和读屏、Windows x64/x86 与 Intel Mac 实机、真实远端服务、安装升级/回退、供应链安全门禁、签名/公证仍未完成，因此不能宣称已达到生产切换条件。
+- 旧 React/Tauri 仍是默认生产入口，且仍被原生生成器、共享 schema/消息/运行时清单和发布工作流引用；本轮没有删除或下线。完整 UI 截图/交互、输入法和读屏、Windows x64 与 Intel Mac 实机、真实远端服务、安装升级/回退、供应链安全门禁、签名/公证仍未完成，因此不能宣称已达到生产切换条件。
 
 ## 2026-11-20 接续整改：隔离入口、运行时交付与桌宠反馈
 
 - 三方独立只读审查及主线程复核确认：默认运行的是 `apps/native` 隔离候选，而非 React/Tauri；旧端仍是生产入口、发布流程仍构建旧端，没有默认切换或删除旧回退。全量 command 授权、逐页新旧 GUI、平台和发布验收均未结束。
-- 修复显式目录接管旁路：可写启动或离线恢复通过普通 `--profile-directory` 选择生产目录/祖先/后代、路径别名或共享数据库硬链接时，此前可到达资料库；现拒绝含 `..` 的路径分量，将规范路径用于重叠判定、目录创建与开库，重叠错误给出专门的双语恢复指引。覆盖卷根、缺失后代、大小写、父链接、硬链接、可写、restore、默认候选和显式生产选择的测试改为四目标平台 CI 实跑启动选项与 profile 包。
+- 修复显式目录接管旁路：可写启动或离线恢复通过普通 `--profile-directory` 选择生产目录/祖先/后代、路径别名或共享数据库硬链接时，此前可到达资料库；现拒绝含 `..` 的路径分量，将规范路径用于重叠判定、目录创建与开库，重叠错误给出专门的双语恢复指引。覆盖卷根、缺失后代、大小写、父链接、硬链接、可写、restore、默认候选和显式生产选择的测试改为跨目标平台 CI 实跑启动选项与 profile 包。
 - 启动选择的当前边界：preview 必须显式给出 `--database`、`--profile-directory` 或 `--default-profile`（版本/帮助输出除外）；`native:preview` 默认传合成只读快照，`--writable` 改用临时显式资料目录。候选无参数启动只选独立候选资料目录；`--database` 一直只读，现有 Tauri 生产资料需显式 `--default-profile`，可写或恢复仍受目录隔离与共享锁约束。此机制提供隔离验收入口，不等于切换默认生产客户端。
-- 修复旧端运行时清单中的五处失效归档路径：四个平台指向南大 Python 归档的镜像地址及 Windows x64/x86 旧 FFmpeg 地址在 2026-11-20 的 HTTPS Range 实测无效。保留南大 PyPI 包索引，Python 归档回退正式官方固定摘要；Windows 现固定 FFmpeg-Builds 8.1.3 两档及完整 SHA-256，同步清单版本、Go 生成资源和 Rust/Go 固定资产测试。独立复核两个本地 ZIP 完整性、完整摘要、FFmpeg 源码提交和 x86/x64 PE 架构，未执行 Windows 二进制。
+- 修复旧端运行时清单中的五处失效归档路径：当时各平台指向南大 Python 归档的镜像地址及 Windows x64 旧 FFmpeg 地址在 2026-11-20 的 HTTPS Range 实测无效。保留南大 PyPI 包索引，Python 归档回退正式官方固定摘要；Windows 固定 FFmpeg-Builds 8.1.3及完整 SHA-256，同步清单版本、Go 生成资源和 Rust/Go 固定资产测试。独立复核本地 ZIP 完整性、完整摘要、FFmpeg 源码提交和 x64 PE 架构，未执行 Windows 二进制。
 - 桌宠迁入旧版食物成长浮字：仅对运行窗口基线之后新增的持久正 `store_food` 账本显示 +N 三秒；同刻重复、排序和刷新不重播、不延长，提示可见/消失时拖拽仍被捕获，减少动态效果会静止显示。主/额外窗口各自维护基线并在关闭后重建。MyGo 组件测试覆盖时间边界、键鼠捕获、独立窗口和历史事件，尚无 Windows/Darwin 原生跨平台动画或读屏验收。
 - 显式恢复仅接受同目录认可的非链接 `.bak` 文件，要求当前库存在且有效；源/目标 schema、完整性与快照凭据在恢复前预检，并先留经验证的 `pre-restore` 副本。预检失败测试确认当前库不变；进入 SQLite backup 写入后的 checkpoint、读回验证或同步失败可能发生在数据已改变之后，故不能承诺所有恢复错误均保持原库字节不变，安全副本必须保留。安装器级升级/回退、物理断电和所有恢复中断时点仍待验证。
-- 截至该批次，`native:package` 的既有记录覆盖四个目标的隔离候选归档，并校验六个版本来源（根/桌面 `package.json`、Tauri 配置、`Cargo.toml`、`Cargo.lock`、Go host）、候选身份、Mach-O/PE 架构、NOTICE、逐文件 SHA-256 和归档解包内容；Windows 产物是便携目录，不是安装器。候选未签名、未公证且标记 `productionReady:false`，不代表跨平台运行或安装回退通过。该批的“未重新打包”状态已由后续批次覆盖，当前活动进程是否包含最新工作区改动以文首核验为准。
-- 运行时档案 HEAD/Range 轻量探测不核验完整新下载：清单原官方固定资产与 macOS FFmpeg 地址返回成功，南大镜像归档与旧 Windows FFmpeg 返回 404；新 Windows FFmpeg ZIP 的本地完整 SHA 与上游校验信息匹配。新上游是分仓 GPL 构建、发布非 immutable，最低系统、完整可再分发源合规、真实 x64/x86 安装/解码及回退仍未验收；不能将可达和摘要匹配当作平台验收。
-- 截至该批次，桌宠成长浮字的自动化记录为定向 `go test -race ./internal/desktop -run '^TestCompanion' -count=5`、`go vet ./internal/desktop` 和格式检查通过；覆盖历史事件不重放、同刻重复不延长、过期边界、刷新/排序、窗口基线和提示期间拖拽捕获。当时四目标重打包与窗口观察仍待执行；后续批次已记录候选重建和部分窗口验收。Windows/Intel Mac 动画、系统读屏与全页面 UI 差分仍未完成。
+- 截至该批次，`native:package` 的既有记录覆盖当时各目标的隔离候选归档，并校验六个版本来源（根/桌面 `package.json`、Tauri 配置、`Cargo.toml`、`Cargo.lock`、Go host）、候选身份、Mach-O/PE 架构、NOTICE、逐文件 SHA-256 和归档解包内容；Windows 产物是便携目录，不是安装器。候选未签名、未公证且标记 `productionReady:false`，不代表跨平台运行或安装回退通过。该批的“未重新打包”状态已由后续批次覆盖，当前活动进程是否包含最新工作区改动以文首核验为准。
+- 运行时档案 HEAD/Range 轻量探测不核验完整新下载：清单原官方固定资产与 macOS FFmpeg 地址返回成功，南大镜像归档与旧 Windows FFmpeg 返回 404；新 Windows FFmpeg ZIP 的本地完整 SHA 与上游校验信息匹配。新上游是分仓 GPL 构建、发布非 immutable，最低系统、完整可再分发源合规、真实 x64 安装/解码及回退仍未验收；不能将可达和摘要匹配当作平台验收。
+- 截至该批次，桌宠成长浮字的自动化记录为定向 `go test -race ./internal/desktop -run '^TestCompanion' -count=5`、`go vet ./internal/desktop` 和格式检查通过；覆盖历史事件不重放、同刻重复不延长、过期边界、刷新/排序、窗口基线和提示期间拖拽捕获。当时跨目标重打包与窗口观察仍待执行；后续批次已记录候选重建和部分窗口验收。Windows/Intel Mac 动画、系统读屏与全页面 UI 差分仍未完成。
 - 路径隔离与清单修复不触及用户库/凭据。本次文档整理未启动或操作客户端、未接管生产资料、提交或发布；旧 React/Tauri 仍是默认生产入口，未删除或切换。
 
 ## 2026-11-20 本轮收尾核实
@@ -265,7 +269,7 @@
 - 复核确认：仓库内 React/Tauri 尚未下线，仍是默认生产入口；`build-desktop.yml` 仍为 Tauri 构建安装包。`apps/native` 是隔离候选，Go 生成器仍读取旧端 schema、迁移、消息/图标、运行时清单等事实来源；不能直接删除旧端目录。
 - 该批根中英文 README 的桌面开发指引优先显示新版合成预览与候选打包方式，并将旧端开发命令标记为仅维护旧端使用。后续文档整理已改为日常使用 `pnpm native:launch`，临时 `native:preview` 另列；此举不切换正式生产入口或发布工作流。
 - 旧 Rust 资料库仍服务当前生产客户端。复审发现宠物经验值在工作流成长、签到、食物使用和兑换奖励中的 i64 加法可溢出；现统一使用 `checked_add`，溢出失败整笔事务回滚，并新增精确上限和签到/兑换回滚测试。
-- 修复后的整仓 `pnpm check`、`pnpm native:check`、完整 `pnpm native:compat`、全包 `go test -race ./... -count=1 -timeout=900s`、`pnpm native:build:matrix` 均通过。兼容差分在 Rust 溢出修复后完整重跑，jobdb 整包 1215.992 秒；全部宠物、签到、商店、恢复凭据互操作、host 生命周期、资料锁、DOCX 和双向 XLSX 测试通过。四目标候选已重建并分别通过包内逐文件 SHA 与归档解包验证；本机 ARM 新包离线 `--version` 返回 `Liberty Native 1.1.24 (candidate)`，没有打开资料库。四包均未签名、未公证，Windows 产物不是安装器。
+- 修复后的整仓 `pnpm check`、`pnpm native:check`、完整 `pnpm native:compat`、全包 `go test -race ./... -count=1 -timeout=900s`、`pnpm native:build:matrix` 均通过。兼容差分在 Rust 溢出修复后完整重跑，jobdb 整包 1215.992 秒；全部宠物、签到、商店、恢复凭据互操作、host 生命周期、资料锁、DOCX 和双向 XLSX 测试通过。跨目标候选已重建并分别通过包内逐文件 SHA 与归档解包验证；本机 ARM 新包离线 `--version` 返回 `Liberty Native 1.1.24 (candidate)`，没有打开资料库。各包均未签名、未公证，Windows 产物不是安装器。
 - 当前桌面激活的是 `com.westng.liberty.native-candidate`，同一进程未增开实例，进程清单中未发现旧 Tauri 客户端。该进程的 Mach-O 摘要不同于 12:23 刚重建的 ARM 包；因无法确认窗口无未保存输入，本轮没有强制退出或重启。故当前可确认“新版原生候选正在运行”，但不能声称 12:23 新包里的最新工作区改动已显示。
 - 未完成的切换门槛仍包括生产依赖安全扫描告警、Windows/Intel 实机、完整 UI/IME/读屏差分、真实远端服务、安装升级回退、签名公证。未提交、推送、发布或删除旧端。运行时/自动化门禁通过不等于生产切换完成。
 
@@ -283,7 +287,7 @@
 
 ## 2026-11-20 固定模型音频与跨平台验收接线
 
-- 运行时与 host 的真实验收改为使用已下载并由 pinned model 文件清单逐项校验的 `speech_seaco_paraformer.../example/asr_example.wav`，不依赖 macOS `say`，不使用用户媒体。Runner 的关闭/开启说话人两种路径及完整 host 媒体授权、任务调度、转写、退出重开与工作流奖励核对均可由同一固定音频复现。验收命令在 Darwin 和 Windows 执行 host 闭环；Windows x86 按当前产品边界明确跳过本地 ASR，不把该目标伪称为可用。
+- 运行时与 host 的真实验收改为使用已下载并由 pinned model 文件清单逐项校验的 `speech_seaco_paraformer.../example/asr_example.wav`，不依赖 macOS `say`，不使用用户媒体。Runner 的关闭/开启说话人两种路径及完整 host 媒体授权、任务调度、转写、退出重开与工作流奖励核对均可由同一固定音频复现。验收命令在 Darwin 和 Windows 执行 host 闭环。
 - Apple Silicon 本机生产运行时实测：安装/复用固定 FFmpeg、Python 与模型，离线校验后两种 Runner 模式通过；随后 host 两个任务均完成，结果分别为关闭说话人 1 段/0 speaker、开启说话人 1 段/1 speaker。关闭并重开资料库后逐字稿、说话人结果和三类工作流奖励均核对通过。前一 managed 真实验收 154.45 秒，host 96.27 秒。Windows x64 `runtime_acceptance` 的 managed 与 host 测试包交叉编译通过，但没有 Windows 实机执行证据；Intel Mac 与 Windows GUI/IME、安装器流程也未因此验收。
 - 本批仅调整运行时验收夹具、Darwin/Windows host 验收接线及相邻说明；测试缓存位于忽略的 `target/native/`。没有接触旧 React/Tauri 进程、生产资料或用户媒体，没有派发子代理、提交、发布或切换默认入口。
 
@@ -309,7 +313,7 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - `ResultView` 将讲话人计数/本地化筛选项与可见行筛选分开缓存，按结果快照、语言、显示切片底层地址和长度失效。查询文本归一化索引延迟到首次搜索；无查询/讲话人筛选时直接复用原始显示切片，避免长期持有额外的全量 Segment 副本。控制器刷新以新 Result 快照替换旧对象；相同任务 ID 的新对象和同对象内替换切片均有回归覆盖。缓存不适用于同一个快照、同一底层数组被外部原地改写的调用方式；现有控制器不通过该方式发布刷新。
 - 回归验证筛选计数在查询变化时复用、结果 ID 相同但快照变化时刷新、来源切片替换时刷新，以及 `legacy_unverified` 投影切换后回落到原始逐字稿；原有双语搜索、讲话人切换、空态、键盘滚动、虚拟列表和编辑交互一并覆盖。
 - Apple M1 上的稳态组件基准以首次 Frame 预热后测重复帧。相同的 10,000 段无筛选场景由约 0.86–1.09 ms、2.67 MB、113 allocs 降至 0.19–0.20 ms、13.2 KB、93 allocs；全文搜索由约 1.94–2.12 ms、3.63 MB、20,114 allocs 降至 0.189–0.192 ms、13.2 KB、94 allocs。400 段全文搜索由约 0.264–0.294 ms、117 KB、902 allocs 降至 0.190–0.191 ms、13.2 KB、92 allocs。修改前后均为本机 darwin/arm64；轮数不同，结果是稳态组件基准而非冷启动、整窗性能或其他平台结论。
-- `go test -race ./internal/desktop -count=1` 通过（222.453 秒）；修改后工作台基准 `go test ./internal/desktop -run '^$' -bench '^BenchmarkResultWorkbenchFrame$' -benchmem -count=3` 通过。完整原生检查与四目标编译将在本轮收尾时再运行。已有窗口尺寸、标题栏 overlay、traffic-light 坐标及动态按钮留白实现/测试已核对，本批没有重复改动或启动旧版客户端。**本轮未派发子代理**，未启动新客户端、重建候选包、访问生产资料或凭据，未提交/发布/切换默认入口。
+- `go test -race ./internal/desktop -count=1` 通过（222.453 秒）；修改后工作台基准 `go test ./internal/desktop -run '^$' -bench '^BenchmarkResultWorkbenchFrame$' -benchmem -count=3` 通过。完整原生检查与跨目标编译将在本轮收尾时再运行。已有窗口尺寸、标题栏 overlay、traffic-light 坐标及动态按钮留白实现/测试已核对，本批没有重复改动或启动旧版客户端。**本轮未派发子代理**，未启动新客户端、重建候选包、访问生产资料或凭据，未提交/发布/切换默认入口。
 
 此优化不关闭其余 UI 差分、其他平台实机、真实远端、生产依赖安全、安装回退和发布门槛；Go/MyGo 仍为隔离候选，旧 React/Tauri 入口仍保留。
 
@@ -325,7 +329,7 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - 真实持久化链发现非结构化摘要首次 Word 导出回填后再次导出会失去唯一正文，Go/Rust 同步仅在缺失 payload 的重建时把有效正文持久到 `GlobalSummary`。已有 payload 保持权威，不恢复用户已清空的旧 AI 文本。复审又修正 AI 时间/地点等元数据在清理 overview 时丢失的问题，保留 user 空值及 schema v1 契约，统一过滤 ASCII/中文冒号与冒号前空格。最后补上仅元数据和全占位内容的真实 Word XML 红绿回归，首次导出不再误把它们放入正文附录；回填并重开前后输出一致。最终定向普通/race、45 项 Rust 导出测试与 18 组纪要数据及 Word XML 的严格差分均退出 0。
 - 最终 `pnpm check`、`pnpm native:check` 和 `pnpm native:build:matrix` 均退出 0。整仓含 47 项前端、105 项 Python、272 项 Rust（另有 18 个默认忽略的专用 helper）、Web 构建、fmt、Clippy 及发布策略。末次冻结重新核对 921 个输入，较上一冻结点仅变更三处纪要修订文件和原生 README，证据为 `target/native/task-ui-remote-redemption-final-inputs.json`。前一冻结点主链五包 race 均通过，desktop 为 275.158 秒；最后纪要改动的独立定向 race 通过，未重跑最后源码的全包 race。外置盘硬链接回退和 Web 大 chunk 提示仍存在。
 - 停写后的完整 `pnpm native:compat` 退出 0。190 步真实签名兑换差分用时 84.55 秒，216 步宠物核心 106.78 秒，834 步全作物和岗位 277.18 秒，礼盒盲盒 332.24 秒，jobdb 整包 893.731 秒；签到、商店、旧库迁移、恢复凭据记录互操作、DOCX 与双向 XLSX 也通过。耗时不作为性能基准。本次统一检查证据为 `target/native/task-ui-remote-redemption-{workspace-check,native-check,native-matrix,native-compat}.log`，不以编辑期间的日志替代。
-- 四目标 `pnpm native:package` 均退出 0，且已独立复核完整目录、归档解包、逐文件摘要、`SHA256SUMS`、版本、隔离身份和二进制架构；产物索引为 `target/native/task-ui-remote-redemption-package-index.json`。macOS ARM/Intel 与 Windows x64 包含显式的候选运行时输入，默认仍选生产运行时；Windows x86 仅普通便携候选。三次打包均使用固定 OSV Scanner 2.5.0，三锁现有策略均退出 0（覆盖完整），空例外均退出 1。这不是生产依赖安全通过。四包未签名、未公证且标记 `productionReady:false`；未运行非本机架构或安装器。
+- 跨目标 `pnpm native:package` 均退出 0，且已独立复核完整目录、归档解包、逐文件摘要、`SHA256SUMS`、版本、隔离身份和二进制架构；产物索引为 `target/native/task-ui-remote-redemption-package-index.json`。macOS ARM/Intel 与 Windows x64 包含显式的候选运行时输入，默认仍选生产运行时。三次打包均使用固定 OSV Scanner 2.5.0，三锁现有策略均退出 0（覆盖完整），空例外均退出 1。这不是生产依赖安全通过。各包未签名、未公证且标记 `productionReady:false`；未运行非本机架构或安装器。
 - 本机 ARM `--version` 返回 `Liberty Native 1.1.24 (candidate)`；从该包的确切应用路径启动，观察到唯一候选 `liberty-native` 进程与前台 `Liberty Native Candidate` 原生主窗（1440 × 960）。SQLite 打开文件均属显式隔离测试目录；未启动旧 Tauri 或接管生产资料。这里只核验最新候选启动和主窗，不把它计作全部 UI、真实远端或运行时重验。
 
 本批自动化与候选包验收已完成，不代表生产切换。生产漏洞、全命令与全 UI 实机、真实远端、其他平台、性能、安装升级回退、签名公证及 P5-G 后续门槛仍未关闭；旧 React/Tauri 入口没有删除或切换。
@@ -340,7 +344,7 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - 独立复审先红复现内部 generation 链接会写到生产缓存、验证后锁路径可变以及生产接纳候选模型缓存。最终实现逐级拒绝 runtime 目录链接，双向核验 managed artifact 归属；ready 标记绑定 profile/input digest。候选命令从已验字节建立随机私有输入快照并做前后校验，完成或失败均清理。该保护不承诺抵御同权限恶意进程的竞态。candidate pip 隔离配置、明确 index 和已验本地 wheel，保持完整哈希锁；其余依赖在线下载，不能称完整离线环境。managed 全包 race、vet 和三项红绿复现均通过。
 - 安全工具为三平台完整依赖分别加入上游 FunASR 1.3.9 来源 SBOM，验证扫描返回确实包含所有包；保留现有例外及空例外两组结果。新增实际安装清单以 input digest 绑定，要求全部锁定版本一致、只允许额外 bootstrap pip，完成 pip check 后再扫描。已验证的例外字节复制成当前扫描私有快照，避免扫描源文件被替换后报告仍记旧摘要。永久脚本回归覆盖六次/八次调用、漏上游、installed 工具错误、漏洞阻断及策略快照；与输入/打包测试合计 17 项通过。
 - 本机 ARM 首轮通过真正新版安装器的新建 Python 3.11 哈希安装、四固定模型下载/离线预热及原 Runner 两模式，关闭说话人为 1 段/disabled，开启为 6 段/completed。该轮 host 夹具把另一个目录的 artifact 导入临时 profile，按新归属保护被拒绝；保留失败日志后改为同一受管根内的独立合成 DB，没有放宽生产保护。最新源码重新编译复验通过：Runner 为 234.23 秒，82 个实际安装发行项收集及 pip check 为 17.21 秒，host 为 115.35 秒；真实创建、媒体授权、调度、转写、退出重开及每任务三奖励均核对。三锁和实际安装集分别扫描现有策略均退出 0，空例外均退出 1；Transformer 的 Torch 后端仍因要求 >=2.6 而禁用，成功证据仅适用于 FunASR 四固定模型，不推广其他模型。
-- 整仓 `pnpm check` 退出 0：47 个前端、105 个 Python、259 个 Rust 测试，17 个默认忽略的专用 helper，另包含 Web、fmt、Clippy 与发布策略。首次 `native:check` 被基线指纹拦下，核对仅有已审查的 manifest 和 local_db 修改后由标准生成命令更新；25 路由、90 commands、8 capabilities 和 schema v10 不变。重新执行 native 检查、全包 race、停写后四目标 matrix 均退出 0。四个候选包已重建并经打包自身及主线程独立文件集合/大小/SHA、完整归档解包、SHA256SUMS、身份版本和架构复核；本机 ARM 实际 `--version` 为 candidate。三个受支持目标携带显式运行时输入，Windows x86 仅普通便携候选，不伪造 ASR 支持。产物继续未签名、未公证、`productionReady:false`，未执行 foreign 二进制或安装器。
+- 整仓 `pnpm check` 退出 0：47 个前端、105 个 Python、259 个 Rust 测试，17 个默认忽略的专用 helper，另包含 Web、fmt、Clippy 与发布策略。首次 `native:check` 被基线指纹拦下，核对仅有已审查的 manifest 和 local_db 修改后由标准生成命令更新；25 路由、90 commands、8 capabilities 和 schema v10 不变。重新执行 native 检查、全包 race、停写后跨目标 matrix 均退出 0。各目标候选包已重建并经打包自身及主线程独立文件集合/大小/SHA、完整归档解包、SHA256SUMS、身份版本和架构复核；本机 ARM 实际 `--version` 为 candidate。三个受支持目标携带显式运行时输入。产物继续未签名、未公证、`productionReady:false`，未执行 foreign 二进制或安装器。
 - 完整统一 `native:compat` 最终退出 0，覆盖新增 216 步宠物核心（105.98 秒）、834 步全作物/岗位（368.96 秒）、礼盒/盲盒（327.90 秒）、商店、签到、原农场/打工、schema、Go→Rust→Go 恢复、DOCX 和原始/转义 Excel 双向互读；jobdb 整包为 937.369 秒。未删步骤、降低比较强度或以单端往返替代旧生产解析器。这些并发检查耗时不是性能基准。
 - 本批证据位于忽略目录 `target/native/core-runtime-crash-{workspace-check,native-check-final,native-race,native-matrix-final,native-compat,candidate-acceptance-final}.log`、`core-runtime-crash-package-index.json` 及 `runtime-security/scan-VijrYG/summary.json`。原基线失败与首轮 host 夹具失败分别保存在 `core-runtime-crash-native-check.log`、`core-runtime-crash-candidate-acceptance.log`。940 个冻结输入复核仅有原生 README 和已审核的基线 JSON 两项后续变更。外置盘硬链接回退和 Web 大 chunk 提示仍在，本批未重新扫描未变的生产依赖锁。
 
@@ -355,9 +359,9 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - 农场/打工新增真实 Rust oracle 的 834 步，覆盖八种作物、三张地图全部九个岗位、394 次拒绝和 42 次 SQLite 写入故障，比较完整 API、十四表与每步三次重开；原 72 步及严格数字/ID 双射反例保留。先红修复 Go 领取会补写无关设置并规范化已有档案、收获列表擅自夹到 1–100 的差异。LP 两端及额外奖励分支均通过，定向联合 race 为 292.477 秒，不作为性能基准。正式宠物文档补齐当前八作物，原四作物表不再冒充当前目录。
 - 90 commands 只读审计发现桌宠诊断导出有方法却未接日志源，现 host 默认提供严格枚举的有界源。先红修复提前取消仍读取、超限仍标记可导出；独立复审再推动日志从 UI 同步写盘改为单 worker 合并持久化，并移除全局 current-profile 路由。慢盘注入验证 Record/快照不阻塞于写盘，Close 排空并等待 worker，跨 profile 的迟到事件留在原所属源；不声称文件 Sync 可强制取消。host/真实文件与定向 race 通过；诊断页另验证取消、失败、成功、busy 和刷新不重发导出。
 - 桌宠管理器增加最小原生窗口工厂 seam，真实调用管理方法验证启用失败无窗口、多开一次一例、重复 sync 不增殖、隐藏归零、重开不复活旧额外实例以及 close 排空最后位置；十项顶层回归连续五轮 race 通过。运行时页验证组件/source 参数、批量安装、活动/不支持/缺源禁用及失败后只读刷新，补齐可区分按钮名称和 alert/status/busy。代表图仅来自双语组件渲染，不替代原生窗口、IME、读屏或其他平台实机。
-- 停写后的整仓 `pnpm check` 退出 0：47 个前端、105 个 Python、255 个 Rust 测试，16 个默认忽略的专用 helper；含 Web、fmt、Clippy 和发布策略。首轮 native 检查和全 race 发现旧设置布局测试仍按未区分的“下载”及旧 text role 查找，保留失败日志后将断言改为三个组件各自完整可访问名称及 status role，不删除边界断言。定向设置/运行时 race、重新执行的 `native:check`、全包 `go test -race ./... -count=1 -timeout=600s` 和四目标 `native:build:matrix` 均退出 0；最终 desktop 为 288.502 秒、host 为 89.600 秒，不作为性能基准。
+- 停写后的整仓 `pnpm check` 退出 0：47 个前端、105 个 Python、255 个 Rust 测试，16 个默认忽略的专用 helper；含 Web、fmt、Clippy 和发布策略。首轮 native 检查和全 race 发现旧设置布局测试仍按未区分的“下载”及旧 text role 查找，保留失败日志后将断言改为三个组件各自完整可访问名称及 status role，不删除边界断言。定向设置/运行时 race、重新执行的 `native:check`、全包 `go test -race ./... -count=1 -timeout=600s` 和跨目标 `native:build:matrix` 均退出 0；最终 desktop 为 288.502 秒、host 为 89.600 秒，不作为性能基准。
 - 统一 `native:compat` 退出 0，实际覆盖新增 834 步（354.95 秒）、礼盒/盲盒 362 步（363.31 秒）、商店、签到、原农场/打工、schema 和 Go→Rust→Go 恢复、DOCX 与两组人员工作簿。jobdb 整包为 807.571 秒，保留既有 30 分钟兼容时限；未用单端往返代替真实旧解析器读取。
-- 四目标候选重新构建，打包自身逐文件/解包校验和主线程独立文件集合、大小、SHA、完整归档字节、SHA256SUMS、身份/版本及架构复核均通过。本机 ARM `--version` 实际返回 candidate，不访问资料目录。产物仍未签名、未公证、`productionReady:false`，Windows 仍为便携目录，未执行 Intel/Windows 二进制或安装器。584 个冻结输入只有正式 README 和上述设置测试的一次明确修订，末次校验与最终包对应的摘要保持一致。
+- 跨目标候选重新构建，打包自身逐文件/解包校验和主线程独立文件集合、大小、SHA、完整归档字节、SHA256SUMS、身份/版本及架构复核均通过。本机 ARM `--version` 实际返回 candidate，不访问资料目录。产物仍未签名、未公证、`productionReady:false`，Windows 仍为便携目录，未执行 Intel/Windows 二进制或安装器。584 个冻结输入只有正式 README 和上述设置测试的一次明确修订，末次校验与最终包对应的摘要保持一致。
 - 本批整合证据位于忽略目录 `target/native/window-excel-gameplay-{workspace-check,native-check,native-race,native-compat,native-matrix}.log`、`window-excel-gameplay-package-index.json` 与 `window-excel-gameplay-inputs-verified.json`；首次旧标签失败保存在 `window-excel-gameplay-native-{check,race}-old-label.log`。专项证据包括 `resource-editor-{authority-read-before,reset-before}.log`、`window-resource-runtime-diagnostics-race.log`、`member-excel-final-race.log`、`member-escape-{go-red,rust-red,interop-green}.log`、`companion-lifecycle-final.log` 和 `current-pet-diagnostics-async-20261120-6PCADR/summary.json`。外置盘硬链接回退和 Web 大 chunk 提示仍存在；生产锁未变，本批未重新执行真实安全扫描。
 
 本批关闭了已复现的授权、人员字符串互读和诊断接线缺口，并扩大了完整作物/岗位差分。生产安全、vendor 不可变分发/安装链、全 UI 与命令逐项验收、真实远端、其他平台实机、完整性能、安装升级回退和 P5-G 后续门槛仍未关闭，默认生产入口尚未切换。诊断已进入 worker 的文件 Sync 仍可能延长退出等待，不能据单元回归承诺磁盘永久阻塞时可及时退出。
@@ -371,8 +375,8 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - 只读复审又复现三项既有总结缺口，已追加红绿修复：后缀避开原名/占位名，重名的第三项能按正确 ID 提交；顶部重试区分原参数操作失败与已接受操作的回读失败，后者只读、不重复生成，删除重试重新确认；历史无障碍名称纳入模型、状态、当前/最新标记及本地化错误，并用非敏感序号区分同分钟记录。轮询保留操作错误，忙/关闭拒绝重试，关闭清空闭包。追加写集仅 desktop/client 的四个 Summary 源码与测试文件，定向普通/race 回归通过；未改总结业务服务或授权边界。
 - 礼盒/盲盒新增真实 Rust repository 生成的五组 362 步，覆盖 296 个加权区间端点、35 次拒绝和 16 次写入故障。每步严格比较完整 API、十一张持久表及三次重开，生成 ID 和礼盒补偿键的随机实体部分只做双射；金额、物品、时间、业务前缀、JSON 和双语事件保持严格比较。修复礼盒秒取模和奖池过滤、缺失/零库存错误、补偿来源和事件，以及盲盒时间盐值、边界、双语台词、事件与事务顺序。覆盖空奖、重复补偿、库存叠加、每日耗尽、跨日、相同毫秒连续开启和 Unix 纪元之前的时刻；不人为替换奖池或弱化抽取规则。
 - 首轮 362 步 race 通过，联合复跑真实暴露同毫秒两笔补偿在 API 中顺序互换，持久业务值相同仍判失败。保留红证据后，两端经济流水与盲盒历史查询均在原时间排序后明确 `rowid DESC`，定义并列时后插入优先，不在比较器中排序或丢弃差异。新数据库回归用 27 条记录、25 条完全相同时间、逆序 ID、20 条截断及两种 SQLite 遍历方向复现并验证；Go 额外三次关闭重开、五轮 race 通过，Rust 在真实红回归后随整仓检查通过。扩充后的 race 包包含先前约 543 秒的礼盒/盲盒及原约 140 秒的整包工作，将统一兼容驱动的显式时限设为 30 分钟，不删步骤或断言；首次过小预算的运行主动中止并留存，再完整重启。最终统一 `native:compat` 退出 0，新的 362 步为 354.80 秒，jobdb 整包为 447.009 秒；新旧商店、签到、Go→Rust→Go 恢复和工作簿互读均通过。
-- 本批跨层 `pnpm check` 退出 0，含 47 个前端、105 个 Python、255 个 Rust 测试及 13 个默认忽略的专用 helper，另包含 Web、fmt、Clippy 和发布策略。Summary 追加修复停写后，重新执行 `native:check`、全包 `go test -race ./... -count=1 -timeout=600s` 和四目标 `native:build:matrix`，均退出 0；最终 desktop 为 241.209 秒、host 为 63.813 秒，这些并发验证耗时不作为性能基准。兼容链已验证的新礼盒/商店、schema 与业务代码未随 Summary 追加改动变化，不重复同一长链。
-- Summary 最后修复后再次重建四目标候选，打包自身解包校验及主线程独立文件集合、逐文件大小/SHA、归档完整字节、归档 SHA、身份/版本和二进制架构复核均通过；本机 ARM `--version` 实际返回 candidate，不访问资料目录。四包继续为未签名、未公证、`productionReady:false`，Windows 为便携目录；未执行 Intel/Windows 程序、安装器或新原生窗口验收。记录的 826 个可执行/测试输入仅出现两次明确修订：兼容时限及四个 Summary 文件，最终再次核对摘要未变。外置盘硬链接回退和 Web 大 chunk 警告仍存在，生产依赖锁未改，未用质量检查代替真实安全复扫。
+- 本批跨层 `pnpm check` 退出 0，含 47 个前端、105 个 Python、255 个 Rust 测试及 13 个默认忽略的专用 helper，另包含 Web、fmt、Clippy 和发布策略。Summary 追加修复停写后，重新执行 `native:check`、全包 `go test -race ./... -count=1 -timeout=600s` 和跨目标 `native:build:matrix`，均退出 0；最终 desktop 为 241.209 秒、host 为 63.813 秒，这些并发验证耗时不作为性能基准。兼容链已验证的新礼盒/商店、schema 与业务代码未随 Summary 追加改动变化，不重复同一长链。
+- Summary 最后修复后再次重建跨目标候选，打包自身解包校验及主线程独立文件集合、逐文件大小/SHA、归档完整字节、归档 SHA、身份/版本和二进制架构复核均通过；本机 ARM `--version` 实际返回 candidate，不访问资料目录。各包继续为未签名、未公证、`productionReady:false`，Windows 为便携目录；未执行 Intel/Windows 程序、安装器或新原生窗口验收。记录的 826 个可执行/测试输入仅出现两次明确修订：兼容时限及四个 Summary 文件，最终再次核对摘要未变。外置盘硬链接回退和 Web 大 chunk 警告仍存在，生产依赖锁未改，未用质量检查代替真实安全复扫。
 - 最终整合证据在忽略目录 `target/native/interpreter-summary-box-workspace-check-final.log`、`interpreter-summary-box-native-compat-final.log`、`interpreter-summary-box-native-{check,race,matrix}-after-summary.log`、`interpreter-summary-box-package-index-after-summary.json` 和 `interpreter-summary-box-inputs-{final,verified}.json`。定向证据为 `managed-python-version-{before,final-race}.log`、`python-version-{rust-tests,host-application-race,managed-runtime-acceptance}.log`、`pet-box-differential-{iteration-1,final}.log`、`pet-history-order-{go,rust}-before.log`、`pet-history-order-go-after.log`、`current-cutover-python-version-integration-20261119T132346Z/summary.json` 与 `summary-parity/`。首次因扩充后的总时限而主动中止的统一链另保留为 `interpreter-summary-box-native-compat-initial-timeout-budget.log`，不计为最终通过。
 
 生产安全整改和 vendor 不可变分发/产品安装链、全路由与命令/UI 逐项验收、真实远端、其他平台实机、完整性能、安装升级回退、签名公证及 P5-G 后续门槛仍未关闭。新候选保持隔离，完整重构与默认入口切换尚未完成。
@@ -384,7 +388,7 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - 商店用真实 Rust repository 和线程局部时钟生成 83 步，含 40 次拒绝、10 次事务写入故障、一次完全相同购买重放及跨日领取，每步对照完整商店 API、十张持久表并重开三次。先红后绿修复通用错误与原契约不同、免费领取数量处理、随机购买流水键、额外购买事件、缺失装备/食物双语事件、额外徽章授予、LP API 混入内部 `event_key` 以及同槽装备选择顺序。ID 只按实体双射规范化，新增反例拒绝身份漂移、交换、碰撞及事件值/元数据差异被掩盖。商店正常/race、Rust 三项 repository 测试、fmt 和 Clippy 通过，现有 Rust 总夹具入口已调用新模块；随机礼盒成功开启与盲盒抽取明确排除，没有人为同步 seed。
 - 主线程的真实 SQLite 故障回归先复现凭据端口 `Set` 返回成功后，无回读就发布新引用。Go 资源服务现对模型与远端 Token 的暂存值执行 `Get` 和精确比较；缺失、变更、回读失败或取消时，不发布元数据、引用、设置 revision 或订阅通知，使用独立上下文清理暂存值。16 个模型/设置与立即/延期清理组合验证旧凭据保留、持久 rollback intent 和重开后的幂等回收。application/client/credentials race 通过，随机独立 Keychain 服务的真实保存、轮换、恢复和回收再次通过；未把注入故障解释为已发现 Windows 系统存储丢值。
 - FunASR 元数据补丁从临时试验提炼为标准库构建器、固定 recipe 和 63 项自动回归。真实官方 PyPI 元数据的 URL、SHA-256、大小与配方一致；两次隔离构建复现原 local2 摘要 `38919720a30ab86428e2aded9a9e12cd9800cc36ebebc17f5b6b33182364f78e`，主线程独立核验全部五个输出、424 行 RECORD、417 个 Python 源文件和许可证不变。来源 SBOM 保留 `pkg:pypi/funasr@1.3.9`；发行版本与 RECORD 的记账变化明确记录，不用本地版本逃避扫描。实际构建限 macOS ARM/Python 3.12.11，其他压缩器输出不符固定摘要会拒绝；生产锁、清单、例外和门禁均未因此变更。持续使用说明在 `python/funasr-runner/vendor/README.md`。
-- 停写后的整仓 `pnpm check`、`native:check`、统一 `native:compat`、全包 `go test -race ./... -count=1 -timeout=600s` 和 `native:build:matrix` 均退出 0。整仓为 47 个前端、75 个 Python、252 个 Rust 测试及 12 个默认忽略的专用 helper，包含 Web、fmt、Clippy 和发布策略；统一兼容日志实际覆盖新商店 83 步、原签到 83 步和 Go→Rust→Go 恢复互操作。全 Go race 的 desktop 为 405.605 秒、host 为 181.511 秒；这些并发验证耗时不作为性能基准。四目标候选已重新构建，打包自身解包校验通过，主线程另独立核对身份/版本、确切文件集合、逐文件摘要、归档摘要和全部归档字节；继续标为未签名、未公证及 `productionReady:false`，未执行其他目标平台程序或安装器。
+- 停写后的整仓 `pnpm check`、`native:check`、统一 `native:compat`、全包 `go test -race ./... -count=1 -timeout=600s` 和 `native:build:matrix` 均退出 0。整仓为 47 个前端、75 个 Python、252 个 Rust 测试及 12 个默认忽略的专用 helper，包含 Web、fmt、Clippy 和发布策略；统一兼容日志实际覆盖新商店 83 步、原签到 83 步和 Go→Rust→Go 恢复互操作。全 Go race 的 desktop 为 405.605 秒、host 为 181.511 秒；这些并发验证耗时不作为性能基准。跨目标候选已重新构建，打包自身解包校验通过，主线程另独立核对身份/版本、确切文件集合、逐文件摘要、归档摘要和全部归档字节；继续标为未签名、未公证及 `productionReady:false`，未执行其他目标平台程序或安装器。
 - 本批最终整合证据为忽略目录 `target/native/parallel-refactor-{workspace-check,native-check,native-compat,native-race,native-matrix}.log` 与 `parallel-refactor-package-index.json`，不使用此前批次的绿色日志替代。定向证据为 `credential-publication-{before,after,resource-race,system-acceptance}.log`、`pet-store-differential-{red,red-ledger,final}.log`、`result-parity/` 及 `current-cutover-security-vendor-20261119T124252Z-22893/summary.json`。外置盘硬链接回退和 Web 大 chunk 提示仍存在；本批没有重扫未变的生产依赖锁，不把 `pnpm check` 或来源 SBOM 当成真实安全扫描。
 
 本批没有建立 vendor 的不可变分发和产品安装链，也没有重新宣布生产安全通过。此前真实扫描的 Python 阻断、2026-11-30 例外期限、全路由/命令与 UI 验收、Intel/Windows 实机、真实远端、完整性能、安装升级回退和 P5-G 后续门槛仍保留；完整重构与默认生产入口切换尚未完成。
@@ -394,11 +398,11 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - 用户授权后，三条互不重叠的并行任务分别完成 Rust 恢复记录导入、只读纪要可访问性和真实安全/许可证复核；主代理处理 Go 迁移重试、互操作夹具、代码审查和最终整合。各工作线停写后才执行最终跨层检查，没有启动客户端、删除兼容实现或切换生产入口。
 - 新回归先复现 Go v3 重试会覆盖快照仍需保留的既有 journal。修复在同一事务读出并合并旧条目，再持久提交本次暂存意图；发布与版本升级保持原事务边界。回归验证升级、关闭重开及移除合成快照后的回收，不重新暂存现用凭据；既有 `entries:null` 格式继续兼容。本分支 Rust 迁移器采用相同 journal 和合并原则。
 - 恢复覆盖数据库前，先保存经验证的 `pre-restore` 安全副本，再同步、原子发布只含数据库文件名和凭据引用的版本化外部记录。Go 可写入口和本分支 Rust 迁移器均在 v10 导入非现用引用，保留既有清理意图元数据；旧 schema 的记录保留到明确升级后。FULL 提交、WAL checkpoint 和主库同步全部成功后才移除记录；即使导入未新增行也要执行 checkpoint，不能用 FULL 空提交冒充旧 NORMAL WAL 已耐久。坏记录、链接、错库、checkpoint 受阻及同步/发布失败保留重试依据。恢复执行后才发生的错误仍可能已改变数据库，不承诺所有错误都保持原字节。
-- host 恢复回归对照 32 表，覆盖模型/Token 轮换、恢复与重开、多个安全副本、最后相关副本移除后的幂等回收，以及仅存在于已提交 WAL 的数据。`native:credentials:acceptance` 在 macOS ARM 的随机独立系统服务实际通过保存、接管、轮换、SQLite 恢复、重开、快照保留与最终回收，不访问用户的 `LibertyDesktop` 条目；这次证据不再只有内存适配。额外编译了带验收 tag 的 Intel Mac、Windows x64/x86 凭据测试程序并确认文件架构，未执行它们。
+- host 恢复回归对照 32 表，覆盖模型/Token 轮换、恢复与重开、多个安全副本、最后相关副本移除后的幂等回收，以及仅存在于已提交 WAL 的数据。`native:credentials:acceptance` 在 macOS ARM 的随机独立系统服务实际通过保存、接管、轮换、SQLite 恢复、重开、快照保留与最终回收，不访问用户的 `LibertyDesktop` 条目；这次证据不再只有内存适配。额外编译了带验收 tag 的 Intel Mac、Windows x64 凭据测试程序并确认文件架构，未执行它们。
 - 统一 `native:compat` 新增 Go 实际 schema/侧记录写入器 → Rust 启动迁移器 → Go 回读的真实链路，核对现用引用不退休、既有意图完整元数据不变、新引用导入为退休意图和重复恢复幂等。独立夹具与统一脚本内新建的夹具均通过，未拿手写 JSON 的单端测试代替互操作。
 - DOCX 修复保留 Rust 属性限定名、有效 namespace 绑定及 Word 文本纯空白；Go 比较器按 URI/名称/值严格比较。18 个同输入 DTO 差分通过，三个代表输入用打包 LibreOffice 复验，两端分别为 2、2、1 页，五对整页差异像素均为 0。主代理复核源码摘要及代表页面，Go 生产导出代码和模板未因该修复改变。结论不涵盖其余输入的视觉、Word/WPS、Windows 宋体或客户端保存对话框，详见[视觉记录](../research/2026-11-19-native-docx-visual-acceptance.md)。
 - 只读纪要补齐跨章节选择和屏外内容复制、摘要空白、Tab/Home/End 阅读路径、标题/列表层级及 busy/status/alert 语义；修复首次读取失败后的重试短暂显示“未找到”。双语、明暗主题、原最小窗口及更窄的组件压力回归通过，主代理查看中文暗色和英文亮色代表图。正文原本已真实折行，窗口尺寸与旧版一致，没有据此重做排版或声称完整原生读屏已验收。
-- 停写后的 `pnpm check`、`native:check`、`native:compat`、全包 `go test -race ./... -count=1` 和 `native:build:matrix` 均退出 0；整仓含 47 个前端、12 个 Python、252 个 Rust 测试及 11 个按标记忽略的专用用例，包含 Web、fmt、Clippy 和发布策略。全 Go race 的 desktop 为 277.779 秒、host 为 40.614 秒。四目标候选重新构建并通过归档解包和逐文件 SHA-256，主代理另独立复核实际输出的文件集合、归档哈希及 manifest 身份/版本/未签名/未公证/`productionReady:false`。证据为忽略目录 `target/native/current-cutover-{workspace-check,native-check,native-race,native-compat,native-matrix}.log`、`current-go-rust-restore-fixture-{generate,verify}.log`、`current-recovery-system-credentials-final.log` 和 `current-cutover-package-index.json`。外置盘硬链接回退及 Web 大 chunk 警告仍存在。
+- 停写后的 `pnpm check`、`native:check`、`native:compat`、全包 `go test -race ./... -count=1` 和 `native:build:matrix` 均退出 0；整仓含 47 个前端、12 个 Python、252 个 Rust 测试及 11 个按标记忽略的专用用例，包含 Web、fmt、Clippy 和发布策略。全 Go race 的 desktop 为 277.779 秒、host 为 40.614 秒。跨目标候选重新构建并通过归档解包和逐文件 SHA-256，主代理另独立复核实际输出的文件集合、归档哈希及 manifest 身份/版本/未签名/未公证/`productionReady:false`。证据为忽略目录 `target/native/current-cutover-{workspace-check,native-check,native-race,native-compat,native-matrix}.log`、`current-go-rust-restore-fixture-{generate,verify}.log`、`current-recovery-system-credentials-final.log` 和 `current-cutover-package-index.json`。外置盘硬链接回退及 Web 大 chunk 警告仍存在。
 - 固定扫描器真实复扫：`pnpm security:check` 退出 1，主脚本在首份 Python 锁停止；后两份独立直扫同样退出 1。三平台包数为 69/69/70，每平台当前例外下为 54 组漏洞/75 条 OSV 记录，不带例外为 85 组/113 条记录；跨平台重复问题不相加。31 项 Python 例外均于 2026-11-30 到期。Rust、pnpm 和 Go 的既定锁扫描通过，Rust/Go 许可证门禁通过，17 个锁定 Go 模块归集 50 份 notices。额外 Go 源码分析因固定扫描器不兼容 Go 1.27 退出 127，不能记为分析通过。24 项关键生产输入哈希前后一致，没有升级、扩大例外或削弱门禁；证据位于 `target/native/current-cutover-security-20261119T120924Z-8248/summary.json` 及同目录 `report.md`。
 
 本批关闭了已复现的迁移 journal 覆盖、恢复覆盖清理意图和 Go/Rust 外部记录互操作缺口，但完整重构仍未完成。安全修复、真实远端服务、Intel/Windows 实机、完整 UI/IME/读屏、CPU/内存/延迟测量、安装升级回退、物理断电与全部崩溃时点、签名/公证以及 P5-G 后续工作仍未据此验收。候选包未发布，默认生产入口保持原状态。
@@ -430,9 +434,9 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 
 整合首次检查发现宿主合成夹具只有空模型根目录，新路径契约据此拒绝执行；已按同源四模型 pins 补齐目录，并在真实合成子进程中断言五个模型环境值覆盖了父进程别名。该宿主定向 race 及重跑的统一 `native:compat` 通过。另修正 Rust gameplay 夹具的索引迭代 Clippy 错误，未增加忽略规则；最终 `pnpm check` 通过，包含 47 个前端、12 个 Python、214 个 Rust 测试与 10 个默认忽略专用用例，以及 Web 构建、fmt、Clippy 和发布策略。外置盘硬链接回退和 Web 大 chunk 警告仍存在。`pnpm check` 不是真实漏洞扫描。
 
-停写整合后的 `native:check`、`go test -race ./... -count=1` 与 `native:build:matrix` 全部通过，全量 race 的 desktop 包为 268.338 秒。重新生成四目标候选包，逐文件和解包校验通过；主代理又按本批实际输出路径核对四份 manifest 的候选身份、版本、`productionReady:false`、未签名/未公证标记和归档 SHA-256。四目标仍只是编译与归档证据，不是 Intel Mac 或 Windows x64/x86 实机验收。没有启动旧客户端、提交、推送、发布或切换默认生产入口。
+停写整合后的 `native:check`、`go test -race ./... -count=1` 与 `native:build:matrix` 全部通过，全量 race 的 desktop 包为 268.338 秒。重新生成跨目标候选包，逐文件和解包校验通过；主代理又按本批实际输出路径核对各份 manifest 的候选身份、版本、`productionReady:false`、未签名/未公证标记和归档 SHA-256。跨目标仍只是编译与归档证据，不是 Intel Mac 或 Windows x64 实机验收。没有启动旧客户端、提交、推送、发布或切换默认生产入口。
 
-完整重构仍未完成，真实远端服务、四平台实机、全量 UI/IME/读屏、完整性能、安装升级回退及安全门槛继续独立关闭。
+完整重构仍未完成，真实远端服务、跨平台实机、全量 UI/IME/读屏、完整性能、安装升级回退及安全门槛继续独立关闭。
 
 ## 2026-11-19 并行整改与设置关闭集成
 
@@ -445,7 +449,7 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 
 - 安全线取得明确本地模型路径下的 ARM 补丁候选实跑证据：原 Runner 关闭/开启说话人得到 1/6 段，协议、关键词与完成进度断言通过。但三候选锁仅在现有例外下扫描通过；无例外仍有 Torch 20 组漏洞/24 个公告，例外于 2026-11-30 到期。候选还需 vendor/上游交付方案、全新安装、默认模型路径、最低系统与 Intel/Windows 实跑，未写入生产清单或锁。九个生产输入与入场 SHA 一致，由主代理重算复核。详见[隔离调研](../research/2026-11-19-native-runtime-security-candidate.md)。
 
-最终整合后的 `native:check`、`pnpm check`、`native:compat`、`native:build:matrix` 全部通过；整仓为 47 个前端测试、12 个 Python 测试、213 个 Rust 测试及 9 个默认忽略的专用用例，包含 Web、fmt、Clippy 与发布策略。`go test -race ./cmd/liberty-native ./internal/client ./internal/desktop ./internal/host -count=1` 通过，desktop 为 151.079 秒。四目标候选包重新生成并通过架构、归档解包及逐文件哈希验证，均保持未签名/未公证与 `productionReady:false`。双语宽窄组件截图重新生成，主代理检查了窄窗商店、签到和深色设置代表图。既有外置盘硬链接回退与 Vite 大 chunk 警告保留。
+最终整合后的 `native:check`、`pnpm check`、`native:compat`、`native:build:matrix` 全部通过；整仓为 47 个前端测试、12 个 Python 测试、213 个 Rust 测试及 9 个默认忽略的专用用例，包含 Web、fmt、Clippy 与发布策略。`go test -race ./cmd/liberty-native ./internal/client ./internal/desktop ./internal/host -count=1` 通过，desktop 为 151.079 秒。跨目标候选包重新生成并通过架构、归档解包及逐文件哈希验证，均保持未签名/未公证与 `productionReady:false`。双语宽窄组件截图重新生成，主代理检查了窄窗商店、签到和深色设置代表图。既有外置盘硬链接回退与 Vite 大 chunk 警告保留。
 
 本批不代表全量重构或生产切换已经通过。组件截图不等于完整原生差分；用户运行的候选实例未重启，最新产物已经生成但未替换其进程。Windows/Intel 实机、完整读屏/IME、真实远端、安装升级回退、签名/公证及当前安全阻断仍未关闭。
 
@@ -468,9 +472,9 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - 继续对照发现旧版“复制模板”会立即保存，新版原先只生成未保存草稿。现从授权 ID 的已保存源生成独立副本并立即持久化，成功后刷新管理页并将编辑 grant 转到副本；忽略未保存的源表单内容，不覆盖内置原件。失败、取消及伪造 ID 不改变原 scope。应用测试覆盖失败/重试和授权转移；真实 SQLite 测试注入 INSERT 失败，再重试、关闭并重开库，确认副本已保存且原件不变。
 - macOS ARM 独立合成资料的原生窗口实际验证：人员排序清空后保持空值，保存报错并回焦，取消关闭/重置保留表单，修正为 17 后保存并在列表回读；内置模板只读，复制后无需另按保存，列表从 5 项变为 6 项并出现一个可编辑副本。保持编辑器打开并在主窗口切换为英文，确认窗口标题、字段及后续关闭确认均为英文；取消确认保留修改，把开关恢复原值后可直接关闭。验收程序正常退出后离线 integrity_check 为 ok，仍有一条排序 17 的合成人员及 5 个内置/1 个自定义模板。当前用户使用的候选窗口没有被重启，旧 Tauri 客户端没有被启动。
 
-最终 `pnpm native:check`、`native:compat`、`native:build:matrix`、四目标 `native:package` 的构建/归档解包/逐文件哈希检查通过；`go test -race ./internal/application ./internal/client ./internal/desktop ./internal/infrastructure/repositories/jobdb` 通过。`pnpm check` 通过：47 个前端测试、12 个 Python 测试、213 个 Rust 测试及 9 个默认忽略的专用用例，包含 fmt、Clippy、Web 和发布策略检查。最后的 Go 应用层调整由上述最终原生检查、真实 Rust 夹具兼容及 race 覆盖。`git diff --check` 通过，既有外置盘硬链接回退和 Vite 大 chunk 警告保留。
+最终 `pnpm native:check`、`native:compat`、`native:build:matrix`、跨目标 `native:package` 的构建/归档解包/逐文件哈希检查通过；`go test -race ./internal/application ./internal/client ./internal/desktop ./internal/infrastructure/repositories/jobdb` 通过。`pnpm check` 通过：47 个前端测试、12 个 Python 测试、213 个 Rust 测试及 9 个默认忽略的专用用例，包含 fmt、Clippy、Web 和发布策略检查。最后的 Go 应用层调整由上述最终原生检查、真实 Rust 夹具兼容及 race 覆盖。`git diff --check` 通过，既有外置盘硬链接回退和 Vite 大 chunk 警告保留。
 
-本批截图验证的是原生组件渲染；原生窗口验收仅限上述合成流程，没有新增模型真实凭据、Excel 文件对话框、输入法、完整读屏或新旧同数据截图差分证据。Windows x64/x86 与 Intel Mac 仍只有编译和候选归档验证，未做实机运行、安装器、签名或公证。未重跑真实漏洞扫描，生产安全门禁、远端真实验收及其余全量切换条件仍未关闭；候选继续标记 `productionReady:false`，旧生产入口及代码保留，完整重构继续执行。
+本批截图验证的是原生组件渲染；原生窗口验收仅限上述合成流程，没有新增模型真实凭据、Excel 文件对话框、输入法、完整读屏或新旧同数据截图差分证据。Windows x64 与 Intel Mac 仍只有编译和候选归档验证，未做实机运行、安装器、签名或公证。未重跑真实漏洞扫描，生产安全门禁、远端真实验收及其余全量切换条件仍未关闭；候选继续标记 `productionReady:false`，旧生产入口及代码保留，完整重构继续执行。
 
 ## 2026-11-19 队列语义与设置七分区校准
 
@@ -481,9 +485,9 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - 审查并同步上述三处 UI 指纹，同时把设置导航定义加入迁移基线输入。清单仍为 25 路由、90 command、8 窗口 capability、schema v10；没有跳过漂移检查、删除旧入口或放宽切换门禁。默认生产入口及未满足的全业务、平台、安全与发布退出条件仍见下方实施顺序。
 - 根 `AGENTS.md` 已把本次重构的启动约定改为优先激活已运行的 Go/MyGo 候选，重建后按实际输出的确切应用路径启动；仅在明确要求旧版时使用 Tauri 开发命令。同步记录本次任务不使用子代理；此约定没有改变生产构建入口或删除旧代码。
 
-本批 `pnpm native:check`、`go test -race ./internal/desktop ./internal/client`、最后控件尺寸调整后的设置定向 race、`native:build:matrix`、四目标 `native:package` 及解包哈希复核通过。最终 `pnpm check` 通过：47 个前端测试、12 个 Python 测试、213 个 Rust 测试及 9 个默认忽略的专用用例，包含 Web 构建、fmt、Clippy 和发布策略。整仓检查首次因本地缺少 `tsc` 启动脚本中断，按固定 `pnpm@10.30.3` 执行 `pnpm install --frozen-lockfile` 修复安装后重跑通过，没有升级依赖或修改锁定版本；外置盘硬链接回退与现有 Vite 大 chunk 警告保留。`git diff --check` 通过。
+本批 `pnpm native:check`、`go test -race ./internal/desktop ./internal/client`、最后控件尺寸调整后的设置定向 race、`native:build:matrix`、跨目标 `native:package` 及解包哈希复核通过。最终 `pnpm check` 通过：47 个前端测试、12 个 Python 测试、213 个 Rust 测试及 9 个默认忽略的专用用例，包含 Web 构建、fmt、Clippy 和发布策略。整仓检查首次因本地缺少 `tsc` 启动脚本中断，按固定 `pnpm@10.30.3` 执行 `pnpm install --frozen-lockfile` 修复安装后重跑通过，没有升级依赖或修改锁定版本；外置盘硬链接回退与现有 Vite 大 chunk 警告保留。`git diff --check` 通过。
 
-四目标产物仍是未签名、未公证且 `productionReady:false` 的候选，Windows 为便携目录；编译和归档验证不代表其他平台实机或安装验收。本批没有重跑真实漏洞扫描、`native:compat` 或原生 GUI/读屏验收；真实远端验收所需 URL、系统凭据引用和合成任务 ID 在当前环境均未配置。已有 Python 供应链阻断、全业务/UI 差分、跨平台、升级回退及生产切换退出条件继续有效，完整重构仍在执行中。
+跨目标产物仍是未签名、未公证且 `productionReady:false` 的候选，Windows 为便携目录；编译和归档验证不代表其他平台实机或安装验收。本批没有重跑真实漏洞扫描、`native:compat` 或原生 GUI/读屏验收；真实远端验收所需 URL、系统凭据引用和合成任务 ID 在当前环境均未配置。已有 Python 供应链阻断、全业务/UI 差分、跨平台、升级回退及生产切换退出条件继续有效，完整重构仍在执行中。
 
 ## 2026-11-19 工作台、市场与设置导航校准
 
@@ -493,7 +497,7 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - 合成组件测试覆盖中英文、深浅主题、1440/1100/980/760 窗口布局、八个入口、禁用能力、运行时状态传播与错误降级、远端本地区块隔离、单点/零值/单位换算和设置返回。市场另覆盖四/二/一列封面比例、总览图边界及安全错误文案；PNG 仅写入忽略的 `target/`。已检查代表性宽窄窗口截图，不能据此代替全页面新旧同数据截图差分或真实读屏验收。
 - Apple Silicon 实际候选窗口确认工作台资源/伙伴入口显示、人员库快捷入口、从人员库进入设置后返回原页、市场总览图边界和状态徽章。最后一次顶边修正已通过组件几何与截图检查，重新打包并启动最终候选；实机复核期间窗口切到盲盒，未再覆盖其当前操作，故不将最后顶边修正记为已完成原生窗口截图复核。旧 React/Tauri 进程及残留 Vite 已停止，本轮只启动独立资料库的 Go/MyGo 候选。
 
-本批 `pnpm native:check`、`go test -race ./internal/desktop ./internal/client`、最后布局修正后的市场/工作台/设置返回定向 race、`native:build:matrix`、`native:package` 与归档哈希复核通过。四目标主程序/测试包编译及文件架构检查通过，不代表 Intel Mac 或 Windows 实机运行。一次资源生成器的 `gofmt` 等待输入未结束，保留诊断后终止该检查；独立生成检查及随后完整 `native:check` 重跑通过，没有跳过生成漂移检查或放宽门禁。本轮未修改持久化协议/依赖、未重跑整仓 `pnpm check`、真实漏洞扫描或 Rust/Go 资料库差分；原有供应链阻断、其他平台实机/安装升级回退与全业务/UI 退出条件仍有效。未提交、推送、发布或切换默认生产入口。
+本批 `pnpm native:check`、`go test -race ./internal/desktop ./internal/client`、最后布局修正后的市场/工作台/设置返回定向 race、`native:build:matrix`、`native:package` 与归档哈希复核通过。跨目标主程序/测试包编译及文件架构检查通过，不代表 Intel Mac 或 Windows 实机运行。一次资源生成器的 `gofmt` 等待输入未结束，保留诊断后终止该检查；独立生成检查及随后完整 `native:check` 重跑通过，没有跳过生成漂移检查或放宽门禁。本轮未修改持久化协议/依赖、未重跑整仓 `pnpm check`、真实漏洞扫描或 Rust/Go 资料库差分；原有供应链阻断、其他平台实机/安装升级回退与全业务/UI 退出条件仍有效。未提交、推送、发布或切换默认生产入口。
 
 ## 2026-11-19 兑换兼容与供应链复扫
 
@@ -501,7 +505,7 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - 当前 Rust/Tauri 与 Go 原生 repository 都在同一 SQLite 事务内按 `pet_id + campaign_id + nonce` 检查已兑换身份；签名换发码与原短码命中相同记录并返回重复结果，不会再次发奖。Go 有跨 Key 哈希的事务测试，Rust 有 legacy 元数据查找测试；发行脚本集成测试覆盖签名格式、短码篡改/过期拒绝、nonce/奖励保真、私有文件权限、重复运行及输出不覆盖。
 - 已发行的旧 Tauri 二进制并不含跨格式去重代码，也没有新的 Go profile lock，故它们仍不得与换发流程/新客户端共享资料库交错启动。上线或批量换发前必须先关闭旧进程，并先为 Tauri 发布包含此去重修正的版本；不得把原型脚本当作已完成兑换运营迁移。
 - 使用固定版本 OSV Scanner 2.5.0 逐锁新扫：`pnpm-lock.yaml` 与 Go 锁无命中；三个当前 Python 生产锁各有 54 项告警，类别含 6 Critical、29 High、16 Medium、2 Low、1 Unknown，集中在 `filelock==3.29.7`、`Pillow==12.3.0`、`transformers==4.53.3`。`cargo-deny 0.20.2` advisories/bans/sources 通过，但总安全门禁仍因 Python 锁以退出码 1 阻断。未扩大 OSV 例外。
-- 临时验证过 Python 3.11.18 ARM 锁：升级 FileLock 4.2.1 与 Pillow 13 后仍有 Transformers 两项 High；三平台 pip hash 锁、OSV、`pip check`、FunASR runtime import/依赖版本验证通过。另一隔离试验将 Transformers 升为 5.23.0 后扫描无命中，但运行时报告 PyTorch 2.2.2 被禁用，而 Transformers 5.23 要求 PyTorch >=2.6；对应 PyTorch 2.6 没有 macOS Intel CPython 3.11 轮子。该试验仅在 `target/`，没有提升到产品锁、manifest 或 runtime。当前仍缺覆盖四平台和固定模型的端到端安全升级路径，因此原 Python 3.10.17 产品清单不变、安全门禁仍阻断切换。
+- 临时验证过 Python 3.11.18 ARM 锁：升级 FileLock 4.2.1 与 Pillow 13 后仍有 Transformers 两项 High；三平台 pip hash 锁、OSV、`pip check`、FunASR runtime import/依赖版本验证通过。另一隔离试验将 Transformers 升为 5.23.0 后扫描无命中，但运行时报告 PyTorch 2.2.2 被禁用，而 Transformers 5.23 要求 PyTorch >=2.6；对应 PyTorch 2.6 没有 macOS Intel CPython 3.11 轮子。该试验仅在 `target/`，没有提升到产品锁、manifest 或 runtime。当前仍缺覆盖跨平台和固定模型的端到端安全升级路径，因此原 Python 3.10.17 产品清单不变、安全门禁仍阻断切换。
 
 本节依据锁文件逐项扫描输出、PyPI 项目元数据、OSV 公告、隔离 Python 3.11.18 runtime 检查，以及 Go/Rust 定向测试。`pnpm security:test`、`release:check-runtime-locks`、`native:runtime:check`、`native:check`、`native:compat`、`release:check-versions/platforms/security`、`go test -race ./...`、`cargo fmt --check`、Rust workspace 测试与 Clippy、`pnpm check:fast` 和 Web 构建通过；Rust 为 213 passed、9 ignored，前端 47 tests、Python 12 tests。`pnpm security:check` 用真实固定版 OSV Scanner 复跑仍以退出码 1 阻断，三个 Python 生产锁各 54 项（6 Critical、29 High、16 Medium、2 Low、1 Unknown）；不得以其余检查通过代替供应链门禁。Web 构建保留既有的大 chunk 警告，Rust 外置盘保留硬链接回退警告。临时工具与依赖只写入忽略的 `target/`，未访问用户资料库、运行远端发放服务或发布任何产物。
 
@@ -510,19 +514,19 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - 发行脚本的篡改拒绝回归发现 Crockford Base32 解码接受了末尾未使用位非零的非规范编码；这些不同的文本会落到同一 token 字节。解码现在拒绝非零填充位，`pnpm security:test` 中的短码末字符篡改用例通过。`pnpm native:check` 和 `git diff --check` 也通过。
 - 对最新 Apple Silicon 候选包再次实际打开原生窗口：候选标题正确显示 `Liberty Native Candidate`，截图可见原版主要侧栏导航、仪表盘、顶部系统按钮边距、状态栏和版本。主窗口 1440 × 960 与窗口选项回归测试通过；这次只验收候选窗口与首页，不代表逐页新旧截图差分或完整 UI 等价。
 - 本次用锁定版 cargo-deny 与 OSV Scanner 重跑 `pnpm security:check`：cargo-deny advisories/bans/sources 通过，OSV 仍以退出码 1 拦截三个生产 Python 锁，各 54 项（6 Critical、29 High、16 Medium、2 Low、1 Unknown）。尝试未扩大豁免，亦未将未兼容的试验依赖升入生产锁。安全门禁仍阻断切换。
-- 在忽略的 `target/` 用 Python 3.10 解析候选哈希锁：`filelock==4.2.1` 与 `Pillow==13.0.0` 均要求 Python ≥3.11，不能放进当前 Python 3.10.17 运行时。只升级 Transformers 并把 Hub 提到 1.5 时，解析仍保留 `torch==2.2.2`、FileLock 4.1.0 与 Pillow 12.3.0；OSV 按现有精确公告例外配置复扫仍报 60 项（6 Critical、27 High、22 Medium、4 Low、1 Unknown），并提示 Transformers 例外已不再匹配。此候选既不通过安全门禁，也没有安装、FunASR/固定模型运行或四平台实机证据，未采用。
+- 在忽略的 `target/` 用 Python 3.10 解析候选哈希锁：`filelock==4.2.1` 与 `Pillow==13.0.0` 均要求 Python ≥3.11，不能放进当前 Python 3.10.17 运行时。只升级 Transformers 并把 Hub 提到 1.5 时，解析仍保留 `torch==2.2.2`、FileLock 4.1.0 与 Pillow 12.3.0；OSV 按现有精确公告例外配置复扫仍报 60 项（6 Critical、27 High、22 Medium、4 Low、1 Unknown），并提示 Transformers 例外已不再匹配。此候选既不通过安全门禁，也没有安装、FunASR/固定模型运行或跨平台实机证据，未采用。
 - 本次没有重跑整仓 `pnpm check`；当前 JS 兑换更改由完整 `pnpm security:test` 覆盖，Go 代码及生成漂移由 `pnpm native:check` 覆盖。不得把本次范围外的平台、媒体、安装或 UI 验收记为已完成。
 
 ## 2026-11-19 启动、恢复、候选包与窗口对齐
 
 - 启动选择已拆成可审查的预览与候选通道：预览要求显式选择快照、资料目录或现有生产资料（版本/帮助输出除外），隔离写入必须显式资料目录；候选无参数启动只使用独立 `com.westng.liberty.native-candidate` 资料目录。生产 Tauri 目录必须显式 `--default-profile`，可写接管先获取共享资料锁，再制作或复用含 WAL 的一致性备份；`--database` 始终只读，不能借命令行组合绕过接管流程。版本输出不访问资料目录，启动错误使用稳定代码和双语恢复指引，不回显原始路径或参数。
 - 显式恢复仅接受同目录、受认可命名且非链接的 `.bak` 文件；源快照和目标库在预检阶段验证 schema、完整性及凭据引用，恢复前保存 `pre-restore` 安全副本，并通过 SQLite Online Backup API 原地恢复。源或目标预检失败的测试确认当前库不变；恢复执行后的 checkpoint、校验或同步失败可能发生在数据已写入之后，故实现和文档不再承诺所有恢复错误都代表当前字节未变化，安全副本必须保留。
-- 候选归档脚本已覆盖 `darwin-arm64`、`darwin-x64`、`windows-x64`、`windows-x86` 四个目标的版本元数据、隔离身份、Mach-O/PE 架构、图标、NOTICE、逐文件 SHA-256 清单和解包复核；Windows 仍是便携目录，不是安装器。产物明确标为未签名、未公证、`productionReady:false`，本轮没有签名、公证、安装、发布或生产入口切换。
+- 候选归档脚本已覆盖 `darwin-arm64`、`darwin-x64`、`windows-x64` 当时各目标的版本元数据、隔离身份、Mach-O/PE 架构、图标、NOTICE、逐文件 SHA-256 清单和解包复核；Windows 仍是便携目录，不是安装器。产物明确标为未签名、未公证、`productionReady:false`，本轮没有签名、公证、安装、发布或生产入口切换。
 - 主窗口已按当前 Tauri 配置对齐为 1440 × 960、最小 1100 × 760。macOS 使用隐藏标题栏 inset overlay 和旧版 traffic-light 坐标，Windows 使用隐藏标题栏并设置 42 DIP 标题栏高度；MyGo `Context.TitleBar()` 为左/右系统控件动态预留空间，标题栏中间保留拖拽区。新增测试读取旧 `tauri.conf.json` 对比尺寸/overlay/traffic-light 配置，并检查指标与 GitHub 按钮不覆盖系统控件；本机真实窗口截图确认三色交通灯、左侧指标和右侧操作均在同一标题栏内。
 - 本机实际 GUI 仍只证明 macOS Apple Silicon 的隔离候选窗口和部分人员输入法/保存流程；拼音在姓名、部门字段可以组合并提交，不能外推到 Windows、所有控件、取消路径、读屏或完整旧版逐像素一致。候选启动、资料锁冲突和标题栏实机均未改变默认 React/Tauri 入口。
-- 最终构建批次的 `native:check`、四目标 `native:build:matrix`、`go test -race ./...`、四目标候选包归档/解包哈希复核和 `git diff --check` 均通过。使用新建的隔离 HOME 启动最终 macOS ARM 候选包，在 GUI 新增合成人员后关闭并重新打开同一程序/资料目录，人员列表仍显示该记录；退出后对关闭状态下的隔离 SQLite 做 immutable 只读检查，`integrity_check` 为 `ok` 且姓名/部门持久化。该项只验证合成资料目录，不是用户生产库接管或安装器升级验收。
+- 最终构建批次的 `native:check`、跨目标 `native:build:matrix`、`go test -race ./...`、跨目标候选包归档/解包哈希复核和 `git diff --check` 均通过。使用新建的隔离 HOME 启动最终 macOS ARM 候选包，在 GUI 新增合成人员后关闭并重新打开同一程序/资料目录，人员列表仍显示该记录；退出后对关闭状态下的隔离 SQLite 做 immutable 只读检查，`integrity_check` 为 `ok` 且姓名/部门持久化。该项只验证合成资料目录，不是用户生产库接管或安装器升级验收。
 
-本节依据当前源码、`tauri.conf.json`、Go 单元测试、候选归档校验输出和本机隔离窗口观察记录；不读取生产资料库或用户凭据，也不替代四平台实机、安装器回退、安全扫描和完整 UI 验收。
+本节依据当前源码、`tauri.conf.json`、Go 单元测试、候选归档校验输出和本机隔离窗口观察记录；不读取生产资料库或用户凭据，也不替代跨平台实机、安装器回退、安全扫描和完整 UI 验收。
 
 ## 2026-11-19 界面对照
 
@@ -537,7 +541,7 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - `domain/assembly.go` 是无 UI/持久化依赖的确定性状态机，稳妥单 6 件/60 秒/错配扣 3 秒，急单 10 件/45 秒/扣 5 秒。`desktop/assembly_game.go` 负责固定步长、画布、双语原生控件及会话状态，`workspace.go` 负责路由和窗口暂停。开始、错配、装配、成功/超时、暂停/继续、重开均已落地；离开入口丢弃短局。
 - 数字键及配件按钮的 Enter/Space 都忽略系统按键重复。复核发现原生按钮默认重复激活会连续扣时，新增真实 Tab 聚焦的回归测试先复现失败，局部修复后通过。暂停卸载活动循环，继续时重建时钟；减少动态效果停装饰动画。
 - 本机 macOS ARM 的 `pnpm native:preview --writable --locale zh-CN --theme dark` 使用临时合成资料，实际观察开始、故意错配扣时、数字键输入、Esc 暂停/继续、6/6 完成与 86% 准确率，以及重开归零和更换订单。失焦/隐藏、超时、最终 Enter/Space 重复保护、双语及窄布局另有组件测试，未把这些全部列为实机已验收。
-- 本批 `pnpm check`、`pnpm native:check`、`go test -race ./internal/domain ./internal/desktop`、四目标 `pnpm native:build:matrix` 通过；预览启动还执行并通过 Rust/Go 合成数据库、写入、迁移、profile 锁和导出兼容检查。四目标仅编译及文件头校验，不代表 Windows x64/x86 或 Intel Mac 窗口运行通过。
+- 本批 `pnpm check`、`pnpm native:check`、`go test -race ./internal/domain ./internal/desktop`、跨目标 `pnpm native:build:matrix` 通过；预览启动还执行并通过 Rust/Go 合成数据库、写入、迁移、profile 锁和导出兼容检查。跨目标仅编译及文件头校验，不代表 Windows x64 或 Intel Mac 窗口运行通过。
 - 本轮只涉及临时练习玩法、工厂入口、主窗口生命周期和文档，不修改 DB/schema、LP、物品、care/claim、锁文件或外部引擎依赖。默认生产客户端仍为 React/Tauri。P5-G1 的玩法评价/输入延迟/资源预算、P5-G2 care 接入、其他地图与 P5-G3 外部引擎门禁均未完成。设计与验收边界见[小游戏体验工作线](../designs/2026-11-19-native-gameplay-experience-design.md)，持续使用说明见 `apps/native/README.md`。
 
 ## 2026-11-18 整改增量
@@ -557,25 +561,25 @@ React/Tauri 源码及默认发布入口仍保留；全 UI 新旧截图/交互差
 - `native:remote:acceptance` 已提供只读真实服务验收入口，使用操作方指定的测试服务、系统凭据引用和已完成的合成任务。回环测试验证其请求均为 GET，缺少指定任务时验收失败。本机没有配套测试服务及凭据，真实验收待执行。
 - 本记录写入时尚有的兑换兼容缺口，已由前面的 2026-11-19 兑换发行端换发与跨格式幂等修复处理；安全运营仍要求使用匹配的签名密钥、封存输出并让旧客户端完全退出。未实现跨设备/远端兑换状态服务。
 - `native:bench:reads` 用 Rust repository 生成 1000 个任务、1000 个文件及一份 10000 段逐字稿，两端顺序读取同一隔离库。每项预热 2 次、测量 20 次。本机 macOS ARM 上队列读取 P50/P95 为 Rust 2.523/2.724 ms、Go 3.740/4.083 ms，长逐字稿为 Rust 3.752/3.911 ms、Go 6.769/7.284 ms。本次两项 Go 读取均较慢。采样包含结果投影与正确性检查，界面绘制、冷启动及 ASR 在测量范围之外。
-- 剩余退出条件包括旧端依赖整改与运行时重新验证、真实远端服务验收、原生全路由与权限用例对照、视觉及性能基准、双语输入法与无障碍、Windows x86/x64 和 Intel Mac 实机、安装包升级回退及签名公证。对照日期较早的记录时，以本节和当前源码为准。
+- 剩余退出条件包括旧端依赖整改与运行时重新验证、真实远端服务验收、原生全路由与权限用例对照、视觉及性能基准、双语输入法与无障碍、Windows x64 和 Intel Mac 实机、安装包升级回退及签名公证。对照日期较早的记录时，以本节和当前源码为准。
 
-本批在 macOS ARM 上通过 `pnpm check`（47 个前端测试、12 个 Python 测试、212 个 Rust 测试）、`native:check`、`native:compat`、Go race 和四目标编译。默认 Rust 测试跳过的 9 个专用用例分别由兼容与基准命令运行。真实系统凭据验收使用独立合成条目。发布策略及自测通过。安全门禁以退出码 1 阻止切换。原生端保持隔离预览，生产入口仍为 Tauri 客户端。
+本批在 macOS ARM 上通过 `pnpm check`（47 个前端测试、12 个 Python 测试、212 个 Rust 测试）、`native:check`、`native:compat`、Go race 和跨目标编译。默认 Rust 测试跳过的 9 个专用用例分别由兼容与基准命令运行。真实系统凭据验收使用独立合成条目。发布策略及自测通过。安全门禁以退出码 1 阻止切换。原生端保持隔离预览，生产入口仍为 Tauri 客户端。
 
 Go 写入的宠物、总结、资源、凭据清理和迁移时间沿用 Rust 的 UTC 偏移和小数秒精度。`native:compat` 对照七个固定时刻的 Rust 实际输出，包括 Unix 纪元之前的时刻。
 
-质量工作流已配置在 macOS ARM64、Intel Mac 和 Windows x64 runner 上执行 Go 测试和独立系统凭据读写。Windows x86 用例在 Windows x64 runner 上运行 32 位程序。本机已解析该工作流并通过发布策略检查，四组托管 runner 的执行结果仍待 GitHub CI 返回。
+质量工作流已配置在 macOS ARM64、Intel Mac 和 Windows x64 runner 上执行 Go 测试和独立系统凭据读写。本机已解析该工作流并通过发布策略检查，当时各组托管 runner 的执行结果仍待 GitHub CI 返回。
 
 ## 阶段状态（以下为 2026-11-17 快照）
 
 | 阶段 | 已落地 | 尚未满足的退出条件 |
 | --- | --- | --- |
 | P0 | 25 路由、90 command、8 capability、schema v10 的可执行基线；关键业务与 UI 源码指纹 | 全业务用例/故障场景逐项覆盖 |
-| P1 | 固定 Go 1.27.4/MyGo/SQLite；macOS ARM 窗口；四目标编译；Go checksum/OSV 输入/SBOM | Windows x64/x86、Intel Mac 实机；输入法、凭据、桌宠、3D；许可证与真实安全扫描 |
+| P1 | 固定 Go 1.27.4/MyGo/SQLite；macOS ARM 窗口；跨目标编译；Go checksum/OSV 输入/SBOM | Windows x64、Intel Mac 实机；输入法、凭据、桌宠、3D；许可证与真实安全扫描 |
 | P2 | 首页/队列/结果；日志与总结选择；Client 代次；窗口授权；协议/契约；旧库对照；原消息/图标/动画/主题；当前 lease 进度与后台刷新 | 完整 DTO、全部结果标签页；全 UI 截图/交互/权限验收 |
 | P3 | 新旧资料目录锁；v10 写入；attempt/lease、进程身份、心跳、完成/失败/重试；并发/独占调度、删除补偿；运行时下载/校验/安装、离线模型、系统检测；新建/重试/删除/运行时 UI；host 启动恢复和关闭装配；整条合成流程；macOS ARM 真实运行时安装和合成语音转写；显式初始化/v1–v10 升级/凭据转换 | GUI 整条真实媒体流程、其他平台安装/转写、旧 JSON 导入与真实旧进程交接、完整故障演练 |
 | P4 | 结果独立窗口只读接口；模型/模板/人员仓库、用例、管理页和独立编辑作用域；系统凭据暂存/发布/清理；设置 CAS/脏字段合并及外观/处理默认值；人员 Excel 双向文件兼容；讲话人改名与 TXT/Markdown 导出 | 完整 AI/纪要流程、Word/宠物奖励联动、远端、诊断；完整编辑/文件对话框/主题 UI 差分 |
 | P5 | 首页宠物等级投影与 765 组等级边界对照 | 宠物经济、签到、商店、兑换、盲盒、农场、打工、桌宠 |
-| P6/P7 | 旧端可运行；独立验收数据；新增 Go CI 配置 | 全功能/UI 等价、性能、升级回退、四平台实机/安装包、签名/公证、生产入口切换 |
+| P6/P7 | 旧端可运行；独立验收数据；新增 Go CI 配置 | 全功能/UI 等价、性能、升级回退、跨平台实机/安装包、签名/公证、生产入口切换 |
 
 ## 本轮实现
 
@@ -584,8 +588,8 @@ Go 写入的宠物、总结、资源、凭据清理和迁移时间沿用 Rust �
 3. Runner 使用独立 attempt 目录、有界 JSON Lines/stdout、脱敏 stderr/事件和大小受限的结果文件。macOS 使用进程组；Windows 实现挂起启动→加入 kill-on-close Job Object→恢复，避免启动后再加入导致子孙进程逃离管理。Windows 代码只有编译证据，尚无实机证据。
 4. 应用执行服务将成功结果落库，失败保存失败状态，取消在进程回收后重新入队。终止无法核实时保留执行记录。调度器限制并发、去重，并在重试/删除前取得独占预约。启动恢复沿用旧端顺序：删除补偿→核验并终止旧进程→fence/requeue→全部核验通过后重新调度；失败可重试，重复成功启动不会重放。现已接到可写模式的 `host.Profile`；关闭时等待子进程与安装收尾后释放所有权锁。
 5. 删除用例遵循 prepared→fenced→trashed→database_deleted，再 purge/finish。真实合成文件与数据库测试覆盖清理失败后的重启续做；没有删除或重建用户库。
-6. UI 修正队列列宽合计与结果关闭按钮对齐；动画帧内存计算使用 64 位，避免 Windows x86 溢出。可写模式接通原生选择器、新建/重试/删除、实时进度和环境管理。新建页按原双栏配置、默认设置、双语与未就绪警告实现；环境页按原设置侧栏和组件行布局实现。现已追加外观、主题和处理默认值；运行概览/远端/诊断仍未实现，不能算完整设置迁移。
-7. `managed` 同源生成原清单、三平台依赖锁、Runner/validate/warmup 与四模型固定 revision。下载通过 HTTPS、大小/SHA-256 验证后原子发布；ZIP/TAR 全量预检、路径与链接约束；组件按 generation 安装，失败保留上一份可用 artifact。模型可先下载，再等待 Python 就绪离线校验。x86 延续原 unsupportedReason。macOS ARM 真实上游包已在独立目录安装并通过校验，其他平台未执行。
+6. UI 修正队列列宽合计与结果关闭按钮对齐；动画帧内存计算使用 64 位。可写模式接通原生选择器、新建/重试/删除、实时进度和环境管理。新建页按原双栏配置、默认设置、双语与未就绪警告实现；环境页按原设置侧栏和组件行布局实现。现已追加外观、主题和处理默认值；运行概览/远端/诊断仍未实现，不能算完整设置迁移。
+7. `managed` 同源生成原清单、三平台依赖锁、Runner/validate/warmup 与四模型固定 revision。下载通过 HTTPS、大小/SHA-256 验证后原子发布；ZIP/TAR 全量预检、路径与链接约束；组件按 generation 安装，失败保留上一份可用 artifact。模型可先下载，再等待 Python 就绪离线校验。macOS ARM 真实上游包已在独立目录安装并通过校验，其他平台未执行。
 8. 组件状态和设置 revision 用旧 schema 事务保存，拒绝过期 generation；重复轮询不增加设置 revision，也不重复保存未变组件。系统检测迟到不能覆盖已切回托管的配置。修复损坏 FFmpeg 未重新解压、模型状态读取创建目录和 marker 无界读取的问题。
 9. `host` 连接运行时解析、系统内存预算、调度、恢复、媒体授权和查询。媒体路径只由原生选择器授予 token，创建前复核文件身份；任务已持久化后即使退出阻止调度，也返回已创建 ID，留待下次恢复，避免用户重试重复创建。
 10. 模型同尺寸篡改在校验时被拒绝，并撤销 acquired marker，使下一次重试重新获取损坏文件，保留其他有效缓存。真实 FunASR 日志出现 ANSI 终端控制码后，诊断适配增加控制码清理；先清理再脱敏，防止控制码拆分敏感字段名。
@@ -595,10 +599,10 @@ Go 写入的宠物、总结、资源、凭据清理和迁移时间沿用 Rust �
 - `native:compat` 对照真实 Rust schema/repository 生成的 14 个可见任务、各任务结果、首页 all 聚合、偏好与 765 个等级边界；读取前后主文件哈希一致。另在独立副本测试写入、失败回滚、删除恢复；真实合成子进程验证成功/失败/取消的落库结果。
 - 资料目录互斥包含 Go/Go 同进程与子进程、Go 持锁时 Rust 拒绝、释放后 Rust 可获取。只在 macOS 实际执行。
 - Runner 测试包含无效协议、超长无换行 stdout、退出失败、缺结果、回调失败、取消、子孙进程终止、进程身份与 PID 复用拒绝、参数边界、离线模型环境；race 在当前 macOS 执行。
-- 新增 TLS 安装测试覆盖三平台 hash-lock 命令、校验后发布、依赖失败重试、损坏 FFmpeg 重装、模型固定 revision/hash、离线预热/缓存元数据、篡改与失败不发布。运行时状态机覆盖等待 Python、安装中切换来源、重启中断、保留旧 artifact、关闭取消、过期代次和 x86 拒绝。
+- 新增 TLS 安装测试覆盖三平台 hash-lock 命令、校验后发布、依赖失败重试、损坏 FFmpeg 重装、模型固定 revision/hash、离线预热/缓存元数据、篡改与失败不发布。运行时状态机覆盖等待 Python、安装中切换来源、重启中断、保留旧 artifact、关闭取消、过期代次和不支持平台拒绝。
 - `native:compat` 新增运行时 settings revision、generation CAS、数据库重启持久化、凭据字段写入禁令；新增 `host` 整条合成流程，实际启动子进程并验证创建→完成结果→重试→删除→退出后重新获取 profile 锁。此处 Python/模型路径是合成测试适配，不代表真实 FunASR 验收。
 - `native:runtime:acceptance` 在本机 macOS ARM 实际下载原清单资源、三方哈希锁定 Python 依赖和四个固定 revision 模型，通过原版 runtime_validate、runtime_warmup 离线验证及模型缓存发布；复用安装后，用系统 Tingting 生成纯合成中文录音，运行真实 ffmpeg 与 FunASR Runner。关闭说话人得到 1 段且 disabled，开启得到 6 段且 completed，两次均断言包含“会议”“测试”。没有用户音视频、没有人工准确率评测，也未把此结果泛化为其他平台验收。
-- Windows x86 初次编译暴露 SQL 大整数默认推断为 `int` 的溢出，已显式转换 `int64`。最终四目标主程序与全部测试包（含 compatibility tag）编译通过，主程序 Mach-O/PE 架构校验通过；其他平台测试程序未实机执行。
+- SQL 大整数显式使用 `int64`。最终跨目标主程序与全部测试包（含 compatibility tag）编译通过，主程序 Mach-O/PE 架构校验通过；其他平台测试程序未实机执行。
 - P3 阶段的 `pnpm check` 通过：契约/TS、47 个前端测试、Python lint 与 11 个测试、Rust fmt 与 205 个测试（当时 2 个专用测试默认 ignored，由兼容脚本单独执行）、Web 构建、Clippy warnings-as-errors、版本/平台/安全/运行时锁及相关阻断样本。`native:check`、带 race 的写入/执行兼容测试、`go test -race ./internal/...`、`native:build:matrix`、`git diff --check` 均通过。既有外置盘硬链接回退和 Vite 大 chunk 警告仍存在。
 - 本轮实际 macOS 窗口确认新建页显示、运行时页面选择官方源后下载操作启用、返回主界面和退出；发现步骤 02 换行后已改为固定大小居中布局，后续仍需原生复验。双语组件测试覆盖选文件、默认标题/热词、未就绪提示、提交参数和环境字段。未点击安装、未从 GUI 真正处理媒体；没有新旧截图差分。
 - 未执行：其他平台真实托管运行时与媒体处理、GUI 整条媒体流程、生产数据升级/回退、用户系统凭据访问、新 UI 全流程、Windows/Intel Mac 实机、真实漏洞扫描、许可证归集、签名/公证/安装包、GitHub CI 与发布。
@@ -607,7 +611,7 @@ Go 写入的宠物、总结、资源、凭据清理和迁移时间沿用 Rust �
 
 - 新增 `domain/resources.go`、`settings.go`，`application/Resources`、资源编辑 grant，以及 `jobdb` 资源/设置事务操作。模型默认策略对照原 `useAiStore`；人员保持单一记录人、按姓名导入与整批回滚；内置模板只读，复制后可编辑。编辑 grant 只能写当前类型及当前 ID，关闭撤销。
 - 新增系统凭据端口，公共模型只传九个元数据字段，设置仅传是否配置 Token。Secret 的打印/JSON 输出脱敏。暂存凭据写入前持久化 rollback intent；事务发布引用并退休旧引用；失败和中断可恢复，清理失败不回滚已保存数据。Rust 清理保护同步覆盖远端 Token。
-- macOS 真实验收发现直接 Security.framework 新调用者存在 Keychain ACL 差异，未保留该方案。最终使用与旧端相同的 `/usr/bin/security`；另实测发现旧端裸 `-w`/stdin 写入返回 0 但存空值，已同步修复 Go/Rust 为单条交互命令 stdin，并覆盖引用/特殊字符/显式 hex 读取；写入后回读值校验，不能只凭退出码报告成功。随机独立服务名验证已通过；没有访问用户凭据。Windows API 及 x86/x64 CREDENTIALW 布局检查已写，实机尚未验证。
+- macOS 真实验收发现直接 Security.framework 新调用者存在 Keychain ACL 差异，未保留该方案。最终使用与旧端相同的 `/usr/bin/security`；另实测发现旧端裸 `-w`/stdin 写入返回 0 但存空值，已同步修复 Go/Rust 为单条交互命令 stdin，并覆盖引用/特殊字符/显式 hex 读取；写入后回读值校验，不能只凭退出码报告成功。随机独立服务名验证已通过；没有访问用户凭据。Windows API 及 x64 CREDENTIALW 布局检查已写，实机尚未验证。
 - 设置仅更新公共列，保留 Python/ffmpeg 私有路径和来源；revision CAS 与运行时检测并发更新不冲突。Client 保留保存途中新增编辑，冲突时只重放脏字段，并覆盖“改为深色后马上改回原值”的竞态。并发设置影响后续调度，降低限制不终止正在执行的任务；新建页重新进入时刷新默认值。
 - 管理页沿用原文案、四项统计、模型/模板卡片和人员列表；独立编辑窗口沿用原字段、尺寸、底部操作，包含密钥保留/替换/清除、模板复制、未保存关闭路径。外观/语言变更传播至主窗口、结果与编辑窗口。尚未完成全部双击/表格无障碍和像素级对照。
 - `memberxlsx` 无新增外部依赖，实现有界 ZIP/XML、首表/共享字符串/inlineString、原表头别名、整数/记录人校验；导出中文工作表/原四列，公式样式文本保持字符串，大整数以文本保真。原生文件对话框拥有文件路径，仓库只收到人员值。合成文件验证 Rust→Go 和 Go→Rust，完整 Excel GUI 对话框操作尚未验收。
@@ -617,17 +621,17 @@ Go 写入的宠物、总结、资源、凭据清理和迁移时间沿用 Rust �
 ### P4 本批验证结果
 
 - 最终 `pnpm check` 通过：47 前端测试、11 Python 测试、208 Rust 测试（3 个专用 helper 默认 ignored，兼容脚本单独调用）、fmt、Clippy warnings-as-errors、Web 构建、版本/平台/安全/运行时锁检查。硬链接缓存回退和既有 Vite chunk 警告仍存在。
-- `pnpm native:check`、`go test -race ./internal/...`、`pnpm native:compat`、`pnpm native:build:matrix` 与 `git diff --check` 通过。四平台只验证编译和文件格式；Windows/Intel Mac 运行、安装器、签名、公证均未执行。
+- `pnpm native:check`、`go test -race ./internal/...`、`pnpm native:compat`、`pnpm native:build:matrix` 与 `git diff --check` 通过。跨平台只验证编译和文件格式；Windows/Intel Mac 运行、安装器、签名、公证均未执行。
 - `pnpm native:credentials:acceptance` 在 macOS ARM 的随机独立服务中通过真实写后回读/替换/删除和旧工具读取验收。未访问真实用户凭据。Go `memberxlsx` 与 Rust xlsxwriter/calamine 双向合成文件验证通过。
 - 原生 GUI 只验收上文列出的人员、模板、语言/主题流程。模型密钥保存 GUI、人员 Excel 对话框、全部主题/输入法/无障碍、新旧截图差分、退出保存竞态仍未全部验收。
 
 ## 剩余验收与实施顺序
 
-1. 真实 FunASR/托管运行时目前只在 macOS ARM 验收；补齐 Intel Mac 与 Windows 运行时安装、媒体流程、失败/重试/关闭恢复和资源预算实测。四目标编译不是实机替代。
+1. 真实 FunASR/托管运行时目前只在 macOS ARM 验收；补齐 Intel Mac 与 Windows 运行时安装、媒体流程、失败/重试/关闭恢复和资源预算实测。跨目标编译不是实机替代。
 2. 对 P5-A 的宠物、农场、打工和兑换语义做旧/新固定时钟与随机样本逐项差分，覆盖跨日、重复请求、恢复和奖励幂等；当前实现及合成测试不等于完整业务验收。
 3. 完成 P5-G1 玩法/输入延迟/资源预算实机验收，继续覆盖可选照看与既有 care/claim 的固定时钟经济差分、其他地图评估及 P5-G3 渲染路线门禁；维持小游戏与 P5-A 持久化经济验收分离。范围见[小游戏体验工作线](../designs/2026-11-19-native-gameplay-experience-design.md)。
 4. 完成所有旧端页面及弹窗的同数据新旧截图/交互差分，覆盖中英文、主题、输入法、快捷键、多窗口焦点、读屏与关闭路径；当前已验收的主窗口/部分表单/商品页不等于完整 UI 一致。
-5. 取得真实远端测试服务与凭据后执行只读验收；解决 Python 生产锁的 OSV 阻断，不扩大豁免；完成 Windows x64/x86、Intel Mac 实机、安装/升级/回退/崩溃恢复以及签名与公证证据。
+5. 取得真实远端测试服务与凭据后执行只读验收；解决 Python 生产锁的 OSV 阻断，不扩大豁免；完成 Windows x64、Intel Mac 实机、安装/升级/回退/崩溃恢复以及签名与公证证据。
 6. 旧版已发行二进制不支持新资料锁和跨格式兑换去重。正式切换不能依赖长期维护 Tauri 修正版：Native 活跃资料库必须与旧二进制写入隔离，并通过一致性快照完成导入；如果不能证明旧客户端无法写入 Native 活跃资料库，切换门禁保持阻断。通过所有差分、安全、平台、安装升级/恢复和发布门槛后，切换默认入口、验证 Native 烟测/恢复，并在同一退役变更中删除 `apps/desktop`、旧端构建发布链及仅服务旧端的依赖。回退按已演练的快照恢复流程进行，不依靠旧 Tauri 并行写入。
 
 ## 工作区与历史记录修正（早期阶段快照）
@@ -651,7 +655,7 @@ Go 写入的宠物、总结、资源、凭据清理和迁移时间沿用 Rust �
 ### 本批验证结果
 
 - `pnpm check` 通过：47 前端测试、11 Python 测试、208 Rust 测试；5 个专用 helper 默认 ignored，均由兼容脚本单独调用。fmt、Clippy warnings-as-errors、Web 构建、发布/平台/安全/运行时锁规则通过。外置盘硬链接回退及 Vite chunk 警告仍存在。
-- `pnpm native:check`、`go test -race ./internal/...`、`pnpm native:compat`、`pnpm native:build:matrix`、迁移生成一致性及 `git diff --check` 通过。四目标只验证编译与 Mach-O/PE 文件架构，未执行 Windows/Intel Mac 二进制。
+- `pnpm native:check`、`go test -race ./internal/...`、`pnpm native:compat`、`pnpm native:build:matrix`、迁移生成一致性及 `git diff --check` 通过。跨目标只验证编译与 Mach-O/PE 文件架构，未执行 Windows/Intel Mac 二进制。
 - `native:compat` 最终对照包含表和显式索引定义、业务行、重复启动不重放；另含 36 组 Rust 文本导出对照、讲话人修改范围与回滚。普通测试包含新 profile host 初始化/重启、连接替换后的外键设置、凭据失败/清理恢复、WAL 备份、窗口撤销、双语编辑与导出动作、文件覆盖失败保留原件。
 - 未访问用户实际资料库/凭据/媒体，没有执行新一轮真实 GUI 对话框验收，也没有提交、推送或发布。
 
@@ -659,11 +663,11 @@ Go 写入的宠物、总结、资源、凭据清理和迁移时间沿用 Rust �
 
 - 已在 macOS ARM 的隔离测试 HOME 中启动原生候选，并观察到主窗口。无参数候选启动创建独立的 `com.westng.liberty.native-candidate` 资料目录；另一次候选 GUI 操作通过 macOS 拼音输入法保存人员“会议 / 测试”，进程退出后检查隔离 SQLite 完整性为 `ok` 且记录仍存在。此证据只覆盖候选启动和该人员表单，不表示生产资料接管或全 UI 验收。
 - 接管/恢复目前有离线自动化证据，没有真实生产库恢复操作：写入接管先取得 profile 锁并建立、校验及复用首次 WAL 一致恢复点；显式恢复预检源/目标完整性、schema 和系统凭据引用，并先创建经验证的 `pre-restore` 安全副本。无效源的预检失败测试确认当前库不变；进入 SQLite backup 写入后的 checkpoint、读回或同步失败仍可能在数据变化后返回错误，必须保留安全副本。恢复对话框未做完整原生窗口验收。
-- 四目标 `native:package` 产物已有构建及归档核验记录，覆盖 macOS ARM/Intel 与 Windows x64/x86；核验六个版本来源（根与桌面 `package.json`、Tauri 配置、`Cargo.toml`、`Cargo.lock`、Go host）、候选身份、Mach-O/PE 架构、NOTICE、逐文件摘要和解包内容。Windows 仍是便携目录，不是安装器；包标记 `productionReady:false`，未签名、未公证，非本机平台没有运行证据。
+- 跨目标 `native:package` 产物已有构建及归档核验记录，覆盖 macOS ARM/Intel 与 Windows x64；核验六个版本来源（根与桌面 `package.json`、Tauri 配置、`Cargo.toml`、`Cargo.lock`、Go host）、候选身份、Mach-O/PE 架构、NOTICE、逐文件摘要和解包内容。Windows 仍是便携目录，不是安装器；包标记 `productionReady:false`，未签名、未公证，非本机平台没有运行证据。
 - 主窗口选项和回归测试对照旧 Tauri 几何：默认 `1440×960`、最小 `1100×760`，并覆盖 macOS traffic-light/inset 与 Windows 标题栏高度及控件避让。曾实际确认 macOS ARM 原生主窗口可显示；测试/配置对照和一次窗口显示不替代完整页面截图差分、读屏或其他平台实机验收。
 - 本增量仅整理文档，没有启动/关闭客户端、访问生产资料或凭据、改代码、提交或发布。已有 P5-A/P5-G 内容保持原样；其玩法差分、真实输入/辅助技术及资源预算退出条件仍按原章节跟踪。
 
-生产切换尚有明确阻塞：React/Tauri 仍是默认发布入口和部分共享 schema、迁移、运行时清单与素材的生成来源；Python 生产锁的漏洞扫描门禁未通过；Intel Mac、Windows x64/x86 的实机运行时和 GUI/IME 未完成；完整 UI、读屏、真实远端与性能差分未关闭；安装升级/回退及中断恢复、签名、公证和发布证据未完成。候选可运行与四目标可打包不等于可以切换默认入口或删除旧端。
+生产切换尚有明确阻塞：React/Tauri 仍是默认发布入口和部分共享 schema、迁移、运行时清单与素材的生成来源；Python 生产锁的漏洞扫描门禁未通过；Intel Mac、Windows x64 的实机运行时和 GUI/IME 未完成；完整 UI、读屏、真实远端与性能差分未关闭；安装升级/回退及中断恢复、签名、公证和发布证据未完成。候选可运行与跨目标可打包不等于可以切换默认入口或删除旧端。
 
 ## 2026-11-21 日常入口与旧端冻结
 
@@ -676,7 +680,7 @@ Go 写入的宠物、总结、资源、凭据清理和迁移时间沿用 Rust �
 
 - 运行 `pnpm native:launch` 后，启动器按候选清单、文件大小和 SHA-256 校验，激活 `target/native/packages/liberty-native-candidate-1.1.24-darwin-aarch64-vHxK1o/` 中的 `Liberty Native Candidate.app`；当前进程 PID `88302` 的文本映像指向该候选包内 `liberty-native`，应用身份为 `com.westng.liberty.native-candidate`。
 - 当前进程清单未发现 `target/debug/liberty`、旧 `Liberty.app`、Tauri 或 React 客户端；本次没有启动旧端，没有通过通用应用名解析，也没有接管生产资料。`go test -race ./internal/desktop ./internal/host ./cmd/liberty-native`、`git diff --check` 通过。
-- 当前结论只证明新版原生候选已在本机运行，不把候选运行、四目标编译或未签名/未公证包当成正式生产切换证据。旧 React/Tauri 源码和 Tauri 发布回退仍保留，直到事实源迁出、原生安装/升级/回退及跨平台和安全门槛关闭后再按计划退役。
+- 当前结论只证明新版原生候选已在本机运行，不把候选运行、跨目标编译或未签名/未公证包当成正式生产切换证据。旧 React/Tauri 源码和 Tauri 发布回退仍保留，直到事实源迁出、原生安装/升级/回退及跨平台和安全门槛关闭后再按计划退役。
 
 ## 2026-11-21 模式切换审计
 
@@ -686,7 +690,7 @@ Go 写入的宠物、总结、资源、凭据清理和迁移时间沿用 Rust �
 ## 2026-11-21 主窗口对齐与候选重建
 
 - 主窗口复用平台化窗口选项，尺寸按旧版 `tauri.conf.json` 对齐为 `1440×960`、最小 `1100×760`。macOS 使用隐藏内嵌标题栏及旧版交通灯坐标；Windows 保留系统标题栏。标题栏状态指标和动作按 MyGo 实际原生控件区域留白，避免与系统按钮重叠。
-- 新增配置驱动的窗口几何/平台 chrome 回归及标题栏最小、默认尺寸布局回归。`go test ./internal/desktop ./internal/host ./cmd/liberty-native -count=1`、`pnpm native:check`、`pnpm native:inventory`、`pnpm native:build:matrix` 和 `git diff --check` 均通过；四目标结果只证明构建和二进制格式，不代表其他平台实机运行。
+- 新增配置驱动的窗口几何/平台 chrome 回归及标题栏最小、默认尺寸布局回归。`go test ./internal/desktop ./internal/host ./cmd/liberty-native -count=1`、`pnpm native:check`、`pnpm native:inventory`、`pnpm native:build:matrix` 和 `git diff --check` 均通过；跨目标结果只证明构建和二进制格式，不代表其他平台实机运行。
 - `pnpm native:package` 生成 macOS ARM 候选 `target/native/packages/liberty-native-candidate-1.1.24-darwin-aarch64-j2CEtw/`；归档 SHA-256 为 `fe989b3d0a41173f80fc77838cca7f65ab173be171ed3d7c0c47e56adc26a11d`。包标记仍为 `productionReady:false`、未签名、未公证。当前 PID `88302` 仍运行先前 `...-vHxK1o/` 构建；新包不会热替换该窗口，需正常退出后再运行 `pnpm native:launch` 才能载入本轮窗口修正。
 - 当前运行进程仍是 Go/MyGo 候选；未发现旧 React/Tauri 进程。旧端源码及生产发布/兼容依赖仍保留，未删除、未切换默认生产入口。完整 UI/无障碍/输入法和跨平台实机、真实远端、供应链漏洞门禁、安装升级回退及签名公证仍阻止正式切换；没有提交、推送或发布。
 - `git ls-files apps/native packages/desktop-resources` 在当前工作区均为 0；这些目录的新版实现和共享资源目前没有进入 Git 索引。此次没有暂存用户已有的大批工作区变更，因此不能声称干净检出可重建本候选。先安全保全并纳入版本控制，再从干净检出重复生成、检查和打包，是删除旧端或切生产入口之前的首要仓库门槛。
@@ -705,7 +709,7 @@ Go 写入的宠物、总结、资源、凭据清理和迁移时间沿用 Rust �
 - 设置控制器以版本比较和冲突 rebase 保存草稿，启动 locale/theme 参数只覆盖当前会话，异步初始读取不会覆盖启动参数；用户明确选择对应设置后才持久化。保存失败保留草稿并支持重试，关闭流程等待在途设置保存完成。处理模式由 `processingMode` 决定，读取失败保留最后有效模式并呈现可重试错误，不从 `backendUrl` 推断。相邻设置、恢复及关闭测试覆盖这些状态；本轮未重新运行 Go 测试。
 - 主窗口尺寸对齐旧端默认 `1440×960`、最小 `1100×760`；macOS 使用内嵌标题栏与交通灯位置，Windows 使用系统标题栏，并为标题栏控件留出平台 chrome 空间。配置驱动测试覆盖几何与平台选项；测试对照不等于 Intel/Windows 实机或全 UI 截图验收。
 - 启动行为仍以 `pnpm start` / `pnpm native:launch` 为日常候选入口：校验并选择已打包候选，不编译源码、不启动旧 Tauri、不强杀进程。历史本机复核记录了确切候选包启动及原生主窗口；本轮只审阅源码和既有记录，没有启动客户端，也未访问用户资料。
-- `native:package` 负责选定目标的候选构建、版本来源一致性、候选清单/逐文件 SHA-256 和归档回读核验；六个版本来源包括两个 `package.json`、Tauri 配置、桌面 `Cargo.toml`、`Cargo.lock` 中的 `liberty` 包和 Go host 版本。四目标编译及测试包交叉编译由 `native:build:matrix` 负责。既有四目标包记录标注 `productionReady:false`、未签名/未公证；不能据此声称 Intel/Windows 实机、安装器、签名、公证或生产切换已验证。
+- `native:package` 负责选定目标的候选构建、版本来源一致性、候选清单/逐文件 SHA-256 和归档回读核验；六个版本来源包括两个 `package.json`、Tauri 配置、桌面 `Cargo.toml`、`Cargo.lock` 中的 `liberty` 包和 Go host 版本。跨目标编译及测试包交叉编译由 `native:build:matrix` 负责。既有跨目标包记录标注 `productionReady:false`、未签名/未公证；不能据此声称 Intel/Windows 实机、安装器、签名、公证或生产切换已验证。
 - 上述文档核对子任务仅更新三份指定文档，没有重跑测试；既有 P5-A/P5-G 章节与验收条件保留原样。
 
 ## 2026-11-21 最新原生候选打包与启动
@@ -726,6 +730,6 @@ Go 写入的宠物、总结、资源、凭据清理和迁移时间沿用 Rust �
 ## 2026-11-21 旧 Tauri 退役决策收口
 
 - 用户已明确要求：Native 重构完成后删除旧 Tauri，不保留“旧 Tauri 兼容保留”作为长期方案。这里的“保留”只表示在切换门槛关闭前冻结旧生产入口、迁移对照和回滚保护；它不是第二条产品线，也不是无限期维护承诺。
-- 退役前必须完成三件事：把 schema/迁移、运行时与模型清单、模板、消息、素材和仍需长期回归的脱敏黄金夹具迁出 `apps/desktop`；从干净检出独立生成、兼容和打包；完成 Native 的业务、UI/无障碍、四平台、安全、资料接管、安装升级/恢复、签名/公证和生产观察/回滚证据。
+- 退役前必须完成三件事：把 schema/迁移、运行时与模型清单、模板、消息、素材和仍需长期回归的脱敏黄金夹具迁出 `apps/desktop`；从干净检出独立生成、兼容和打包；完成 Native 的业务、UI/无障碍、跨平台、安全、资料接管、安装升级/恢复、签名/公证和生产观察/回滚证据。
 - 以上条件通过后，采用一个可审查的切换变更：切换默认入口和 Release workflow，执行 Native 启动/锁/迁移/恢复烟测，然后删除 `apps/desktop` 的 React/Tauri/Rust GUI、commands/capabilities、旧构建发布链以及仅供旧端使用的依赖和检查。SQLite 迁移逻辑、共享资源和脱敏黄金夹具留在 Native/共享包中；不保留旧 Tauri 可执行文件或永久兼容发布。
 - 当前条件尚未满足：Python 生产锁漏洞门禁仍阻断，Intel/Windows 实机、完整 UI/IME/读屏、真实远端、安装升级/回退、签名/公证和干净检出复现仍未闭环。因此本轮只修正终态和退出条件，暂不提前删除旧端源码或发布链，也不声称已完成 Native 切换。

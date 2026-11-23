@@ -40,8 +40,6 @@ try {
     ["darwin-x64", "dmg", "x86_64", false],
     ["windows-x64", "msi", "x86_64", false],
     ["windows-x64", "nsis", "x86_64", false],
-    ["windows-x86", "msi", "x86", false],
-    ["windows-x86", "nsis", "x86", false],
   ];
   const zeroChunk = Buffer.alloc(1024 * 1024);
   const largeDigest = createHash("sha256");

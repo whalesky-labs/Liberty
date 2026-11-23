@@ -64,7 +64,7 @@ restorable snapshot and keep a durable retirement intent for eventual cleanup.
 ## Independent Native Delivery
 
 `pnpm native:verify` is the complete local Native quality entry: Go checks and
-shared generated sources, Python lint/tests, Native version and four-target
+shared generated sources, Python lint/tests, Native version and three-target
 policy, required security regressions, lock integrity, candidate workflow policy,
 and failure fixtures. It does not invoke the old UI or Rust. The root `pnpm check`
 runs it before `legacy:check`; the latter retains the old production checks only
@@ -73,7 +73,7 @@ until the retirement change above.
 `.github/workflows/build-native.yml` can run manually or through the root quality
 workflow. Its independent quality job also replays frozen compatibility fixtures,
 runs race checks, cross-compiles all targets, collects Go notices and produces a
-Native lock-inventory SBOM. Four platform jobs execute target tests and isolated
+Native lock-inventory SBOM. Three platform jobs execute target tests and isolated
 system-vault acceptance, build portable candidates, execute the extracted version
 check, and verify exact archive contents, manifest, architecture and SHA-256
 before uploading the candidate artifacts.
@@ -111,8 +111,8 @@ and an otherwise uninstalled candidate. macOS verification mounts a DMG read-onl
 and checks the contained application, notarization, Gatekeeper, version and
 architecture. These implementations require actual certificate/platform runs;
 the candidate identity and `productionReady:false` remain until cutover.
-On 2026-11-22, the distribution policy and its 66 tests passed, including all four
-targets' verified synthetic archive preparation, dirty-source and symlink-path
+On 2026-11-22, the distribution policy and its 66 tests passed, including
+verified synthetic archive preparation for the targets configured at that time, dirty-source and symlink-path
 refusals, and signed-provenance claim checks. These are not signed installer
 builds or installation acceptance. No certificate-backed DMG/MSI build,
 notarization, Windows upgrade/uninstall transaction, or distribution CI execution
@@ -146,10 +146,13 @@ Every release candidate must account for these desktop targets:
 | macOS Apple Silicon | `darwin-aarch64` | `aarch64-apple-darwin` | `darwin/arm64` | primary |
 | macOS Intel | `darwin-x64` | `x86_64-apple-darwin` | `darwin/amd64` | primary |
 | Windows x64 | `windows-x64` | `x86_64-pc-windows-msvc` | `windows/amd64` | primary |
-| Windows x86 | `windows-x86` | `i686-pc-windows-msvc` | `windows/386` | extended; managed local ASR installation unsupported |
 
-Windows x86 remains a supported target, but it must be validated independently
-because runtime dependencies and model performance differ from x64.
+The supported desktop scope is macOS Apple Silicon, macOS Intel and Windows x64.
+Each target requires independent runtime and native UI acceptance.
+The 2026-11-23 scope cleanup passed the full local `pnpm check`, 198 focused
+packaging/launch/distribution/runtime policy tests, and compilation of all three
+main programs and test suites with matching binary architectures. These local
+results do not replace target execution or signed installation acceptance.
 
 ## Automated Checks
 
@@ -264,25 +267,21 @@ minimum macOS versions.
 
 On 2026-11-20, configured archive endpoints were independently probed using
 HTTPS HEAD and one-byte Range requests. The official Python/macOS FFmpeg
-archives responded successfully, but all four configured Python archive URLs
+archives responded successfully, but the then-configured Python archive URLs
 on the NJU mirror and both previous Windows FFmpeg release URLs returned 404.
 The dead NJU package URLs have been removed; NJU remains available as a PyPI
 index and Python archive selection now falls back to the checksum-pinned
 official URL.
 
-Windows x64 and x86 FFmpeg pins were replaced with separately hosted, fixed
-FFmpeg-Builds release assets. Both endpoints returned HEAD 200 and one-byte
-Range 206. The retained local ZIP copies matched the recorded full SHA-256
-values, passed ZIP integrity checks, and contained correctly matching x64 PE32+
-and x86 PE32 executables. The x86 ASR limitation is unchanged. The upstream
-assets are GPL builds, their repositories are separate, their GitHub releases
-are not immutable, and the upstream retention statement is time-limited; the
-SHA-256 guard rejects changed bytes but does not guarantee long-term endpoint
-availability. No Windows executable was run: runtime installation, FFmpeg
-version, media conversion, minimum-OS behavior, and rollback still require
-Windows x64/x86 acceptance. Existing valid managed FFmpeg installations may
-still be reused; changing the manifest does not by itself prove those installs
-were upgraded.
+The Windows x64 FFmpeg pin uses a fixed FFmpeg-Builds release asset. Its
+endpoint returned HEAD 200 and one-byte Range 206; the retained local ZIP
+matched its full SHA-256, passed ZIP integrity checks and contained a matching
+x64 PE32+ executable. The upstream asset is a GPL build, the GitHub release is
+not immutable, and retention is time-limited. SHA-256 rejects changed bytes but
+does not guarantee endpoint availability. No Windows executable was run in
+that probe: installation, media conversion, minimum-OS behavior and rollback
+still require Windows x64 acceptance. Existing valid managed installations may
+be reused; a manifest change does not prove they were upgraded.
 
 The `production` runtime profile is the default; selecting `security-candidate`
 remains explicit and requires an isolated writable profile.
@@ -400,28 +399,18 @@ golden bytes remain enforced.
 
 Commit `b8ff0baf720ef8444c4e9634a36c2548b9236b2b` passed the full root
 `pnpm check` and the complete frozen compatibility replay with `TZ=UTC`.
-A second clean detached checkout built all four candidate archives and prepared
-their installer inputs. Each archive's architecture, exact source provenance
+A second clean detached checkout built candidate archives for the configured
+targets and prepared their installer inputs. Each archive's architecture, exact source provenance
 and SHA-256 were checked; only the ARM candidate was executed locally. All
 prepared inputs remain non-distributable. The checkout stayed clean.
 CI run `45164966173` targeted this same commit with `publish_release=false`.
 Independent Native quality, both real security jobs, and the ARM and Intel Mac
 candidate jobs passed, including real system-vault recovery and extracted
-candidate execution. Both Windows jobs failed. The failures exposed a missing
+candidate execution. The Windows jobs failed. The failures exposed a missing
 Windows handle-based hard-link check, invalid synthetic filenames/SQLite URIs,
-and a 32-bit animation-index overflow; their fixes require another target run.
+and an animation-index overflow; their fixes require another target run.
 
-The x86 UI failures also establish a separate implementation blocker: the pinned
-MyGo selects both its unsupported window backend and its stub text engine on
-Windows 386. The actual `go list` selections are `backend_other.go` and
-`engine_other.go`; the Windows window backend and DirectWrite are built only for
-amd64/arm64. The inspected v0.10.0 release and upstream main still exclude 386
-from DirectWrite. The text stub draws no glyphs and does not wrap paragraphs.
-A Windows x86 compilation or `--version` result cannot establish a working GUI.
-Closing this target requires a proper MyGo Windows x86 window/text backend port
-and target verification; tests and the four-target release gate remain enforced.
-
-The final implementation commit is
+The implementation commit verified in this historical run is
 `22aaabbe74eb4958b86e5db7233186fd7eaeb087`. It passes a fresh full root check and
 CLI/managed race checks. Unsupported GUI architectures now return bilingual
 recovery guidance before profile resolution or creation; offline import/restore
@@ -434,14 +423,12 @@ with publication disabled and a final conclusion of **failure**. Its Native
 quality and both real security jobs passed. Apple Silicon, Intel Mac and Windows
 x64 passed all ordinary target tests, actual isolated
 system-store rotation/restore/reclamation, extracted candidate execution and
-archive verification. Windows x86 passed the repaired managed, profile, host
-and legacy-reader tests; its desktop package still fails eight layout/typography
-tests because of the backend limitation above. Its separate system-vault command
-did not run after that failure. All three successful candidate artifacts were
-downloaded and independently checked against GitHub's ZIP digest, their exact
+archive verification. This historical run also included a now-retired target
+that failed; its overall conclusion remains failure. All three successful
+candidate artifacts were downloaded and independently checked against GitHub's ZIP digest, their exact
 file inventories, architecture, source commit and embedded/outer SHA-256 records.
-The failed x86 target blocks the full workflow; release reservation, bundle and
-publication jobs were skipped. No tag or Release was created.
+The failed historical workflow skipped release reservation, bundle and
+publication jobs. No tag or Release was created.
 A fresh detached checkout of the same commit installed frozen
 root tooling, packaged and executed the ARM candidate, and verified archive
 SHA-256 `238121c0686dffa1260f5e0e480f6aba24a7162e4174502331953bff1e0ce6d9`.
@@ -452,10 +439,9 @@ The checkout remained clean and the candidate remains unsigned and non-productio
 | macOS Apple Silicon | Passed | `c40406ced76aea6f04618d7f05c058c51b21fa19d2e229f63c840621e8b22c4b` |
 | macOS Intel | Passed | `18df4d1d64e2d4f282b785f39d0a11af41a500079625d4b535ec7486985a3f78` |
 | Windows x64 | Passed | `2de890b9529a1fb1c545de83d26fa1242850acf1d7ab2269d21aa1fa87370de3` |
-| Windows x86 | Failed in desktop tests; separate vault acceptance not reached | No accepted artifact |
 
 These target checks do not prove native GUI interaction, Intel/Windows managed
-ASR, minimum operating systems, a 32-bit Windows installation, certificate-backed
+ASR, minimum operating systems, certificate-backed
 distribution, controlled ASR quality, 8 GiB performance or production observation.
 
 Additional macOS ARM page acceptance covered English dark and Chinese light
@@ -521,8 +507,7 @@ screen-reader behavior or gameplay calibration.
 - Confirm managed installation verifies final CPython `X.Y.Z` against the manifest before pip and validates the platform lock. In Go, confirm startup rejects an interpreter replaced in place. Reconciliation checks the executable fingerprint and repeats the version probe when the fingerprint changes. System Python follows its separate capability policy.
 - Confirm placeholder or unavailable runtime sources are not advertised in the client.
 - Confirm macOS Intel and Apple Silicon artifacts are separate.
-- Confirm Windows x86 and x64 artifacts do not share runtime assumptions.
-- Confirm Windows x86 unsupported runtime-download messaging is still accurate when the platform remains listed.
+- Confirm the Windows x64 application, runtime and installer architectures match.
 - Confirm the Environment & Models settings flow can list configured download sources and surface runtime-install logs.
 - Confirm diagnostics report shows the expected current platform and schema version.
 - Confirm no API keys, tokens, or local source paths appear in exported diagnostics.

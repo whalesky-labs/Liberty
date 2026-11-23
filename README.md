@@ -96,7 +96,7 @@ pnpm native:compat
 pnpm native:build:matrix
 ```
 
-`native:preview` first verifies and replays the shared frozen golden fixtures through Go, then opens temporary synthetic data and cleans it on exit. It does not run the old client. This is not full UI or production acceptance. `native:build:matrix` establishes four-target compilation, not execution on other platforms.
+`native:preview` first verifies and replays the shared frozen golden fixtures through Go, then opens temporary synthetic data and cleans it on exit. It does not run the old client. This is not full UI or production acceptance. `native:build:matrix` establishes three-target compilation, not execution on other platforms.
 
 For cross-layer changes and shared-source checks:
 
@@ -104,7 +104,7 @@ For cross-layer changes and shared-source checks:
 pnpm check
 ```
 
-`pnpm check` runs `native:verify` first (Go, shared generators, Python and Native release policy), then `legacy:check` for the temporary production client. The independent `build-native.yml` candidate workflow covers four-target tests, packaging and artifact verification; a failed real supply-chain scan fails the workflow. Full compatibility, race, device interactions and production release acceptance are described separately in the [development guide](docs/development.md). Legacy checks are removed with the old client in the retirement change.
+`pnpm check` runs `native:verify` first (Go, shared generators, Python and Native release policy), then `legacy:check` for the temporary production client. The independent `build-native.yml` candidate workflow covers three-target tests, packaging and artifact verification; a failed real supply-chain scan fails the workflow. Full compatibility, race, device interactions and production release acceptance are described separately in the [development guide](docs/development.md). Legacy checks are removed with the old client in the retirement change.
 
 ## Platforms
 
@@ -113,7 +113,6 @@ pnpm check
 | macOS Apple Silicon | `darwin/arm64` | `darwin-arm64` | FunASR; local evidence is limited to tested scenarios |
 | macOS Intel | `darwin/amd64` | `darwin-x64` | Independent runtime and UI device acceptance required |
 | Windows x64 | `windows/amd64` | `windows-x64` | Independent runtime and UI device acceptance required |
-| Windows x86 | `windows/386` | `windows-x86` | Extended client target; managed local ASR installation unsupported |
 
 ## Documentation
 

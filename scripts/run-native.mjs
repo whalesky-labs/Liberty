@@ -61,7 +61,7 @@ async function check() {
 
 export function nativeLaunchTarget(platform, arch) {
   const osName = platform === "win32" ? "windows" : platform;
-  const architecture = arch === "x64" ? "amd64" : arch === "ia32" ? "386" : arch;
+  const architecture = arch === "x64" ? "amd64" : arch;
   const target = Object.entries(nativeTargets).find(([, value]) => value.os === osName && value.arch === architecture)?.[0];
   if (!target) throw new Error(`Native candidate launch is unsupported on ${platform}/${arch}`);
   return target;
@@ -459,7 +459,7 @@ async function compatibility(preview) {
 async function buildMatrix() {
   const output = path.join(root, "target/native");
   await mkdir(output, { recursive: true });
-  const targets = [["darwin", "arm64"], ["darwin", "amd64"], ["windows", "amd64"], ["windows", "386"]];
+  const targets = [["darwin", "arm64"], ["darwin", "amd64"], ["windows", "amd64"]];
   const results = await Promise.allSettled(targets.map(async ([os, arch]) => {
     const binary = path.join(output, `liberty-${os}-${arch}${os === "windows" ? ".exe" : ""}`);
     const flags = os === "windows" ? "-s -w -H windowsgui" : "-s -w";
@@ -473,7 +473,7 @@ async function buildMatrix() {
     const bytes = await readFile(binary);
     if (os === "windows") {
       const pe = bytes.readUInt32LE(0x3c);
-      if (bytes.toString("ascii", 0, 2) !== "MZ" || bytes.readUInt32LE(pe) !== 0x4550 || bytes.readUInt16LE(pe+4) !== (arch === "386" ? 0x14c : 0x8664)) throw new Error(`Unexpected PE architecture: ${arch}`);
+      if (bytes.toString("ascii", 0, 2) !== "MZ" || bytes.readUInt32LE(pe) !== 0x4550 || bytes.readUInt16LE(pe+4) !== 0x8664) throw new Error(`Unexpected PE architecture: ${arch}`);
     } else if (bytes.readUInt32LE(0) !== 0xfeedfacf || bytes.readUInt32LE(4) !== (arch === "arm64" ? 0x100000c : 0x1000007)) {
       throw new Error(`Unexpected Mach-O architecture: ${arch}`);
     }

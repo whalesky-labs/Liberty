@@ -17,7 +17,7 @@ const verifiedExceptions = Buffer.from('[[IgnoredVulns]]\nid = "GHSA-2222-3333-4
 const replacementExceptions = Buffer.from('[[IgnoredVulns]]\nid = "GHSA-5555-6666-7777"\nreason = "Synthetic replacement deliberately lacks the required expiry."\n');
 
 function runtimeFixture() {
-  const platforms = Object.keys(nativeTargets).filter((platformId) => platformId !== "windows-x86").map((platformId) => ({ platformId }));
+  const platforms = Object.keys(nativeTargets).map((platformId) => ({ platformId }));
   const locked = [{ name: "funasr", version: "1.3.9+liberty.local2" }, { name: "numpy", version: "2.3.1" }];
   const lock = Buffer.from(locked.map(({ name, version }) => `${name}==${version} \\\n    --hash=sha256:${"a".repeat(64)}\n`).join(""));
   const files = new Map([

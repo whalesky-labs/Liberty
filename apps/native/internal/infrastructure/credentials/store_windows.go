@@ -16,7 +16,7 @@ var credWrite = advapi.NewProc("CredWriteW")
 var credDelete = advapi.NewProc("CredDeleteW")
 var credFree = advapi.NewProc("CredFree")
 
-// Native alignment is significant on both Windows x86 and x64.
+// Preserve the native CREDENTIALW alignment on Windows x64.
 type credential struct {
 	Flags, Type             uint32
 	TargetName, Comment     *uint16

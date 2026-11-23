@@ -96,7 +96,7 @@ pnpm native:compat
 pnpm native:build:matrix
 ```
 
-`native:preview` 会先校验共享的冻结黄金样本并运行 Go 回归，再打开临时合成资料，退出后清理，不再执行旧客户端；这不等于全量 UI 或生产验收。`native:build:matrix` 只证明四目标编译，不代表其他平台实机通过。
+`native:preview` 会先校验共享的冻结黄金样本并运行 Go 回归，再打开临时合成资料，退出后清理，不再执行旧客户端；这不等于全量 UI 或生产验收。`native:build:matrix` 只证明三目标编译，不代表其他平台实机通过。
 
 跨层和共享来源的整仓检查：
 
@@ -104,7 +104,7 @@ pnpm native:build:matrix
 pnpm check
 ```
 
-`pnpm check` 先运行原生完整入口 `native:verify`（Go、共享生成源、Python 与 Native 发布策略），再运行暂存旧生产端的 `legacy:check`。原生独立候选工作流 `build-native.yml` 覆盖四目标测试、打包和资产核验，真实供应链扫描失败仍会阻断整个工作流。完整兼容、race、实机交互和正式发布验收按[开发指南](docs/development.md)分别执行；旧端检查随退役变更一并删除。
+`pnpm check` 先运行原生完整入口 `native:verify`（Go、共享生成源、Python 与 Native 发布策略），再运行暂存旧生产端的 `legacy:check`。原生独立候选工作流 `build-native.yml` 覆盖三目标测试、打包和资产核验，真实供应链扫描失败仍会阻断整个工作流。完整兼容、race、实机交互和正式发布验收按[开发指南](docs/development.md)分别执行；旧端检查随退役变更一并删除。
 
 ## 平台
 
@@ -113,7 +113,6 @@ pnpm check
 | macOS Apple Silicon | `darwin/arm64` | `darwin-arm64` | FunASR；本机证据限具体测试范围 |
 | macOS Intel | `darwin/amd64` | `darwin-x64` | 需独立运行时和 UI 实机验收 |
 | Windows x64 | `windows/amd64` | `windows-x64` | 需独立运行时和 UI 实机验收 |
-| Windows x86 | `windows/386` | `windows-x86` | 客户端扩展目标；托管本地 ASR 安装不支持 |
 
 ## 文档
 

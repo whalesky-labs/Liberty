@@ -133,7 +133,7 @@ export function assertNativeWorkflow(source) {
           command('Verify Native sources, Python and candidate policy', 'pnpm native:verify'),
           command('Replay frozen Native compatibility fixtures', 'pnpm native:compat'),
           { name: 'Check Native concurrency', 'working-directory': 'apps/native', run: 'go test -race -count=1 -timeout=30m ./...' },
-          command('Compile all four Native targets', 'pnpm native:build:matrix'),
+          command('Compile all three Native targets', 'pnpm native:build:matrix'),
           command('Check Native licenses', 'pnpm native:licenses:check'),
           command('Generate Native SBOM', 'pnpm native:sbom:generate'),
           { name: 'Upload Native SBOM and notices', uses: actions.upload, with: { name: 'liberty-native-sbom-${{ github.sha }}', path: 'artifacts/sbom/liberty-native.cdx.json\nartifacts/sbom/native-go-NOTICES.txt', 'if-no-files-found': 'error', 'retention-days': 14 } }],
@@ -148,7 +148,6 @@ export function assertNativeWorkflow(source) {
           { target: 'darwin-aarch64', runner: 'macos-latest', system: 'darwin', arch: 'arm64' },
           { target: 'darwin-x64', runner: 'macos-15-intel', system: 'darwin', arch: 'amd64' },
           { target: 'windows-x64', runner: 'windows-2022', system: 'windows', arch: 'amd64' },
-          { target: 'windows-x86', runner: 'windows-2022', system: 'windows', arch: '386' },
         ] } },
         steps: [checkout(), node(), go(),
           { name: 'Execute target tests and isolated system credentials', 'working-directory': 'apps/native', shell: 'bash', env: { GOARCH: '${{ matrix.arch }}', CGO_ENABLED: '0', EXPECTED_SYSTEM: '${{ matrix.system }}' }, run: targetTests },
@@ -159,7 +158,7 @@ export function assertNativeWorkflow(source) {
     },
   };
   try { assert.deepEqual(workflow, expected); }
-  catch { throw new Error('Native workflow differs from the reviewed read-only candidate, security, quality or four-platform delivery policy'); }
+  catch { throw new Error('Native workflow differs from the reviewed read-only candidate, security, quality or three-platform delivery policy'); }
   return workflow;
 }
 
@@ -342,7 +341,7 @@ async function main() {
   const args = process.argv.slice(2);
   if (!args.length) {
     assertNativeWorkflow(await readFile(path.join(root, '.github/workflows/build-native.yml'), 'utf8'));
-    console.log('Native candidate workflow preserves independent quality, required security, four execution targets and read-only delivery.');
+    console.log('Native candidate workflow preserves independent quality, required security, three execution targets and read-only delivery.');
     return;
   }
   if (args[0] !== 'verify-artifacts' || args.length !== 7 || args[1] !== '--target' || args[3] !== '--commit' || args[5] !== '--output') throw new Error('Expected verify-artifacts --target <target> --commit <sha> --output <artifact-directory>');

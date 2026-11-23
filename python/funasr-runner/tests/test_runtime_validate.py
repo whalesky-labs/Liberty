@@ -29,7 +29,7 @@ def block_dependencies_and_lock_reads(monkeypatch):
 
     def guarded_import(name, *args, **kwargs):
         if name.split(".")[0] in {
-            "packaging", "numpy", "torch", "torchaudio", "torchvision", "funasr", "sherpa_onnx",
+            "packaging", "numpy", "torch", "torchaudio", "torchvision", "funasr",
         }:
             pytest.fail(f"Interpreter preflight imported {name}")
         return original_import(name, *args, **kwargs)
@@ -54,7 +54,6 @@ def fake_backend_imports(monkeypatch, events, numpy_version="1.26.4"):
         "transformers": SimpleNamespace(__version__="5.23.0"),
         "transformers.utils": SimpleNamespace(is_torch_available=lambda: False),
         "funasr": SimpleNamespace(AutoModel=SimpleNamespace(__module__="funasr.fixture")),
-        "sherpa_onnx": SimpleNamespace(__version__="fixture"),
     }
 
     def guarded_import(name, *args, **kwargs):
@@ -213,7 +212,7 @@ def test_managed_pin_then_lock_then_backend_validation(validator, monkeypatch, t
 
 
 @pytest.mark.parametrize("backend,numpy_version,passes", [
-    ("sherpa-onnx", "2.0.0", True), ("funasr", "1.26.4", True), ("funasr", "2.0.0", False),
+    ("funasr", "1.26.4", True), ("funasr", "2.0.0", False),
 ])
 def test_unpinned_system_validation_keeps_existing_backend_rules(
     validator, monkeypatch, backend, numpy_version, passes,

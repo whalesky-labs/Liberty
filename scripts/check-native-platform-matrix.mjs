@@ -10,7 +10,6 @@ const expectedTargets = {
   "darwin-aarch64": ["darwin", "arm64", 0x100000c],
   "darwin-x64": ["darwin", "amd64", 0x1000007],
   "windows-x64": ["windows", "amd64", 0x8664],
-  "windows-x86": ["windows", "386", 0x14c],
 };
 
 function asset(value, label) {
@@ -26,7 +25,7 @@ function asset(value, label) {
 }
 
 export function validateNativePlatformMatrix({ targets = nativeTargets, manifest, module, workspace }) {
-  assert.deepEqual(Object.keys(targets).sort(), Object.keys(expectedTargets).sort(), "Native must retain all four target identities");
+  assert.deepEqual(Object.keys(targets).sort(), Object.keys(expectedTargets).sort(), "Native must retain all three target identities");
   for (const [id, [os, arch, machine]] of Object.entries(expectedTargets)) {
     assert.deepEqual(targets[id], { os, arch, machine }, `Native target drift: ${id}`);
   }
@@ -45,16 +44,12 @@ export function validateNativePlatformMatrix({ targets = nativeTargets, manifest
           && !/[\\:\x00]/.test(value), `${platform.platformId}: escaping executable path`);
       }
     }
-    if (platform.platformId === "windows-x86") {
-      assert.equal(platform.asrBackend, "sherpa-onnx", "Windows x86 backend must remain distinct");
-      assert.ok(typeof platform.unsupportedReason === "string" && platform.unsupportedReason.trim(), "Windows x86 local installation remains blocked pending acceptance");
-    } else {
-      assert.equal(platform.asrBackend, "funasr", `${platform.platformId}: unexpected backend`);
-    }
+    assert.equal(platform.asrBackend, "funasr", `${platform.platformId}: unexpected backend`);
+    assert.ok(!platform.unsupportedReason, `${platform.platformId}: supported runtime must remain available`);
   }
   runtimeInputPins(manifest);
   const candidate = manifest.candidateProfiles["security-candidate"];
-  assert.deepEqual(candidate.platforms.map((p) => p.platformId).sort(), Object.keys(expectedTargets).filter((id) => id !== "windows-x86").sort(), "Candidate runtime must not imply x86 support");
+  assert.deepEqual(candidate.platforms.map((p) => p.platformId).sort(), Object.keys(expectedTargets).sort(), "Candidate runtime must cover all supported targets");
   for (const platform of candidate.platforms) asset(platform.pythonBundle, `${platform.platformId} candidate Python`);
   return Object.entries(targets).map(([platformId, { os, arch }]) => ({ platformId, goos: os, goarch: arch }));
 }
@@ -72,5 +67,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   assert.ok(process.argv.slice(2).every((arg) => arg === "--print-matrix") && process.argv.length <= 3, "Expected optional --print-matrix");
   const include = await checkNativePlatformMatrix();
   if (process.argv.includes("--print-matrix")) console.log(JSON.stringify({ include }));
-  else console.log("Native four-target static policy passed. Windows x86 local runtime remains unsupported; target-device execution, signing and production acceptance are separate requirements.");
+  else console.log("Native three-target static policy passed. Target-device execution, signing and production acceptance are separate requirements.");
 }

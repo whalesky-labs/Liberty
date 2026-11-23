@@ -32,7 +32,7 @@ func readIdentity(pid uint32) (Identity, error) {
 		return Identity{}, ErrIdentity
 	}
 	// ProcessCommandLineInformation returns a UNICODE_STRING and its contents in
-	// the supplied buffer. Validate the pointer/length before accessing it on x86.
+	// the supplied buffer. Validate the pointer and length before accessing it.
 	var required uint32
 	_ = windows.NtQueryInformationProcess(process, 60, nil, 0, &required)
 	if required < uint32(unsafe.Sizeof(windows.NTUnicodeString{})) || required > 131072 {

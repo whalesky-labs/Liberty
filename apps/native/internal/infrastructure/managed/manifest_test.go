@@ -60,17 +60,13 @@ func TestLegacyManagedPythonRequiresTheRecordedLockVersion(t *testing.T) {
 	}
 }
 
-func TestOriginalResourcesAndFourPlatformRestrictions(t *testing.T) {
+func TestOriginalResourcesAndSupportedPlatforms(t *testing.T) {
 	m, err := LoadManifest()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(m.Platforms) != 4 || m.PythonVersion != "3.11.18" || m.ProductionInputs == nil {
+	if len(m.Platforms) != 3 || m.PythonVersion != "3.11.18" || m.ProductionInputs == nil {
 		t.Fatal("runtime targets or version drift")
-	}
-	x86, err := m.Platform("windows-x86")
-	if err != nil || x86.UnsupportedReason == "" {
-		t.Fatal("x86 limitation lost")
 	}
 	pins, err := modelPins()
 	if err != nil {
@@ -159,7 +155,6 @@ func TestWindowsFFmpegArchivesMatchReviewedPins(t *testing.T) {
 		platform, name, url, sha256 string
 	}{
 		{"windows-x64", "ffmpeg-n8.1.3-27-g8dca1586f4-win64-gpl-8.1.zip", "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n8.1.3-27-g8dca1586f4-win64-gpl-8.1.zip", "401dffcf14c301082e1fc03b0bc876b92ea676bfc521fc56e80a1537d137034f"},
-		{"windows-x86", "ffmpeg-n8.1.3-27-g8dca1586f4-win32-gpl-8.1.zip", "https://github.com/defisym/FFmpeg-Builds-Win32/releases/download/autobuild-2026-10-31-16-58/ffmpeg-n8.1.3-27-g8dca1586f4-win32-gpl-8.1.zip", "480a387ac116f25dc60bff063d67033c49e363284e2fd84022d1937084f7721c"},
 	} {
 		t.Run(expected.platform, func(t *testing.T) {
 			platform, err := manifest.Platform(expected.platform)

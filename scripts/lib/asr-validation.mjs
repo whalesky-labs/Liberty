@@ -249,7 +249,6 @@ export function detectPlatformId(platform = process.platform, architecture = pro
     ["darwin:arm64", "darwin-aarch64"],
     ["darwin:x64", "darwin-x64"],
     ["win32:x64", "windows-x64"],
-    ["win32:ia32", "windows-x86"],
   ]);
   return mappings.get(`${platform}:${architecture}`) ?? null;
 }

@@ -27,15 +27,6 @@
       "minimumMemoryGiB": 8,
       "performanceEvidenceMemoryTierGiB": 8,
       "localAsrRequired": true
-    },
-    {
-      "platformId": "windows-x86",
-      "name": "Windows x86 compile-only",
-      "operatingSystem": "win32",
-      "architecture": "ia32",
-      "minimumMemoryGiB": 4,
-      "performanceEvidenceMemoryTierGiB": null,
-      "localAsrRequired": false
     }
   ]
 }

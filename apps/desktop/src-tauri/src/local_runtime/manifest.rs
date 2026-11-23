@@ -213,33 +213,27 @@ mod tests {
     #[test]
     fn windows_ffmpeg_archives_match_reviewed_pins() {
         let manifest = load_manifest().expect("runtime manifest should load");
-        for (platform_id, file_name, url, sha256) in [
-            (
-                "windows-x64",
-                "ffmpeg-n8.1.3-27-g8dca1586f4-win64-gpl-8.1.zip",
-                "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n8.1.3-27-g8dca1586f4-win64-gpl-8.1.zip",
-                "401dffcf14c301082e1fc03b0bc876b92ea676bfc521fc56e80a1537d137034f",
-            ),
-            (
-                "windows-x86",
-                "ffmpeg-n8.1.3-27-g8dca1586f4-win32-gpl-8.1.zip",
-                "https://github.com/defisym/FFmpeg-Builds-Win32/releases/download/autobuild-2026-10-31-16-58/ffmpeg-n8.1.3-27-g8dca1586f4-win32-gpl-8.1.zip",
-                "480a387ac116f25dc60bff063d67033c49e363284e2fd84022d1937084f7721c",
-            ),
-        ] {
-            let platform = manifest
-                .platforms
-                .iter()
-                .find(|platform| platform.platform_id == platform_id)
-                .expect("Windows platform should be present");
-            let asset = platform
-                .ffmpeg_bundle
-                .as_ref()
-                .expect("Windows platform should provide FFmpeg");
-            assert_eq!(asset.file_name, file_name);
-            assert_eq!(asset.urls.get("official").map(String::as_str), Some(url));
-            assert_eq!(asset.sha256, sha256);
-        }
+        let platform = manifest
+            .platforms
+            .iter()
+            .find(|platform| platform.platform_id == "windows-x64")
+            .expect("Windows platform should be present");
+        let asset = platform
+            .ffmpeg_bundle
+            .as_ref()
+            .expect("Windows platform should provide FFmpeg");
+        assert_eq!(
+            asset.file_name,
+            "ffmpeg-n8.1.3-27-g8dca1586f4-win64-gpl-8.1.zip"
+        );
+        assert_eq!(
+            asset.urls.get("official").map(String::as_str),
+            Some("https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n8.1.3-27-g8dca1586f4-win64-gpl-8.1.zip")
+        );
+        assert_eq!(
+            asset.sha256,
+            "401dffcf14c301082e1fc03b0bc876b92ea676bfc521fc56e80a1537d137034f"
+        );
     }
 
     #[test]

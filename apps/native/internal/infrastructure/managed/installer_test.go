@@ -171,11 +171,11 @@ func TestInstallerRejectsHashFailureAndUnsupportedTargetBeforeExecution(t *testi
 	if _, err := i.InstallTool(context.Background(), "ffmpeg", 1, "official", nil); !errors.Is(err, ErrChecksum) {
 		t.Fatal("hash failure accepted")
 	}
-	x86, err := NewInstaller(t.TempDir(), "windows-x86")
+	unsupported, err := NewInstaller(t.TempDir(), "unsupported")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := x86.InstallTool(context.Background(), "python", 1, "official", nil); err == nil {
-		t.Fatal("x86 invented a runtime")
+	if _, err := unsupported.InstallTool(context.Background(), "python", 1, "official", nil); err == nil {
+		t.Fatal("unsupported platform invented a runtime")
 	}
 }

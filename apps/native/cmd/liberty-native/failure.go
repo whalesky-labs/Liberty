@@ -16,13 +16,13 @@ var eventLoopStarted bool
 var errNativeGUIUnsupported = errors.New("native_gui_platform_unsupported")
 
 func nativeGUIAvailable(operatingSystem, architecture string) bool {
-	return (operatingSystem == "darwin" || operatingSystem == "windows") && (architecture == "amd64" || architecture == "arm64")
+	return operatingSystem == "darwin" && (architecture == "amd64" || architecture == "arm64") || operatingSystem == "windows" && architecture == "amd64"
 }
 
 func startupFailureMessage(err error) string {
 	switch {
 	case errors.Is(err, errNativeGUIUnsupported):
-		return "此系统架构的原生窗口后端尚不可用。64 位 Windows 请使用 x64 候选；32 位 Windows 的窗口和文字后端仍待实现。启动在打开资料库前停止，无需删除或重置资料。\n\nThe native window backend is not available for this system architecture. Use the x64 candidate on 64-bit Windows; the 32-bit Windows window and text backends remain unimplemented. Startup stopped before opening a profile. Keep the existing data."
+		return "此系统架构不受支持。请使用 macOS Apple Silicon、macOS Intel 或 Windows x64 对应的候选程序。启动在打开资料库前停止，无需删除或重置资料。\n\nThis system architecture is unsupported. Use the candidate for macOS Apple Silicon, macOS Intel or Windows x64. Startup stopped before opening a profile. Keep the existing data."
 	case errors.Is(err, profile.ErrProfileOverlap):
 		return "此目录与现有生产资料重叠。请选择独立目录；使用 --import-profile <源目录> --profile-directory <新目录> 导入一致性快照，保留旧资料。\n\nThis directory overlaps the existing production profile. Choose a separate directory and use --import-profile <source> --profile-directory <new-directory> to import a consistent snapshot while preserving the original profile."
 	case errors.Is(err, profile.ErrProductionMutation):

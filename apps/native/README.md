@@ -11,7 +11,7 @@ pnpm native:check
 pnpm native:launch
 ```
 
-完整本地质量入口为 `pnpm native:verify`，包括 Go/生成物、Python 和原生发布策略，不调用 React/Tauri 或 Rust。独立的 `build-native.yml` 工作流执行四目标候选测试、打包及归档核验，并保留真实供应链阻断；它不发布正式 Release。命令与验证边界见[开发指南](../../docs/development.md)。
+完整本地质量入口为 `pnpm native:verify`，包括 Go/生成物、Python 和原生发布策略，不调用 React/Tauri 或 Rust。独立的 `build-native.yml` 工作流执行三目标候选测试、打包及归档核验，并保留真实供应链阻断；它不发布正式 Release。命令与验证边界见[开发指南](../../docs/development.md)。
 
 `native:launch` 校验候选包清单、文件大小与 SHA-256 后，选择当前平台 SemVer 最高的候选；同版本按包目录修改时间选择。它只启动已打包文件，不编译当前源码，也不会通过通用应用名解析旧 Tauri 客户端。检测到原生进程的可执行文件路径与所选候选不同时，启动器拒绝启动并要求先从界面正常退出；不会强杀或主动结束任何运行进程。尚无候选包时先运行：
 
@@ -21,7 +21,7 @@ pnpm native:package
 
 `native:package` 输出本机候选包的确切路径。macOS 启动器通过 `open <确切 .app 路径>` 启动或激活同构建实例；Windows 核实已有可执行文件、进程身份与唯一主窗口后，恢复窗口并核对前台状态。激活失败会返回错误，不重复启动。Windows 分支已通过启动器协议测试，真实窗口激活仍需 Windows 验收。构建后先正常退出当前候选，再启动新包才能加载修改；已有窗口不会自动更新。
 
-候选打包支持 `--target darwin-arm64`、`darwin-x64`、`windows-x64`、`windows-x86`；macOS 输出未签名/未公证应用，Windows 输出便携包。`native:package` 只核对根 `package.json` 与 `apps/native/internal/host/profile.go` 的 Native 版本，以及候选/生产资料身份；生产 Release 的版本一致性仍由发布检查单独核对旧生产来源。候选打包核验所选目标与归档；四目标编译及测试包交叉编译由 `native:build:matrix` 覆盖。编译、归档检查均不等于目标平台执行或安装器验收。
+候选打包支持 `--target darwin-arm64`、`darwin-x64`、`windows-x64`；macOS 输出未签名/未公证应用，Windows 输出便携包。`native:package` 只核对根 `package.json` 与 `apps/native/internal/host/profile.go` 的 Native 版本，以及候选/生产资料身份；生产 Release 的版本一致性仍由发布检查单独核对旧生产来源。候选打包核验所选目标与归档；三目标编译及测试包交叉编译由 `native:build:matrix` 覆盖。编译、归档检查均不等于目标平台执行或安装器验收。
 
 合成数据预览：
 
@@ -59,7 +59,6 @@ binary='./Liberty Native Candidate.app/Contents/MacOS/liberty-native'
 
 Windows 便携目录中的文件名为 `Liberty Native Candidate.exe`；不要把示例中的 macOS 路径当作 Windows 启动命令。
 
-Windows x86 当前仅有编译目标，不能作为可运行的原生客户端：2026-11-23 的实际 CI 和依赖源码核对确认，固定 MyGo 在 386 上选择不支持的窗口后端和占位文字引擎。启动失败不能通过重置资料库解决；64 位 Windows 应使用 x64 候选。x86 仍保留在必需验收矩阵中，待窗口/文字后端移植后通过原有测试，不能凭 `--version` 成功宣称 GUI 可用。
 
 ## 生产资料接管与离线恢复
 
@@ -115,7 +114,7 @@ pnpm native:package --target darwin-arm64 --runtime-input-directory /absolute/ne
 
 从仓库根目录运行。三份候选锁已在共享资源中，按清单固定文件集、大小与 SHA-256。先按固定配方构建 vendor 输出，再把 prepare 的输出指向尚不存在的目录。构建步骤见[固定 wheel 配方](../../python/funasr-runner/vendor/README.md)。
 
-随包带输入仍默认选择生产运行时。只有显式隔离可写目录配合 `--runtime-profile security-candidate` 才启用候选；输入从确切可执行文件相邻资源中读取，在开库前校验。该组合拒绝生产资料、只读快照、恢复和版本输出。Windows x86 没有此候选运行时。候选安装仍需联网获取其余依赖和模型，不是全离线包，也不代表漏洞已经消除。
+随包带输入仍默认选择生产运行时。只有显式隔离可写目录配合 `--runtime-profile security-candidate` 才启用候选；输入从确切可执行文件相邻资源中读取，在开库前校验。该组合拒绝生产资料、只读快照、恢复和版本输出。候选安装仍需联网获取其余依赖和模型，不是全离线包，也不代表漏洞已经消除。
 
 ## 专项模块与检查
 
@@ -128,4 +127,4 @@ pnpm native:package --target darwin-arm64 --runtime-input-directory /absolute/ne
 | XLSX 文件与人员事务 | [memberxlsx](internal/infrastructure/memberxlsx/README.md) |
 | 日志与诊断脱敏 | [diagnostics](internal/infrastructure/diagnostics/README.md) |
 
-`pnpm native:compat` 校验并重放[冻结的 Rust 黄金样本](../../packages/desktop-resources/fixtures/native-v10/README.md)，覆盖 Go 查询/事务/重开、迁移、业务差分及 XLSX/DOCX。恢复 journal 与跨进程锁由 Native 自身回归验证；当前不再执行 Go/Rust 双向互操作。`pnpm native:build:matrix` 仅编译四目标。截至 2026-11-22，默认 Python 3.11.18 生产配置已在 macOS ARM 完成真实安装、四模型离线验证、Runner／host 两种说话人模式及重开持久化验收；82 项已安装依赖通过现有安全策略，未过滤扫描仍有 Torch 已知漏洞。Windows x64 和 Intel Mac 仍缺真实运行时结果。真实系统凭据、运行时、会议 GUI、远端服务和读取性能使用独立验收命令，参数与副作用统一见[开发指南](../../docs/development.md)。正式发布条件见[发布就绪检查](../../docs/architecture/release-readiness.md)。
+`pnpm native:compat` 校验并重放[冻结的 Rust 黄金样本](../../packages/desktop-resources/fixtures/native-v10/README.md)，覆盖 Go 查询/事务/重开、迁移、业务差分及 XLSX/DOCX。恢复 journal 与跨进程锁由 Native 自身回归验证；当前不再执行 Go/Rust 双向互操作。`pnpm native:build:matrix` 仅编译三目标。截至 2026-11-22，默认 Python 3.11.18 生产配置已在 macOS ARM 完成真实安装、四模型离线验证、Runner／host 两种说话人模式及重开持久化验收；82 项已安装依赖通过现有安全策略，未过滤扫描仍有 Torch 已知漏洞。Windows x64 和 Intel Mac 仍缺真实运行时结果。真实系统凭据、运行时、会议 GUI、远端服务和读取性能使用独立验收命令，参数与副作用统一见[开发指南](../../docs/development.md)。正式发布条件见[发布就绪检查](../../docs/architecture/release-readiness.md)。

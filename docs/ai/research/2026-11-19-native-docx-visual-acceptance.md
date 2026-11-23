@@ -53,7 +53,7 @@ LIBERTY_NATIVE_FIXTURE_DIR="$QA/fixtures" GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=read
   -run '^(TestWriteRustWordDocumentCompatibility|TestCanonicalXMLPreservesAttributeNamespaceIdentity|TestCanonicalXMLPreservesWordTextWhitespace|TestOriginalTemplatePartsAndSpecialTextRemainValid)$' -count=1 -v
 ```
 
-Rust `local_export` 38 项通过、2 项按标记忽略，另单独执行的 Word 夹具导出通过。Go 4 项通过，含 18 个案例的严格差分，包测试耗时 3.649 秒。两个修改的 Rust 文件通过 `rustfmt --check`。全仓检查交由主代理整合执行。当前结论限于 macOS arm64、上述渲染器与字体及三个抽样案例。其余 15 例只做结构差分，未验证 Word、WPS、真实 SimSun 字体度量、Windows x86/x64、Intel Mac、真实页眉页脚模板、长篇边界输入或客户端导出交互。
+Rust `local_export` 38 项通过、2 项按标记忽略，另单独执行的 Word 夹具导出通过。Go 4 项通过，含 18 个案例的严格差分，包测试耗时 3.649 秒。两个修改的 Rust 文件通过 `rustfmt --check`。全仓检查交由主代理整合执行。当前结论限于 macOS arm64、上述渲染器与字体及三个抽样案例。其余 15 例只做结构差分，未验证 Word、WPS、真实 SimSun 字体度量、Windows x64、Intel Mac、真实页眉页脚模板、长篇边界输入或客户端导出交互。
 
 ## 修复前的验收快照
 
@@ -193,6 +193,6 @@ Rust exporter：1 项通过、223 项过滤，测试执行 0.48 秒。任务内 
 ### 初次验收的范围
 
 - Rust 命名空间缺陷未修复，是本次等价验收未通过的生产阻塞；修复权限在本次范围外。
-- 未验证 Microsoft Word、WPS、Windows x86/x64、Intel Mac、真实 SimSun 字体度量、打印机差异、含页眉页脚的其他模板或长篇边界输入。
+- 未验证 Microsoft Word、WPS、Windows x64、Intel Mac、真实 SimSun 字体度量、打印机差异、含页眉页脚的其他模板或长篇边界输入。
 - 未运行全量 Go/Rust 检查、`native:check`、root check 或性能基准；未启动 Liberty 客户端、访问真实远端、发布、提交或推送。主代理的其他验收结果不作为本次独立验证结论。
 - 本次代码零修改。报告与忽略目录的合成证据齐备后停写，交由主代理决定越界 Rust 修复及 P4/P7 后续门槛。

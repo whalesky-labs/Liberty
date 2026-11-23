@@ -34,7 +34,7 @@
 - 原生主菜单与设置菜单共用 `presentation` 主题和导航渲染；不得另建设置页颜色表。消息、图标、素材、迁移、模板、契约和运行时的生成文件应从根脚本维护来源，不手改生成产物；退役前将 Native 仍需的事实源迁入共享目录并更新生成器，随后在同一旧端退役变更中删除旧端专属资源与生成输入。
 - 原生窗口使用进程内能力对象绑定任务来源、任务或资源身份；Tauri capabilities 只适用于保留客户端，不能作为 Go 窗口授权依据。
 - 业务实体、状态机、策略和类型化错误放在 `domain/`；用例编排放在 `application/`；SQLite repository、运行时、进程、凭据、文件系统和平台实现放在 `infrastructure/`。
-- 平台相关能力使用清晰的 Go build tags、平台文件或 Rust `cfg` 边界，并同时考虑 macOS Apple Silicon、macOS Intel、Windows x64 和 Windows x86；不得用当前开发机运行成功替代跨平台兼容性判断。
+- 平台相关能力使用清晰的 Go build tags、平台文件或 Rust `cfg` 边界，并同时考虑 macOS Apple Silicon、macOS Intel 和 Windows x64；不得用当前开发机运行成功替代跨平台兼容性判断。
 
 ## 原生 UI 规则
 
@@ -78,7 +78,7 @@
 
 - 使用仓库固定的 `pnpm@10.30.3`、Go `1.27.4`、Rust `1.94.0` 和现有 lockfile；Go 脚本使用 `GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly`，不无故升级工具链或依赖。安装依赖使用 `pnpm install --frozen-lockfile`，只有依赖声明确实变化时才更新锁文件。
 - 发布版本必须在根 `package.json`、`apps/desktop/package.json`、`apps/desktop/src-tauri/tauri.conf.json`、`apps/desktop/src-tauri/Cargo.toml`、`Cargo.lock` 和 `apps/native/internal/host/profile.go` 的 `Version` 中一致，并为 `CHANGELOG.md` 添加对应版本的中英文记录。
-- 发行标签严格使用 `v<semver>`。macOS Apple Silicon/Intel 与 Windows x64/x86 资产必须按平台区分，不能共用未经验证的运行时假设。
+- 发行标签严格使用 `v<semver>`。macOS Apple Silicon/Intel 与 Windows x64 资产必须按平台区分，不能共用未经验证的运行时假设。
 - 不手工削弱 `.github/workflows/`、`scripts/check-release-*.mjs` 或安全检查来让发布通过。发布修复应保留 quality gate、最小 GitHub 权限、固定 Action SHA 和资产校验。
 - 构建成功不代表发布完成。获授权发布后，还要分别验证目标提交、标签指向、Release 状态、Release ID 绑定、预期资产名称/数量和校验结果，并明确报告每一项结果。
 
@@ -95,5 +95,5 @@
 - 当前 Go + MyGo 重构任务中，用户要求“启动客户端”或“新版”时，启动 `apps/native` 的原生候选客户端。先核实已运行的新版进程并优先激活其主窗口；需要新构建时使用 `pnpm native:package`，依据实际输出的确切候选应用路径启动，并确认 `liberty-native` 进程及原生主窗口。不要通过通用 `Liberty` 应用名解析或打开旧 Tauri bundle。候选版使用独立资料目录，此启动约定不代表默认生产入口已经切换。
 - 旧客户端不作为默认启动或排障入口；用户仅要求“客户端”时不得启动旧端。原生进程与窗口才是客户端启动证据。
 - 避免同时启动多个 Liberty 实例；它们会竞争同一个本地 SQLite 数据库。运行中的只读锁不等于数据丢失，不能据此删除或重置数据库。
-- 无法在当前平台验证的目标（尤其 Windows x86/x64、签名、公证和安装器）必须明确标为“未验证”，说明已完成的替代检查及剩余风险。
+- 无法在当前平台验证的目标（尤其 Windows x64、签名、公证和安装器）必须明确标为“未验证”，说明已完成的替代检查及剩余风险。
 - 最终说明应列出修改范围、执行过的验证及结果、未验证项和阻塞；不要声称未实际执行的构建、原生交互、跨平台或发布验证已经完成。

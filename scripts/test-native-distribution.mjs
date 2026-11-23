@@ -16,11 +16,11 @@ const version = '9.8.7';
 
 test('CLI accepts only explicit preparation/build/verification stages', () => {
   assert.deepEqual(parseDistributionArgs(['check']), { command: 'check' });
-  assert.deepEqual(parseDistributionArgs(['plan', '--target', 'windows-x86']), { command: 'plan', target: 'windows-x86' });
+  assert.deepEqual(parseDistributionArgs(['plan', '--target', 'windows-x64']), { command: 'plan', target: 'windows-x64' });
   assert.equal(parseDistributionArgs(['build', '--target', 'windows-x64', '--commit', commit, '--output', 'output']).command, 'build');
   assert.equal(parseDistributionArgs(['accept-install', '--target', 'windows-x64', '--commit', commit, '--output', 'output', '--previous', 'old.msi']).previous, 'old.msi');
 });
-for (const args of [[], ['publish'], ['build'], ['check', '--publish', 'true'], ['check', '--commit', commit], ['prepare', '--target', 'windows-x64', '--commit', commit], ['build', '--target', 'linux-x64', '--commit', commit, '--output', 'out'], ['build', '--target', 'windows-x64', '--commit', 'HEAD', '--output', 'out'], ['build', '--target', 'windows-x64', '--commit', commit, '--output', 'out', '--skip-security', 'true'], ['build', '--target', 'windows-x64', '--target', 'windows-x86'], ['verify', '--target', 'windows-x64', '--commit', commit, '--output', 'out', '--previous', 'old.msi']]) {
+for (const args of [[], ['publish'], ['build'], ['check', '--publish', 'true'], ['check', '--commit', commit], ['prepare', '--target', 'windows-x64', '--commit', commit], ['build', '--target', 'linux-x64', '--commit', commit, '--output', 'out'], ['build', '--target', 'windows-x64', '--commit', 'HEAD', '--output', 'out'], ['build', '--target', 'windows-x64', '--commit', commit, '--output', 'out', '--skip-security', 'true'], ['build', '--target', 'windows-x64', '--target', 'windows-x64'], ['verify', '--target', 'windows-x64', '--commit', commit, '--output', 'out', '--previous', 'old.msi']]) {
   test(`rejects unsafe CLI: ${JSON.stringify(args)}`, () => assert.throws(() => parseDistributionArgs(args)));
 }
 for (const target of Object.keys(nativeTargets)) {
@@ -35,11 +35,13 @@ for (const target of Object.keys(nativeTargets)) {
 }
 for (const bad of ['1.2.3-beta.1', '1.2.3+build', '01.2.3', '256.1.0', '1.256.0', '1.2.65536', '../1.2.3']) test(`refuses unsupported MSI version ${bad}`, () => assert.throws(() => msiVersion(bad)));
 
-for (const target of ['windows-x64', 'windows-x86']) {
+for (const target of ['windows-x64']) {
   test(`MSI ${target} uses transactional per-user upgrades and exact payload`, () => {
     const result = renderWix(template, { target, version, files: installerFiles });
     assert.match(result, /InstallScope="perUser" InstallPrivileges="limited"/);
-    assert.ok(result.includes(`Platform="${target === 'windows-x64' ? 'x64' : 'x86'}"`));
+    assert.match(result, /Platform="x64"/);
+    assert.match(result, /Win64="yes"/);
+    assert.match(result, />VersionNT64<\/Condition>/);
     assert.match(result, /MajorUpgrade Schedule="afterInstallInitialize"/);
     assert.match(result, /DowngradeErrorMessage=/);
     assert.ok(result.includes(upgradeCodes[target]));
@@ -50,8 +52,7 @@ for (const target of ['windows-x64', 'windows-x86']) {
     assert.equal((result.match(/RemoveFolder/g) ?? []).length, 1, 'only installer-owned shortcut folder is removed');
   });
 }
-test('installer identities are distinct across x64/x86 and production', () => {
-  assert.notEqual(upgradeCodes['windows-x64'], upgradeCodes['windows-x86']);
+test('installer identity is isolated from production', () => {
   assert.notEqual(candidateIdentity, distributionPlan('windows-x64').productionPromotion.productionIdentity);
 });
 for (const files of [installerFiles.slice(1), [...installerFiles, 'secret.txt'], [...installerFiles, '..\\escape.exe'], [...installerFiles, 'bad"/>&.exe']]) test(`refuses noncanonical installer payload ${JSON.stringify(files)}`, () => assert.throws(() => renderWix(template, { target: 'windows-x64', version, files })));
@@ -78,7 +79,7 @@ test('Authenticode commands preserve literal paths and demand trusted signer and
 });
 
 function metadata(target = 'windows-x64') {
-  return { properties: { ProductName: `Liberty Native Candidate (${target})`, ProductVersion: version, UpgradeCode: `{${upgradeCodes[target]}}`, ProductCode: '{AABBCCDD-1111-2222-3333-444455556666}' }, template: target === 'windows-x64' ? 'x64;1033' : 'Intel;1033', files: installerFiles };
+  return { properties: { ProductName: `Liberty Native Candidate (${target})`, ProductVersion: version, UpgradeCode: `{${upgradeCodes[target]}}`, ProductCode: '{AABBCCDD-1111-2222-3333-444455556666}' }, template: 'x64;1033', files: installerFiles };
 }
 test('accepts architecture-specific MSI metadata', () => { for (const target of Object.keys(upgradeCodes)) assertMsiMetadata(metadata(target), target, version); });
 for (const [name, change] of [

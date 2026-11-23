@@ -148,16 +148,11 @@ fn set_native_window_style(
                 ));
             }
         }
-        #[cfg(target_pointer_width = "64")]
         let next_style = (style
             | WS_EX_LAYERED as isize
             | WS_EX_TOOLWINDOW as isize
             | WS_EX_NOACTIVATE as isize)
             & !(WS_EX_TRANSPARENT as isize);
-        #[cfg(target_pointer_width = "32")]
-        let next_style =
-            (style | WS_EX_LAYERED as i32 | WS_EX_TOOLWINDOW as i32 | WS_EX_NOACTIVATE as i32)
-                & !(WS_EX_TRANSPARENT as i32);
         windows_sys::Win32::Foundation::SetLastError(0);
         let previous_style = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next_style);
         diagnostic.log(format!(

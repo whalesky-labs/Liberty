@@ -20,7 +20,6 @@ const platformMatrix = new Map([
   ["darwin-aarch64", { kinds: ["dmg"], architecture: "arm64" }],
   ["darwin-x64", { kinds: ["dmg"], architecture: "x86_64" }],
   ["windows-x64", { kinds: ["msi", "nsis"], architecture: "x86_64" }],
-  ["windows-x86", { kinds: ["msi", "nsis"], architecture: "x86" }],
 ]);
 const kindExtensions = new Map([
   ["dmg", ".dmg"],
@@ -284,7 +283,7 @@ function validatePlatformBundle(platformId, expectedVersion, expectedArchitectur
   assertVersion(expectedVersion, readMsiVersion(msi), `${platformId} MSI ProductVersion`);
   assertVersion(expectedVersion, readExeVersion(nsis), `${platformId} NSIS ProductVersion`);
   const template = readMsiTemplate(msi).toLowerCase();
-  const expectedTemplate = expectedArchitecture === "x86_64" ? "x64" : "intel";
+  const expectedTemplate = "x64";
   if (!template.split(";").map((value) => value.trim()).includes(expectedTemplate)) {
     fail(`${platformId} MSI architecture must be ${expectedTemplate}; found ${template}.`);
   }
@@ -330,7 +329,6 @@ function validatePeArchitecture(file, expectedArchitecture) {
       fail(`${file} has an invalid PE header.`);
     }
     const actualArchitecture = new Map([
-      [0x014c, "x86"],
       [0x8664, "x86_64"],
       [0xaa64, "arm64"],
     ]).get(peHeader.readUInt16LE(4));

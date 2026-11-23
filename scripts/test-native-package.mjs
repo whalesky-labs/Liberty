@@ -3,16 +3,16 @@ import test from "node:test";
 import { assertCandidateManifest, assertNativeBinary, assertNativeVersion, assertRunnableTarget, candidateIdentity, candidatePlist, fileDigest, packageTarget } from "./lib/native-package.mjs";
 import { productionRuntimeAcceptanceDirectory } from "./run-native.mjs";
 
-test("package selection accepts four existing platform identities and rejects production overrides", () => {
-  for (const target of ["darwin-aarch64", "darwin-x64", "windows-x64", "windows-x86"]) assert.equal(packageTarget(["--target", target]), target);
+test("package selection accepts three existing platform identities and rejects production overrides", () => {
+  for (const target of ["darwin-aarch64", "darwin-x64", "windows-x64"]) assert.equal(packageTarget(["--target", target]), target);
   assert.equal(packageTarget(["--target", "darwin-arm64"]), packageTarget([], "darwin", "arm64"));
   assert.equal(packageTarget([], "darwin", "arm64"), "darwin-aarch64");
-  assert.equal(packageTarget([], "win32", "ia32"), "windows-x86");
+  assert.throws(() => packageTarget([], "win32", "ia32"));
   for (const args of [["--production"], ["--target", "linux-x64"], ["--target", "windows-x64", "--production"]]) assert.throws(() => packageTarget(args));
   assert.throws(() => packageTarget([], "linux", "x64"));
 });
 
-test("native package validates Mach-O and PE architecture including x86", () => {
+test("native package validates Mach-O and PE architecture", () => {
   const mach = Buffer.alloc(128);
   mach.writeUInt32LE(0xfeedfacf);
   mach.writeUInt32LE(0x100000c, 4);
@@ -22,23 +22,22 @@ test("native package validates Mach-O and PE architecture including x86", () => 
   pe.write("MZ");
   pe.writeUInt32LE(128, 0x3c);
   pe.writeUInt32LE(0x4550, 128);
+  pe.writeUInt16LE(0x8664, 132);
+  assertNativeBinary(pe, "windows-x64");
   pe.writeUInt16LE(0x14c, 132);
-  assertNativeBinary(pe, "windows-x86");
   assert.throws(() => assertNativeBinary(pe, "windows-x64"));
   pe.writeUInt32LE(0xffffffff, 0x3c);
-  assert.throws(() => assertNativeBinary(pe, "windows-x86"), /PE architecture/);
+  assert.throws(() => assertNativeBinary(pe, "windows-x64"), /PE architecture/);
   assert.throws(() => assertNativeBinary(Buffer.alloc(2), "darwin-aarch64"));
 });
 
-test("execution verification accepts matching hosts and Windows x86 on x64 only", () => {
+test("execution verification requires a matching supported host", () => {
   assertRunnableTarget("darwin-aarch64", "darwin", "arm64");
   assertRunnableTarget("darwin-x64", "darwin", "x64");
   assertRunnableTarget("windows-x64", "win32", "x64");
-  assertRunnableTarget("windows-x86", "win32", "x64");
-  assertRunnableTarget("windows-x86", "win32", "ia32");
   assert.throws(() => assertRunnableTarget("darwin-x64", "darwin", "arm64"), /matching host/);
-  assert.throws(() => assertRunnableTarget("windows-x64", "win32", "ia32"), /matching host/);
-  assert.throws(() => assertRunnableTarget("windows-x86", "darwin", "x64"), /matching host/);
+  assert.throws(() => assertRunnableTarget("windows-x64", "win32", "ia32"), /Expected --target/);
+  assert.throws(() => assertRunnableTarget("windows-x64", "darwin", "x64"), /matching host/);
 });
 
 test("runtime and meeting acceptance cannot reuse a different released generation", () => {
@@ -67,7 +66,7 @@ test("candidate bundle version and identity cannot silently drift", () => {
 
 test("candidate manifests reject production claims, traversal, duplicates and invalid checksums", () => {
   const files = ["app", "icon", "LICENSE", "NOTICES"].map((name) => ({ path: `bundle/${name}`, bytes: 4, sha256: fileDigest(Buffer.from("test")) }));
-  const manifest = { format: 1, channel: "candidate", identity: candidateIdentity, version: "1.1.24", target: "windows-x86", productionReady: false, signed: false, notarized: false, files };
+  const manifest = { format: 1, channel: "candidate", identity: candidateIdentity, version: "1.1.24", target: "windows-x64", productionReady: false, signed: false, notarized: false, files };
   assertCandidateManifest(manifest);
   for (const change of [{ productionReady: true }, { signed: true }, { notarized: true }, { identity: "com.westng.liberty" }, { channel: "production" }, { target: "unknown" }, { files: [] }]) assert.throws(() => assertCandidateManifest({ ...manifest, ...change }));
   for (const name of ["../outside", "/absolute", "C:/absolute", "bundle\\file", "bundle/./file", "bundle//file"]) assert.throws(() => assertCandidateManifest({ ...manifest, files: [...files, { ...files[0], path: name }] }));

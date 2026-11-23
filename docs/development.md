@@ -57,7 +57,7 @@ GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly go -C apps/native run ./cmd/liberty-n
 | 原生整体 | `pnpm native:check`：共享生成源漂移、打包/运行时策略自测、格式、模块校验、vet、全包普通测试；不读取旧端 inventory |
 | 原生完整本地质量入口 | `pnpm native:verify`：原生整体、Python lint/tests、Native 版本/平台/安全边界/锁/候选工作流检查与阻断自测；不调用旧前端或 Rust |
 | 迁移数据/协议兼容 | `pnpm native:compat`：校验共享的冻结 Rust 黄金样本，重放 Go 迁移、查询、业务事务、重开及 XLSX/DOCX；不构建或运行旧客户端 |
-| 原生目标编译 | `pnpm native:build:matrix`：四目标主程序和测试包，只编译，不执行其他平台二进制 |
+| 原生目标编译 | `pnpm native:build:matrix`：三目标主程序和测试包，只编译，不执行其他平台二进制 |
 | Rust | 相邻测试、`pnpm rust:fmt:check`；公共路径加 workspace tests 与 `pnpm rust:clippy` |
 | 跨层、数据库、权限、发布 | `pnpm check` 加原生及专项检查 |
 | 真实依赖安全与许可证 | `pnpm security:check`、`pnpm licenses:check`；必须有固定扫描器 |
@@ -67,7 +67,7 @@ GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly go -C apps/native run ./cmd/liberty-n
 
 `pnpm check` 先执行 `native:verify`，再执行暂存旧生产端的 `legacy:check`。`check:fast` 也先执行原生整体检查；`legacy:check` 与 `legacy:check:fast` 明确限定旧生产端职责，随退役变更一起删除。完整兼容/race/matrix、真实漏洞扫描和发布验收分别执行。
 
-`.github/workflows/build-native.yml` 是不依赖旧端工作流的四目标候选链，可手动运行，也由 Quality Gate 复用。它执行原生质量、冻结兼容、race、四目标编译、许可证/SBOM，并在对应系统执行测试、隔离系统凭据验收和解包后的版本检查。上传前独立核对候选文件集合、架构、manifest、归档与 SHA-256。真实漏洞扫描是必需的独立 job；扫描失败时整个工作流失败，已生成的候选资产不能被当作生产安全放行。此工作流只有读取仓库的权限，没有发布 Release、写标签或签名的步骤。配置存在不等于某次 GitHub 执行已通过。
+`.github/workflows/build-native.yml` 是不依赖旧端工作流的三目标候选链，可手动运行，也由 Quality Gate 复用。它执行原生质量、冻结兼容、race、三目标编译、许可证/SBOM，并在对应系统执行测试、隔离系统凭据验收和解包后的版本检查。上传前独立核对候选文件集合、架构、manifest、归档与 SHA-256。真实漏洞扫描是必需的独立 job；扫描失败时整个工作流失败，已生成的候选资产不能被当作生产安全放行。此工作流只有读取仓库的权限，没有发布 Release、写标签或签名的步骤。配置存在不等于某次 GitHub 执行已通过。
 
 只改文档时核对源码、相对链接、Markdown 围栏、命令存在性和历史状态即可；不把旧日志冒充本轮构建结果。
 
@@ -90,7 +90,7 @@ GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly go -C apps/native run ./cmd/liberty-n
 
 双语文案、SQLite 迁移 SQL、内置总结模板、展示和宠物素材、运行时清单与模型版本均在共享目录维护。改共享来源后运行对应 `*:generate` 并检查生成差异。契约变更分别用 `pnpm contracts:generate` 和 `pnpm native:contracts:generate` 生成两端类型。退役前必须让 Native 和共享目录独立提供所有仍需的生成输入与脱敏夹具，再删除旧端读取路径。完整映射见[桌面共享资源](../packages/desktop-resources/README.md)和[原生架构](architecture/native-desktop-architecture.md)。
 
-候选打包支持 `darwin-arm64`、`darwin-x64`、`windows-x64`、`windows-x86`。manifest 的 macOS ARM 平台 ID 是 `darwin-aarch64`，Go 架构是 `arm64`，不能把三个命名位置混用。Native 包版本只由根 `package.json` 与 Native host 版本决定；默认 `release:check-versions` 仍核对当前生产 Release 的全部来源。`native:package` 的 Windows 输出为便携包。
+候选打包支持 `darwin-arm64`、`darwin-x64`、`windows-x64`。manifest 的 macOS ARM 平台 ID 是 `darwin-aarch64`，Go 架构是 `arm64`，不能把三个命名位置混用。Native 包版本只由根 `package.json` 与 Native host 版本决定；默认 `release:check-versions` 仍核对当前生产 Release 的全部来源。`native:package` 的 Windows 输出为便携包。
 
 原生分发入口为 `pnpm native:distribution:check`、`native:distribution:prepare`、`native:distribution:build`、`native:distribution:verify` 和 `native:distribution:accept-install`。后三类产物操作使用确切 `--target`、`--commit <40位SHA>`、`--output <新目录>`；`accept-install` 另需 `--previous <较旧已签名MSI>`。prepare 只生成不可分发的安装输入。build 在匹配目标平台强制执行质量、兼容、race、平台、供应链和凭据检查，再制作 macOS Developer ID 签名/公证 DMG 或 Windows Authenticode 签名的 per-user MSI。verify 重新校验签名、信任、摘要、架构、版本和签名覆盖的源码归因。Windows 事务验收覆盖失败升级回滚、成功升级、阻止降级、卸载和旧安装器回退；不证明数据库回滚。证书缺失或检查失败会阻断，不能跳过。凭据变量和生产切换条件见[发布就绪检查](architecture/release-readiness.md)。
 

@@ -107,7 +107,7 @@ func TestCandidateManifestRejectsIncompleteAndUnsafePins(t *testing.T) {
 			candidate.RuntimeVersion = embeddedRuntimeManifest(t).RuntimeVersion
 		},
 		"invalid Python":       func(candidate *CandidateProfile) { candidate.PythonVersion = "3.11" },
-		"unsupported platform": func(candidate *CandidateProfile) { candidate.Platforms[0].ID = "windows-x86" },
+		"unsupported platform": func(candidate *CandidateProfile) { candidate.Platforms[0].ID = "unsupported-platform" },
 		"duplicate platform":   func(candidate *CandidateProfile) { candidate.Platforms[0].ID = candidate.Platforms[1].ID },
 		"mutable bundle": func(candidate *CandidateProfile) {
 			candidate.Platforms[0].Python.URLs["official"] = "https://example.invalid/latest/python.tar.gz"
@@ -151,8 +151,8 @@ func TestRuntimeInputsVerifyExactExecutableLayoutWithoutWriting(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(filepath.Dir(directory), "resources")); !os.IsNotExist(err) {
 				t.Fatal("preflight materialized resources")
 			}
-			if _, _, _, err := loadRuntimeInputs(manifest, "windows-x86", SecurityCandidateProfile, executable, operatingSystem); !errors.Is(err, domain.ErrRuntimeUnsupported) {
-				t.Fatal("candidate pretended to support x86", err)
+			if _, _, _, err := loadRuntimeInputs(manifest, "unsupported-platform", SecurityCandidateProfile, executable, operatingSystem); !errors.Is(err, domain.ErrRuntimeUnsupported) {
+				t.Fatal("candidate accepted an unsupported platform", err)
 			}
 			if _, _, _, err := loadRuntimeInputs(manifest, "darwin-x64", SecurityCandidateProfile, filepath.Join(t.TempDir(), "missing"), operatingSystem); err == nil {
 				t.Fatal("missing sidecar fell back")
