@@ -2,7 +2,7 @@ import type { LocaleCode, PetInventoryItem, PetStoreCatalogItemState, PetStoreSt
 
 export type PetStoreDisplayItem = PetStoreCatalogItemState | PetInventoryItem;
 
-export const shopImageModules = import.meta.glob("/src/assets/images/shop/**/*.png", {
+export const shopImageModules = import.meta.glob("@liberty-resources/images/pet/shop/**/*.png", {
   eager: true,
   import: "default",
 }) as Record<string, string>;

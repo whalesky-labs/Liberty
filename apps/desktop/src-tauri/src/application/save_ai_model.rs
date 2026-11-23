@@ -78,7 +78,7 @@ fn publish_model(
     target_reference: Option<&str>,
     retired_reference: Option<&str>,
 ) -> LocalResult<()> {
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = crate::infrastructure::time::utc_now();
     let transaction = connection
         .transaction()
         .map_err(|error| error.to_string())?;

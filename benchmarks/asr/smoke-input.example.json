@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "operator": "qa-operator-id",
   "deviceId": "registered-device-id",
-  "runtimeVersion": "2026.07.15-supply-chain.2",
+  "runtimeVersion": "2026.11.18-supply-chain.1",
   "modelSetVersion": "paraformer-zh-2026.07.15.2",
   "notes": "仅填写脱敏、可审核的信息。",
   "checks": [

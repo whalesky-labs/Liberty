@@ -1,4 +1,5 @@
-use chrono::{DateTime, Duration, Utc};
+use crate::infrastructure::time::{add_seconds, compare_iso, parse_iso, seconds_until};
+use jiff::Timestamp;
 use rusqlite::{params, OptionalExtension, Transaction};
 
 use crate::{
@@ -653,9 +654,9 @@ fn enrich_task(mut task: WorkGameTask, now: &str) -> LocalResult<WorkGameTask> {
         .as_deref()
         .map(parse_iso)
         .transpose()?
-        .unwrap_or_else(Utc::now);
+        .unwrap_or_else(Timestamp::now);
     let now_dt = parse_iso(now)?;
-    let elapsed = (now_dt - started_at).num_seconds().max(0);
+    let elapsed = now_dt.duration_since(started_at).as_secs().max(0);
     let duration = job.map(|value| value.duration_seconds).unwrap_or(1).max(1);
     task.progress_ratio = ((elapsed as f64) / (duration as f64)).clamp(0.0, 1.0);
     task.remaining_seconds = task
@@ -671,7 +672,7 @@ fn next_stage_at(now: &str, job: &WorkGameJobConfig) -> LocalResult<String> {
     let now_dt = parse_iso(now)?;
     let checkpoints = job.care_required + 1;
     let step_seconds = (job.duration_seconds / checkpoints.max(1)).max(60);
-    Ok((now_dt + Duration::seconds(step_seconds)).to_rfc3339())
+    add_seconds(now_dt, step_seconds)
 }
 
 fn reward_items_for_job(job: &WorkGameJobConfig, event_key: &str) -> Vec<WorkGameRewardItem> {
@@ -795,20 +796,6 @@ fn job_config_from_seed(game: &WorkGameSeed, seed: &WorkGameJobSeed) -> WorkGame
 
 fn task_id_for(game_key: &str, slot_index: i64) -> String {
     format!("{game_key}-slot-{slot_index}")
-}
-
-fn seconds_until(target: &str, now: &str) -> LocalResult<i64> {
-    Ok((parse_iso(target)? - parse_iso(now)?).num_seconds().max(0))
-}
-
-fn compare_iso(left: &str, right: &str) -> LocalResult<i64> {
-    Ok((parse_iso(left)? - parse_iso(right)?).num_seconds())
-}
-
-fn parse_iso(value: &str) -> LocalResult<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|value| value.with_timezone(&Utc))
-        .map_err(|err| format!("时间格式无效: {err}"))
 }
 
 fn deterministic_percent(seed: &str) -> i64 {

@@ -20,7 +20,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@liberty-contracts/*": ["../../packages/shared-types/src/generated/*"]
+      "@liberty-contracts/*": ["../../packages/shared-types/src/generated/*"],
+      "@liberty-resources/*": ["../../packages/desktop-resources/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "../../packages/shared-types/src/generated/*.ts"]

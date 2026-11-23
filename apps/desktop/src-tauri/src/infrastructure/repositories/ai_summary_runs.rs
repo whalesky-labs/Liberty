@@ -12,167 +12,42 @@ use crate::{
 };
 
 pub fn migrate_v7_ai_summary_runs(transaction: &Transaction<'_>) -> LocalResult<()> {
+    let [create_runs, columns @ .., create_chunks, complete_legacy, fail_legacy, fail_duplicates, unique_index, update_jobs] =
+        migrations::sql_blocks::<16>(include_str!(
+            "../../../../../../packages/desktop-resources/database/v07-summary-runs.sql"
+        ))?;
     transaction
-        .execute_batch(
-            "CREATE TABLE IF NOT EXISTS ai_summary_runs (
-               id TEXT PRIMARY KEY,
-               job_id TEXT NOT NULL,
-               model_config_id TEXT,
-               template_id TEXT,
-               include_speaker INTEGER NOT NULL DEFAULT 1,
-               include_timestamp INTEGER NOT NULL DEFAULT 1,
-               extra_instructions TEXT NOT NULL DEFAULT '',
-               status TEXT NOT NULL,
-               error_message TEXT,
-               prompt_preview TEXT,
-               raw_response TEXT,
-               result_json TEXT,
-               minutes_payload_json TEXT,
-               created_at TEXT NOT NULL,
-               updated_at TEXT NOT NULL,
-               FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
-             );",
-        )
+        .execute_batch(create_runs)
         .map_err(|error| error.to_string())?;
 
-    for (column, statement) in [
-        (
-            "transcript_revision",
-            "ALTER TABLE ai_summary_runs ADD COLUMN transcript_revision TEXT NOT NULL DEFAULT ''",
-        ),
-        (
-            "transcript_sha256",
-            "ALTER TABLE ai_summary_runs ADD COLUMN transcript_sha256 TEXT NOT NULL DEFAULT ''",
-        ),
-        (
-            "transcript_snapshot_json",
-            "ALTER TABLE ai_summary_runs ADD COLUMN transcript_snapshot_json TEXT NOT NULL DEFAULT ''",
-        ),
-        (
-            "execution_snapshot_json",
-            "ALTER TABLE ai_summary_runs ADD COLUMN execution_snapshot_json TEXT NOT NULL DEFAULT ''",
-        ),
-        (
-            "chunk_count",
-            "ALTER TABLE ai_summary_runs ADD COLUMN chunk_count INTEGER NOT NULL DEFAULT 0 CHECK (chunk_count >= 0)",
-        ),
-        (
-            "attempt_id",
-            "ALTER TABLE ai_summary_runs ADD COLUMN attempt_id INTEGER NOT NULL DEFAULT 0 CHECK (attempt_id >= 0)",
-        ),
-        (
-            "lease_token",
-            "ALTER TABLE ai_summary_runs ADD COLUMN lease_token INTEGER NOT NULL DEFAULT 0 CHECK (lease_token >= 0)",
-        ),
-        (
-            "diagnostics_json",
-            "ALTER TABLE ai_summary_runs ADD COLUMN diagnostics_json TEXT",
-        ),
-        (
-            "completed_at",
-            "ALTER TABLE ai_summary_runs ADD COLUMN completed_at TEXT",
-        ),
-    ] {
-        migrations::add_column_if_missing(
-            transaction,
-            "ai_summary_runs",
-            column,
-            statement,
-        )?;
+    let targets: [&str; 9] = [
+        "transcript_revision",
+        "transcript_sha256",
+        "transcript_snapshot_json",
+        "execution_snapshot_json",
+        "chunk_count",
+        "attempt_id",
+        "lease_token",
+        "diagnostics_json",
+        "completed_at",
+    ];
+    for (column, statement) in targets.into_iter().zip(columns) {
+        migrations::add_column_if_missing(transaction, "ai_summary_runs", column, statement)?;
     }
 
     transaction
-        .execute_batch(
-            "CREATE TABLE IF NOT EXISTS ai_summary_run_chunks (
-               run_id TEXT NOT NULL,
-               chunk_index INTEGER NOT NULL CHECK (chunk_index >= 0),
-               chunk_sha256 TEXT NOT NULL,
-               user_prompt TEXT NOT NULL,
-               status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed')),
-               raw_response TEXT,
-               structured_result_json TEXT,
-               attempt_id INTEGER NOT NULL DEFAULT 0 CHECK (attempt_id >= 0),
-               lease_token INTEGER NOT NULL DEFAULT 0 CHECK (lease_token >= 0),
-               created_at TEXT NOT NULL,
-               updated_at TEXT NOT NULL,
-               completed_at TEXT,
-               PRIMARY KEY(run_id, chunk_index),
-               FOREIGN KEY(run_id) REFERENCES ai_summary_runs(id) ON DELETE CASCADE
-             );
-             CREATE INDEX IF NOT EXISTS idx_ai_summary_runs_completed
-               ON ai_summary_runs(job_id, status, completed_at DESC, updated_at DESC, id DESC);
-             CREATE INDEX IF NOT EXISTS idx_ai_summary_run_chunks_pending
-               ON ai_summary_run_chunks(run_id, status, chunk_index);",
-        )
+        .execute_batch(create_chunks)
         .map_err(|error| error.to_string())?;
-
+    for statement in [complete_legacy, fail_legacy, fail_duplicates] {
+        transaction
+            .execute(statement, [])
+            .map_err(|error| error.to_string())?;
+    }
     transaction
-        .execute(
-            "UPDATE ai_summary_runs
-             SET completed_at = COALESCE(completed_at, updated_at)
-             WHERE status = 'completed' AND completed_at IS NULL",
-            [],
-        )
+        .execute_batch(unique_index)
         .map_err(|error| error.to_string())?;
     transaction
-        .execute(
-            "UPDATE ai_summary_runs
-             SET status = 'failed',
-                 error_message = COALESCE(
-                   error_message,
-                   '旧版本未完成的 AI 总结无法恢复，请重新生成。'
-                 )
-             WHERE status = 'running' AND execution_snapshot_json = ''",
-            [],
-        )
-        .map_err(|error| error.to_string())?;
-    transaction
-        .execute(
-            "UPDATE ai_summary_runs AS stale
-             SET status = 'failed',
-                 error_message = '检测到同一任务存在重复运行，已由较新的运行接管。'
-             WHERE stale.status = 'running'
-               AND EXISTS (
-                 SELECT 1 FROM ai_summary_runs AS newer
-                 WHERE newer.job_id = stale.job_id
-                   AND newer.status = 'running'
-                   AND (
-                     newer.updated_at > stale.updated_at
-                     OR (newer.updated_at = stale.updated_at AND newer.id > stale.id)
-                   )
-               )",
-            [],
-        )
-        .map_err(|error| error.to_string())?;
-    transaction
-        .execute_batch(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_summary_runs_one_running_per_job
-               ON ai_summary_runs(job_id) WHERE status = 'running';",
-        )
-        .map_err(|error| error.to_string())?;
-    transaction
-        .execute(
-            "UPDATE jobs
-             SET summary_status = CASE
-               WHEN EXISTS (
-                 SELECT 1 FROM ai_summary_runs
-                 WHERE job_id = jobs.id AND status = 'running'
-               ) THEN 'summarizing'
-               WHEN EXISTS (
-                 SELECT 1 FROM ai_summary_runs
-                 WHERE job_id = jobs.id AND status = 'completed' AND result_json IS NOT NULL
-               ) THEN 'completed'
-               WHEN EXISTS (
-                 SELECT 1 FROM ai_summary_runs
-                 WHERE job_id = jobs.id AND status = 'failed'
-               ) THEN 'failed'
-               ELSE 'idle'
-             END
-             WHERE EXISTS (
-               SELECT 1 FROM ai_summary_runs WHERE job_id = jobs.id
-             )",
-            [],
-        )
+        .execute(update_jobs, [])
         .map_err(|error| error.to_string())?;
     Ok(())
 }

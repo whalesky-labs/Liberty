@@ -17,6 +17,7 @@ export default defineConfig({
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
       "@liberty-contracts": fileURLToPath(new URL("../../packages/shared-types/src/generated", import.meta.url)),
+      "@liberty-resources": fileURLToPath(new URL("../../packages/desktop-resources", import.meta.url)),
     },
   },
   server: {

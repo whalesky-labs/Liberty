@@ -1,4 +1,5 @@
-use chrono::{DateTime, Duration, Utc};
+use crate::infrastructure::time::{add_seconds, compare_iso, parse_iso, seconds_until};
+use jiff::Timestamp;
 use rusqlite::{params, OptionalExtension, Transaction};
 
 use crate::{
@@ -504,9 +505,9 @@ fn enrich_plot(mut plot: FarmPlot, now: &str) -> LocalResult<FarmPlot> {
         .as_deref()
         .map(parse_iso)
         .transpose()?
-        .unwrap_or_else(Utc::now);
+        .unwrap_or_else(Timestamp::now);
     let now_dt = parse_iso(now)?;
-    let elapsed = (now_dt - planted_at).num_seconds().max(0);
+    let elapsed = now_dt.duration_since(planted_at).as_secs().max(0);
     let duration = crop.map(|value| value.duration_seconds).unwrap_or(1).max(1);
     plot.progress_ratio = ((elapsed as f64) / (duration as f64)).clamp(0.0, 1.0);
     plot.remaining_seconds = plot
@@ -521,7 +522,7 @@ fn next_stage_at(now: &str, crop: &FarmCropConfig) -> LocalResult<String> {
     let now_dt = parse_iso(now)?;
     let checkpoints = crop.water_required + 1;
     let step_seconds = (crop.duration_seconds / checkpoints.max(1)).max(60);
-    Ok((now_dt + Duration::seconds(step_seconds)).to_rfc3339())
+    add_seconds(now_dt, step_seconds)
 }
 
 fn reward_items_for_crop(crop: &FarmCropConfig, event_key: &str) -> Vec<FarmRewardItem> {
@@ -639,20 +640,6 @@ fn farm_summary(state: &FarmState) -> WorkMapSummary {
             .filter(|plot| plot.status == STATUS_MATURE)
             .count() as i64,
     }
-}
-
-fn seconds_until(target: &str, now: &str) -> LocalResult<i64> {
-    Ok((parse_iso(target)? - parse_iso(now)?).num_seconds().max(0))
-}
-
-fn compare_iso(left: &str, right: &str) -> LocalResult<i64> {
-    Ok((parse_iso(left)? - parse_iso(right)?).num_seconds())
-}
-
-fn parse_iso(value: &str) -> LocalResult<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|value| value.with_timezone(&Utc))
-        .map_err(|err| format!("时间格式无效: {err}"))
 }
 
 fn map_plot(row: &rusqlite::Row<'_>) -> rusqlite::Result<FarmPlot> {

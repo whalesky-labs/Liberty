@@ -146,6 +146,21 @@ pub(crate) fn load_job(
     conn: &Connection,
     job_id: &str,
 ) -> LocalResult<MeetingJob> {
+    let mut job = load_job_snapshot(conn, job_id)?;
+    if should_apply_progress_snapshot(&job) {
+        if let Some(dir) = active_attempt_dir(app, conn, &job.id)? {
+            if let Ok(progress) = progress::read_runner_progress(&dir.join("progress.json")) {
+                progress::apply_progress_snapshot(&mut job, &progress);
+            }
+        }
+    }
+
+    Ok(job)
+}
+
+// Pure persisted projection, shared with the native cross-language fixture.
+// Runtime progress is applied by load_job only after this snapshot is loaded.
+pub(super) fn load_job_snapshot(conn: &Connection, job_id: &str) -> LocalResult<MeetingJob> {
     let base = load_job_base(conn, job_id)?;
 
     let mut job = base.ok_or_else(|| "没有找到这个任务。".to_string())?;
@@ -187,14 +202,6 @@ pub(crate) fn load_job(
 
     if job.summary_runs.is_empty() && job.summary_status == "queued" {
         job.summary_status = "idle".into();
-    }
-
-    if should_apply_progress_snapshot(&job) {
-        if let Some(dir) = active_attempt_dir(app, conn, &job.id)? {
-            if let Ok(progress) = progress::read_runner_progress(&dir.join("progress.json")) {
-                progress::apply_progress_snapshot(&mut job, &progress);
-            }
-        }
     }
 
     Ok(job)
@@ -273,7 +280,7 @@ pub(crate) fn list_job_summaries(
     Ok(jobs)
 }
 
-fn query_job_summaries(conn: &Connection) -> LocalResult<Vec<MeetingJob>> {
+pub(super) fn query_job_summaries(conn: &Connection) -> LocalResult<Vec<MeetingJob>> {
     let mut statement = conn
         .prepare(
             "SELECT id, title, created_at, duration_minutes, lang, enable_speaker,
@@ -298,7 +305,7 @@ fn query_job_summaries(conn: &Connection) -> LocalResult<Vec<MeetingJob>> {
     Ok(jobs)
 }
 
-fn attach_source_files(conn: &Connection, jobs: &mut [MeetingJob]) -> LocalResult<()> {
+pub(super) fn attach_source_files(conn: &Connection, jobs: &mut [MeetingJob]) -> LocalResult<()> {
     let job_indexes = jobs
         .iter()
         .enumerate()
@@ -502,7 +509,7 @@ fn load_source_files(conn: &Connection, job_id: &str) -> LocalResult<Vec<Meeting
     Ok(items)
 }
 
-fn load_segments(
+pub(super) fn load_segments(
     conn: &Connection,
     job_id: &str,
     segment_type: &str,

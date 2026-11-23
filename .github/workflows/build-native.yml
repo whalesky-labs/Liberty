@@ -1,0 +1,189 @@
+name: Build Native Candidates
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  GOTOOLCHAIN: go1.27.4
+  GOFLAGS: -mod=readonly
+
+concurrency:
+  group: native-candidate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    name: Independent Native Quality
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '1.27.4'
+          cache-dependency-path: apps/native/go.sum
+      - name: Install pinned root tooling
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.30.3 --activate
+          test "$(pnpm --version)" = "10.30.3"
+          pnpm --filter liberty-workspace install --frozen-lockfile --ignore-scripts
+      - name: Bootstrap Python test tools
+        run: pnpm python:bootstrap
+      - name: Verify Native sources, Python and candidate policy
+        run: pnpm native:verify
+      - name: Replay frozen Native compatibility fixtures
+        run: pnpm native:compat
+      - name: Check Native concurrency
+        working-directory: apps/native
+        run: go test -race -count=1 -timeout=30m ./...
+      - name: Compile all four Native targets
+        run: pnpm native:build:matrix
+      - name: Check Native licenses
+        run: pnpm native:licenses:check
+      - name: Generate Native SBOM
+        run: pnpm native:sbom:generate
+      - name: Upload Native SBOM and notices
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: liberty-native-sbom-${{ github.sha }}
+          path: |
+            artifacts/sbom/liberty-native.cdx.json
+            artifacts/sbom/native-go-NOTICES.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  security:
+    name: Required Native Dependency Security
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '1.27.4'
+          cache-dependency-path: apps/native/go.sum
+      - name: Install pinned root tooling
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.30.3 --activate
+          test "$(pnpm --version)" = "10.30.3"
+          pnpm --filter liberty-workspace install --frozen-lockfile --ignore-scripts
+      - name: Install authenticated OSV Scanner
+        shell: bash
+        run: |
+          mkdir -p "${RUNNER_TEMP}/liberty-native-security"
+          curl --location --fail --silent --show-error \
+            --output "${RUNNER_TEMP}/liberty-native-security/osv-scanner" \
+            "https://github.com/google/osv-scanner/releases/download/v2.5.0/osv-scanner_linux_amd64"
+          printf '%s  %s\n' \
+            'edcfc41d257db36148f065055655fe3fcfc434b0b423ea67468a84c207524e0c' \
+            "${RUNNER_TEMP}/liberty-native-security/osv-scanner" | sha256sum --check
+          chmod 0755 "${RUNNER_TEMP}/liberty-native-security/osv-scanner"
+          echo "${RUNNER_TEMP}/liberty-native-security" >> "$GITHUB_PATH"
+      - name: Enforce real Native vulnerability scan
+        run: pnpm native:security:check
+
+  build:
+    name: Candidate (${{ matrix.target }})
+    needs: quality
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin-aarch64
+            runner: macos-latest
+            system: darwin
+            arch: arm64
+          - target: darwin-x64
+            runner: macos-15-intel
+            system: darwin
+            arch: amd64
+          - target: windows-x64
+            runner: windows-2022
+            system: windows
+            arch: amd64
+          - target: windows-x86
+            runner: windows-2022
+            system: windows
+            arch: '386'
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '1.27.4'
+          cache-dependency-path: apps/native/go.sum
+      - name: Execute target tests and isolated system credentials
+        working-directory: apps/native
+        shell: bash
+        env:
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: '0'
+          EXPECTED_SYSTEM: ${{ matrix.system }}
+        run: |
+          test "$(go env GOHOSTOS)" = "$EXPECTED_SYSTEM"
+          if [[ "$EXPECTED_SYSTEM" = darwin ]]; then
+            test "$(go env GOHOSTARCH)" = "$GOARCH"
+          else
+            test "$(go env GOHOSTARCH)" = amd64
+          fi
+          go test -count=1 -timeout=30m ./...
+          go test -count=1 -tags credentials_acceptance ./internal/infrastructure/credentials
+      - name: Package and execute extracted candidate
+        shell: bash
+        env:
+          NATIVE_TARGET: ${{ matrix.target }}
+        run: node scripts/package-native.mjs --target "$NATIVE_TARGET" --verify-host
+      - name: Verify exact archive, manifest and checksums
+        shell: bash
+        env:
+          NATIVE_TARGET: ${{ matrix.target }}
+          NATIVE_COMMIT: ${{ github.sha }}
+        run: node scripts/check-native-release-policy.mjs verify-artifacts --target "$NATIVE_TARGET" --commit "$NATIVE_COMMIT" --output "artifacts/native/$NATIVE_TARGET"
+      - name: Upload verified unsigned candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: liberty-native-candidate-${{ matrix.target }}-${{ github.sha }}
+          path: artifacts/native/${{ matrix.target }}/
+          if-no-files-found: error
+          retention-days: 14

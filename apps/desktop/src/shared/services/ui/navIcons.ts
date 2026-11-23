@@ -1,34 +1,11 @@
 import { getIconData, iconToSVG } from "@iconify/utils";
 import { icons as f7Icons } from "@iconify-json/f7";
+import { navIconNames } from "@liberty-resources/presentation/icons";
 
-const iconNames = {
-  dashboard: "house",
-  plus: "plus-circle",
-  tray: "tray",
-  market: "rectangle-grid-2x2",
-  chip: "cube-box",
-  doc: "doc-text",
-  people: "person-2",
-  pet: "paw",
-  store: "bag",
-  check: "calendar-badge-plus",
-  gift: "gift",
-  key: "ticket",
-  gear: "gear",
-  mode: "speedometer",
-  processing: "timer",
-  search: "search",
-  appearance: "paintbrush",
-  accent: "slider-horizontal-3",
-  remote: "cloud",
-  diagnostics: "checkmark-shield",
-  back: "chevron-left",
-} as const;
-
-export type NavIconKey = keyof typeof iconNames;
+export type NavIconKey = keyof typeof navIconNames;
 
 export const navIconSvg = Object.fromEntries(
-  Object.entries(iconNames).map(([key, name]) => {
+  Object.entries(navIconNames).map(([key, name]) => {
     const iconData = getIconData(f7Icons, name);
     const iconSvg = iconData
       ? iconToSVG(iconData, {

@@ -21,10 +21,10 @@ type PetFrameEntry = {
   url: string;
 };
 
-const petImageModules = import.meta.glob(["/src/assets/images/action/*/*.png", "/src/assets/images/*/*.png"], {
-  eager: true,
-  import: "default",
-}) as Record<string, string>;
+const petImageModules = import.meta.glob(
+  ["@liberty-resources/images/pet/action/*/*.png", "@liberty-resources/images/pet/*/*.png"],
+  { eager: true, import: "default" },
+) as Record<string, string>;
 
 const moodImageGroupMap: Record<PetMood, PetImageGroup> = {
   idle: "slack",
@@ -169,7 +169,7 @@ function buildPetImageGroups() {
 }
 
 function isActionImagePath(path: string) {
-  return path.includes("/assets/images/action/");
+  return path.includes("/images/pet/action/");
 }
 
 const petImageGroups = buildPetImageGroups();

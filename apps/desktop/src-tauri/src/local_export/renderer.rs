@@ -17,11 +17,11 @@ use crate::local_export::output::{
 use crate::local_export::parser::{is_missing_value, starts_with_numbered_item};
 use crate::local_export::xml::{
     child_elements, child_elements_count, child_elements_mut, clone_with_text, find_child_mut,
-    local_name, remove_last_child_element, set_cell_value, set_first_text,
+    local_name, parse_document_xml, remove_last_child_element, set_cell_value, set_first_text,
 };
 
 pub const TEMPLATE_DOCX_BYTES: &[u8] =
-    include_bytes!("../../resources/templates/meeting-minutes.docx");
+    include_bytes!("../../../../../packages/desktop-resources/templates/meeting-minutes.docx");
 
 pub fn export_summary_docx(data: &ExportDocData, output_path: &Path) -> LocalResult<()> {
     export_summary_docx_with_template(data, output_path, TEMPLATE_DOCX_BYTES)
@@ -64,7 +64,7 @@ fn write_summary_docx(data: &ExportDocData, output: File, template: &[u8]) -> Lo
 
     for index in 0..archive.len() {
         let mut source = archive.by_index(index).map_err(|err| err.to_string())?;
-        let name = source.name().to_string();
+        let name = source.name().map_err(|err| err.to_string())?.into_owned();
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
 
         writer
@@ -107,7 +107,7 @@ fn validate_docx(path: &Path) -> LocalResult<()> {
         let mut entry = archive
             .by_index(index)
             .map_err(|err| format!("导出文件 ZIP 条目校验失败: {err}"))?;
-        let name = entry.name().to_string();
+        let name = entry.name().map_err(|err| err.to_string())?.into_owned();
         if name.contains('\\') || entry.enclosed_name().is_none() || entry.is_symlink() {
             return Err(format!("导出文件包含不安全的 ZIP 条目: {name}"));
         }
@@ -145,8 +145,7 @@ fn validate_docx(path: &Path) -> LocalResult<()> {
 }
 
 pub fn render_document_xml(xml: &str, data: &ExportDocData) -> LocalResult<String> {
-    let mut root =
-        Element::parse(xml.as_bytes()).map_err(|err| format!("会议纪要模板解析失败: {err}"))?;
+    let mut root = parse_document_xml(xml).map_err(|err| format!("会议纪要模板解析失败: {err}"))?;
     let body = find_child_mut(&mut root, "body")
         .ok_or_else(|| "会议纪要模板缺少文档主体。".to_string())?;
     let title_paragraph =
@@ -409,6 +408,49 @@ mod tests {
         let mut xml = String::new();
         document.read_to_string(&mut xml).unwrap();
         xml
+    }
+
+    fn attributes_of(xml: &str, element_name: &str) -> Vec<Vec<xml::attribute::OwnedAttribute>> {
+        xml::reader::EventReader::from_str(xml)
+            .into_iter()
+            .filter_map(|event| match event.unwrap() {
+                xml::reader::XmlEvent::StartElement {
+                    name,
+                    mut attributes,
+                    ..
+                } if name.local_name == element_name => {
+                    attributes.sort_by_key(|attribute| attribute.name.to_string());
+                    Some(attributes)
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn preserves_template_formatting_attribute_namespaces() {
+        let original = template_xml();
+        let rendered = render_document_xml(&original, &ExportDocData::default()).unwrap();
+
+        for element_name in ["pgSz", "pgMar", "tblW", "top", "rFonts", "jc"] {
+            let expected = attributes_of(&original, element_name);
+            let actual = attributes_of(&rendered, element_name);
+            assert!(!expected.is_empty(), "missing template {element_name}");
+            assert_eq!(actual.first(), expected.first(), "{element_name}");
+        }
+    }
+
+    #[test]
+    fn preserves_attribute_prefixes_shared_local_names_and_namespace_scopes() {
+        let probe = r#"<qa:probe xmlns:qa="urn:liberty:probe" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" w:val="word" r:val="relationship" qa:val="probe" val="plain" xml:space="preserve" r:id="rIdSynthetic"><qa:probe xmlns:w="urn:liberty:shadow-word" xmlns="urn:liberty:default" w:val="shadow" r:val="inherited" qa:val="probe-child" val="plain-child" xml:lang="zh-CN"><probe xmlns:other="urn:liberty:other" other:val="other" val="default-element-plain-attribute"><probe xmlns="" w:val="reset" r:id="rIdReset" xml:space="preserve" /></probe></qa:probe><qa:probe w:val="restored" r:id="rIdRestored" /></qa:probe>"#;
+        let original = template_xml().replace("</w:body>", &format!("{probe}</w:body>"));
+        let expected = attributes_of(&original, "probe");
+        assert_eq!(expected.len(), 5);
+        assert_eq!(expected[0].len(), 6);
+
+        let rendered = render_document_xml(&original, &ExportDocData::default()).unwrap();
+
+        assert_eq!(attributes_of(&rendered, "probe"), expected);
     }
 
     #[test]

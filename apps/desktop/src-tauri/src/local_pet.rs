@@ -1,10 +1,10 @@
+use crate::infrastructure::time::utc_now;
 use crate::local_db::{
     self, LocalResult, PetBlindBoxDrawResult, PetBlindBoxState, PetCosmeticUnlock,
     PetDailyCheckInClaimResult, PetDailyCheckInMakeupResult, PetDailyCheckInState,
     PetEventLedgerEntry, PetGiftBoxOpenResult, PetProfile, PetRedeemKeyRedemption,
     PetRedeemKeyResult, PetSettings, PetStoreState,
 };
-use chrono::Utc;
 use serde::Deserialize;
 use tauri::AppHandle;
 
@@ -78,7 +78,7 @@ pub fn save_pet_profile(app: AppHandle, input: SavePetProfileInput) -> LocalResu
 
     let mut profile = local_db::get_pet_profile(&app)?;
     profile.name = normalized_name.to_string();
-    profile.updated_at = Utc::now().to_rfc3339();
+    profile.updated_at = utc_now();
     local_db::save_pet_profile(&app, &profile)
 }
 
@@ -98,10 +98,10 @@ pub fn save_pet_settings(app: AppHandle, input: SavePetSettingsInput) -> LocalRe
         proactive_level: input.proactive_level.clamp(0, 3),
         last_window_x: input.last_window_x,
         last_window_y: input.last_window_y,
-        updated_at: Utc::now().to_rfc3339(),
+        updated_at: utc_now(),
     };
 
-    local_db::save_pet_settings(&app, &settings)
+    local_db::save_pet_preferences(&app, &settings)
 }
 
 #[tauri::command]

@@ -1,4 +1,4 @@
-use chrono::{Days, Local, SecondsFormat, TimeZone, Utc};
+use jiff::{ToSpan, Zoned};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use crate::domain::dashboard::{
@@ -38,29 +38,26 @@ impl DashboardRange {
     }
 
     fn start_at(self) -> LocalResult<Option<String>> {
+        self.start_at_local(&Zoned::now())
+    }
+
+    fn start_at_local(self, now: &Zoned) -> LocalResult<Option<String>> {
         let days_before_today = match self {
             Self::Today => 0,
             Self::SevenDays => 6,
             Self::ThirtyDays => 29,
             Self::All => return Ok(None),
         };
-        let date = Local::now()
-            .date_naive()
-            .checked_sub_days(Days::new(days_before_today))
-            .ok_or_else(|| "无法计算工作台时间范围。".to_string())?;
-        let local_start = Local
-            .from_local_datetime(
-                &date
-                    .and_hms_opt(0, 0, 0)
-                    .ok_or_else(|| "无法计算工作台起始时间。".to_string())?,
-            )
-            .single()
-            .ok_or_else(|| "工作台起始时间存在时区歧义。".to_string())?;
-        Ok(Some(
-            local_start
-                .with_timezone(&Utc)
-                .to_rfc3339_opts(SecondsFormat::Millis, true),
-        ))
+        let date = now
+            .date()
+            .checked_sub(days_before_today.days())
+            .map_err(|_| "无法计算工作台时间范围。".to_string())?;
+        let start = now
+            .time_zone()
+            .to_ambiguous_timestamp(date.at(0, 0, 0, 0))
+            .unambiguous()
+            .map_err(|_| "工作台起始时间存在时区歧义。".to_string())?;
+        Ok(Some(format!("{start:.3}")))
     }
 }
 
@@ -365,6 +362,29 @@ fn query_companion(conn: &Connection) -> LocalResult<Option<DashboardCompanionSu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ranges_use_local_calendar_midnight_across_dst_changes() {
+        let now = "2024-03-12T12:00-04:00[America/New_York]"
+            .parse::<Zoned>()
+            .unwrap();
+        for (range, expected) in [
+            (DashboardRange::Today, Some("2024-03-12T04:00:00.000Z")),
+            (DashboardRange::SevenDays, Some("2024-03-06T05:00:00.000Z")),
+            (DashboardRange::ThirtyDays, Some("2024-02-12T05:00:00.000Z")),
+            (DashboardRange::All, None),
+        ] {
+            assert_eq!(range.start_at_local(&now).unwrap().as_deref(), expected);
+        }
+        for noon in [
+            "2024-03-10T12:00[America/Havana]",
+            "2024-11-03T12:00[America/Havana]",
+        ] {
+            assert!(DashboardRange::Today
+                .start_at_local(&noon.parse().unwrap())
+                .is_err());
+        }
+    }
 
     fn test_connection() -> Connection {
         let connection = Connection::open_in_memory().expect("database");

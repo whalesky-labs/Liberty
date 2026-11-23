@@ -7,6 +7,7 @@ use crate::{
             pet_blind_box, pet_check_in, pet_redeem_key, pet_store, runtime_state, settings,
             work_game,
         },
+        time::utc_now,
     },
 };
 use rusqlite::{params, Connection, Transaction, TransactionBehavior};
@@ -56,6 +57,8 @@ mod job_deletions;
 mod jobs;
 mod legacy;
 mod model;
+#[cfg(test)]
+mod native_fixture;
 mod pet_growth;
 pub(crate) mod pet_leveling;
 mod progress;
@@ -267,7 +270,7 @@ pub fn get_work_market_state(app: &AppHandle) -> LocalResult<WorkMarketState> {
     init_database(app)?;
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     let state = farm::work_market_state_tx(&tx, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     Ok(state)
@@ -277,7 +280,7 @@ pub fn get_farm_state(app: &AppHandle) -> LocalResult<FarmState> {
     init_database(app)?;
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     let state = farm::state_tx(&tx, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     Ok(state)
@@ -287,7 +290,7 @@ pub fn plant_farm_crop(app: &AppHandle, plot_id: &str, crop_key: &str) -> LocalR
     init_database(app)?;
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     let state = farm::plant_crop_tx(&tx, plot_id, crop_key, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     Ok(state)
@@ -297,7 +300,7 @@ pub fn water_farm_plot(app: &AppHandle, plot_id: &str) -> LocalResult<FarmState>
     init_database(app)?;
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     let state = farm::water_plot_tx(&tx, plot_id, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     Ok(state)
@@ -307,7 +310,7 @@ pub fn harvest_farm_plot(app: &AppHandle, plot_id: &str) -> LocalResult<FarmHarv
     init_database(app)?;
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     let (state, harvest) = farm::harvest_plot_tx(&tx, plot_id, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     Ok(FarmHarvestResult { state, harvest })
@@ -320,7 +323,7 @@ pub fn list_farm_harvest_ledger(
     init_database(app)?;
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     farm::state_tx(&tx, &now)?;
     let entries = farm::list_harvest_ledger_tx(&tx, limit)?;
     tx.commit().map_err(|err| err.to_string())?;
@@ -331,7 +334,7 @@ pub fn get_work_game_state(app: &AppHandle, game_key: &str) -> LocalResult<WorkG
     init_database(app)?;
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     let state = work_game::state_tx(&tx, game_key, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     Ok(state)
@@ -346,7 +349,7 @@ pub fn start_work_game_task(
     init_database(app)?;
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     let state = work_game::start_task_tx(&tx, game_key, task_id, job_key, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     Ok(state)
@@ -360,7 +363,7 @@ pub fn care_work_game_task(
     init_database(app)?;
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     let state = work_game::care_task_tx(&tx, game_key, task_id, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     Ok(state)
@@ -374,7 +377,7 @@ pub fn claim_work_game_task(
     init_database(app)?;
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     let result = work_game::claim_task_tx(&tx, game_key, task_id, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     Ok(result)
@@ -1265,7 +1268,7 @@ pub fn get_pet_store_state(app: &AppHandle) -> LocalResult<PetStoreState> {
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     pet::reconcile_profile_leveling(&conn)?;
@@ -1278,7 +1281,7 @@ pub fn get_pet_blind_box_state(app: &AppHandle) -> LocalResult<PetBlindBoxState>
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     pet::reconcile_profile_leveling(&conn)?;
@@ -1291,7 +1294,7 @@ pub fn draw_pet_blind_box(app: &AppHandle) -> LocalResult<PetBlindBoxDrawResult>
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     let profile = pet::load_profile_tx(&tx)?;
     let draw = pet_blind_box::draw_blind_box_tx(&tx, &profile, &now)?;
@@ -1305,7 +1308,7 @@ pub fn get_pet_daily_check_in_state(app: &AppHandle) -> LocalResult<PetDailyChec
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
     pet::reconcile_profile_leveling(&conn)?;
@@ -1318,7 +1321,7 @@ pub fn claim_pet_daily_check_in(app: &AppHandle) -> LocalResult<PetDailyCheckInC
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     let profile = pet::load_profile_tx(&tx)?;
     let (entry, duplicate) = pet_check_in::claim_daily_check_in_tx(&tx, &profile, &now)?;
@@ -1333,7 +1336,7 @@ pub fn repair_pet_daily_check_in(app: &AppHandle) -> LocalResult<PetDailyCheckIn
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     let profile = pet::load_profile_tx(&tx)?;
     let entry = pet_check_in::repair_daily_check_in_tx(&tx, &profile, &now)?;
@@ -1362,12 +1365,19 @@ pub fn get_pet_settings(app: &AppHandle) -> LocalResult<PetSettings> {
     pet::load_settings(&conn)
 }
 
-pub fn save_pet_settings(app: &AppHandle, settings: &PetSettings) -> LocalResult<PetSettings> {
+pub fn save_pet_preferences(app: &AppHandle, settings: &PetSettings) -> LocalResult<PetSettings> {
     init_database(app)?;
     let conn = open_connection(app)?;
     pet::ensure_default_exists(&conn)?;
-    pet::save_settings(&conn, settings)?;
+    pet::save_preferences(&conn, settings)?;
     pet::load_settings(&conn)
+}
+
+pub fn save_pet_position(app: &AppHandle, x: f64, y: f64) -> LocalResult<()> {
+    init_database(app)?;
+    let conn = open_connection(app)?;
+    pet::ensure_default_exists(&conn)?;
+    pet::save_position(&conn, x, y, &utc_now())
 }
 
 pub fn list_pet_event_ledger(
@@ -1416,7 +1426,7 @@ pub fn purchase_pet_store_item(
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     let profile = pet::load_profile_tx(&tx)?;
     pet_store::purchase_item_tx(&tx, &profile, item_key, quantity, &now)?;
@@ -1430,7 +1440,7 @@ pub fn equip_pet_inventory_item(app: &AppHandle, item_key: &str) -> LocalResult<
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     pet_store::equip_item_tx(&tx, item_key, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
@@ -1443,7 +1453,7 @@ pub fn unequip_pet_inventory_slot(app: &AppHandle, slot: &str) -> LocalResult<Pe
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     pet_store::unequip_slot_tx(&tx, slot, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
@@ -1460,7 +1470,7 @@ pub fn use_pet_inventory_item(
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     pet_store::use_item_tx(&tx, item_key, quantity, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
@@ -1473,7 +1483,7 @@ pub fn open_pet_gift_box(app: &AppHandle) -> LocalResult<PetGiftBoxOpenResult> {
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     let (prize, duplicate, duplicate_compensation_lp) = pet_store::open_gift_box_tx(&tx, &now)?;
     tx.commit().map_err(|err| err.to_string())?;
@@ -1491,7 +1501,7 @@ pub fn redeem_pet_key(app: &AppHandle, key: &str) -> LocalResult<PetRedeemKeyRes
     let mut conn = open_connection(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     let profile = pet::load_profile_tx(&tx)?;
     let (redemption, rewards, duplicate) = pet_redeem_key::redeem_key_tx(&tx, profile, key, &now)?;

@@ -144,7 +144,7 @@ pub fn start_or_resume(
             user_prompt,
         })
         .collect::<Vec<_>>();
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = crate::infrastructure::time::utc_now();
     let run = AiSummaryRun {
         id: ids::timestamped_id("summary-run"),
         job_id: snapshot.job.id.clone(),
@@ -208,7 +208,7 @@ fn spawn_claimed_execution(app: AppHandle, job_id: &str, run_id: &str) -> LocalR
             &mut conn,
             job_id,
             run_id,
-            &chrono::Utc::now().to_rfc3339(),
+            &crate::infrastructure::time::utc_now(),
         )
     })();
     let lease = match claim_result {
@@ -231,7 +231,7 @@ fn spawn_claimed_execution(app: AppHandle, job_id: &str, run_id: &str) -> LocalR
                     &mut conn,
                     &lease,
                     &error,
-                    &chrono::Utc::now().to_rfc3339(),
+                    &crate::infrastructure::time::utc_now(),
                 );
             }
         }
@@ -288,7 +288,7 @@ async fn execute_claimed_run(app: &AppHandle, lease: &AiSummaryRunLease) -> Loca
             &chunk,
             &completion.raw_response,
             &structured_json,
-            &chrono::Utc::now().to_rfc3339(),
+            &crate::infrastructure::time::utc_now(),
         )? {
             return Err("AI 总结运行租约已失效。".into());
         }
@@ -319,7 +319,7 @@ async fn execute_claimed_run(app: &AppHandle, lease: &AiSummaryRunLease) -> Loca
         .map_err(|error| format!("会议纪要 payload 序列化失败: {error}"))?;
     let diagnostics_json = serde_json::to_string(&diagnostics)
         .map_err(|error| format!("AI 总结诊断序列化失败: {error}"))?;
-    let completed_at = chrono::Utc::now().to_rfc3339();
+    let completed_at = crate::infrastructure::time::utc_now();
     let mut conn = local_db::open_connection(app)?;
     let completed = ai_summary_runs::complete_execution(
         &mut conn,

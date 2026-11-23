@@ -5,7 +5,7 @@ const tauriConfig = JSON.parse(
   readFileSync("apps/desktop/src-tauri/tauri.conf.json", "utf8"),
 );
 const runtimeManifest = JSON.parse(
-  readFileSync("apps/desktop/src-tauri/resources/runtime-manifest.json", "utf8"),
+  readFileSync("packages/desktop-resources/runtime/runtime-manifest.json", "utf8"),
 );
 const systemSource = readFileSync(
   "apps/desktop/src-tauri/src/system.rs",

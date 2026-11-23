@@ -98,16 +98,12 @@ pub fn credential_key_for_remote_api_token() -> &'static str {
 #[cfg(target_os = "macos")]
 fn get_system_secret(key: &str) -> CredentialResult<Option<String>> {
     let output = Command::new(MACOS_SECURITY_PATH)
-        .args(["find-generic-password", "-s", SERVICE_NAME, "-a", key, "-w"])
+        .args(["find-generic-password", "-s", SERVICE_NAME, "-a", key, "-g"])
         .output()
         .map_err(|err| AppError::Infrastructure(format!("读取 macOS Keychain 失败: {err}")))?;
 
     if output.status.success() {
-        return Ok(Some(
-            String::from_utf8_lossy(&output.stdout)
-                .trim_end_matches(['\r', '\n'])
-                .to_string(),
-        ));
+        return parse_keychain_password(&output.stderr).map(Some);
     }
 
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -115,24 +111,16 @@ fn get_system_secret(key: &str) -> CredentialResult<Option<String>> {
         return Ok(None);
     }
 
-    Err(AppError::Infrastructure(format!(
-        "读取 macOS Keychain 失败: {}",
-        stderr.trim()
-    )))
+    Err(AppError::Infrastructure(
+        "读取 macOS Keychain 失败。".into(),
+    ))
 }
 
 #[cfg(target_os = "macos")]
 fn set_system_secret(key: &str, value: &str) -> CredentialResult<()> {
+    let input = keychain_write_input(SERVICE_NAME, key, value)?;
     let mut child = Command::new(MACOS_SECURITY_PATH)
-        .args([
-            "add-generic-password",
-            "-U",
-            "-s",
-            SERVICE_NAME,
-            "-a",
-            key,
-            "-w",
-        ])
+        .args(["-i"])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -144,12 +132,9 @@ fn set_system_secret(key: &str, value: &str) -> CredentialResult<()> {
         .take()
         .ok_or_else(|| AppError::Infrastructure("无法打开 macOS Keychain 输入通道。".into()))
         .and_then(|mut stdin| {
-            stdin
-                .write_all(value.as_bytes())
-                .and_then(|()| stdin.write_all(b"\n"))
-                .map_err(|err| {
-                    AppError::Infrastructure(format!("写入 macOS Keychain 输入失败: {err}"))
-                })
+            stdin.write_all(input.as_bytes()).map_err(|err| {
+                AppError::Infrastructure(format!("写入 macOS Keychain 输入失败: {err}"))
+            })
         });
     if let Err(error) = write_result {
         let _ = child.kill();
@@ -162,14 +147,61 @@ fn set_system_secret(key: &str, value: &str) -> CredentialResult<()> {
         .map_err(|err| AppError::Infrastructure(format!("等待 macOS Keychain 写入失败: {err}")))?;
 
     if output.status.success() {
+        if get_system_secret(key)?.as_deref() != Some(value) {
+            return Err(AppError::Infrastructure("系统凭据写入校验失败。".into()));
+        }
         Ok(())
     } else {
-        let detail = String::from_utf8_lossy(&output.stderr);
-        Err(AppError::Infrastructure(format!(
-            "写入 macOS Keychain 失败，请检查钥匙串权限: {}",
-            detail.trim()
-        )))
+        Err(AppError::Infrastructure(
+            "写入 macOS Keychain 失败，请检查钥匙串权限。".into(),
+        ))
     }
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn keychain_write_input(service: &str, key: &str, value: &str) -> CredentialResult<String> {
+    if [service, key, value]
+        .iter()
+        .any(|part| part.contains(['\r', '\n', '\0']))
+    {
+        return Err(AppError::Validation("凭据不能包含换行或空字符。".into()));
+    }
+    let quote = |part: &str| format!("\"{}\"", part.replace('\\', "\\\\").replace('\"', "\\\""));
+    // Interactive command input keeps the secret out of argv. Unlike -w with
+    // no value, this does not silently store an empty password on macOS.
+    Ok(format!(
+        "add-generic-password -U -s {} -a {} -w {}\n",
+        quote(service),
+        quote(key),
+        quote(value)
+    ))
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn parse_keychain_password(output: &[u8]) -> CredentialResult<String> {
+    let failed = || AppError::Infrastructure("系统凭据格式无效。".into());
+    let text = std::str::from_utf8(output).map_err(|_| failed())?.trim();
+    let value = text.strip_prefix("password: ").ok_or_else(failed)?;
+    if let Some(encoded) = value.strip_prefix("0x") {
+        let encoded = encoded.split_whitespace().next().ok_or_else(failed)?;
+        if encoded.len() % 2 != 0 {
+            return Err(failed());
+        }
+        let bytes = encoded
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|pair| {
+                let digits = std::str::from_utf8(pair).map_err(|_| failed())?;
+                u8::from_str_radix(digits, 16).map_err(|_| failed())
+            })
+            .collect::<CredentialResult<Vec<_>>>()?;
+        return String::from_utf8(bytes).map_err(|_| failed());
+    }
+    value
+        .strip_prefix('"')
+        .and_then(|v| v.strip_suffix('"'))
+        .map(str::to_string)
+        .ok_or_else(failed)
 }
 
 #[cfg(target_os = "macos")]
@@ -310,4 +342,33 @@ fn set_system_secret(_key: &str, _value: &str) -> CredentialResult<()> {
 #[cfg(not(any(target_os = "macos", windows)))]
 fn delete_system_secret(_key: &str) -> CredentialResult<()> {
     Ok(())
+}
+
+#[cfg(test)]
+mod keychain_protocol_tests {
+    use super::*;
+
+    #[test]
+    fn stdin_command_quotes_values_without_allowing_another_command() {
+        let input =
+            keychain_write_input("synthetic-service", "synthetic-account", "a\"b\\c $literal")
+                .unwrap();
+        assert_eq!(input, "add-generic-password -U -s \"synthetic-service\" -a \"synthetic-account\" -w \"a\\\"b\\\\c $literal\"\n");
+        assert!(keychain_write_input("service", "account", "value\nquit").is_err());
+        assert!(keychain_write_input("service", "account\nquit", "value").is_err());
+    }
+
+    #[test]
+    fn reads_explicit_hex_without_misinterpreting_hex_like_ascii() {
+        assert_eq!(
+            parse_keychain_password(b"password: \"deadbeef\"\n").unwrap(),
+            "deadbeef"
+        );
+        assert_eq!(
+            parse_keychain_password(b"password: 0xe6b58be8af95  \"display-only\"\n").unwrap(),
+            "测试"
+        );
+        assert!(parse_keychain_password(b"password: 0xzz").is_err());
+        assert!(parse_keychain_password(b"invalid").is_err());
+    }
 }

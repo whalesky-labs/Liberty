@@ -16,15 +16,14 @@ tauri-build = { version = "2.0.0", features = [] }
 
 [dependencies]
 base64 = "0.22"
-calamine = "0.36.1"
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
-docx-rs = "0.4.22"
+calamine = "0.38.0"
 flate2 = "1.1"
+jiff = "0.2.26"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 regress = "0.11.1"
 ring = "0.17.14"
-rust_xlsxwriter = "0.79"
-rusqlite = { version = "0.31", features = ["backup", "bundled"] }
+rust_xlsxwriter = "0.102.0"
+rusqlite = { version = "0.43.0", features = ["backup", "bundled"] }
 semver = "1.0"
 sevenz-rust2 = "0.20"
 serde = { version = "1", features = ["derive"] }
@@ -36,8 +35,9 @@ tauri = { version = "2.0.0", features = ["macos-private-api", "unstable"] }
 tauri-plugin-dialog = "2.0.0"
 tauri-plugin-fs = "2.0.0"
 typify = "0.7.0"
+xml-rs = "=0.8.28"
 xmltree = "0.11"
-zip = { version = "2.4", default-features = false, features = ["deflate"] }
+zip = { version = "9.0.5", default-features = false, features = ["deflate"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2.0.0"

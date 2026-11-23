@@ -1,13 +1,18 @@
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use serde::Deserialize;
 use serde_json::json;
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::LazyLock,
+};
 
 use crate::{
     infrastructure::{ids, time::unix_timestamp_millis},
     local_db::{
-        pet_leveling, LocalResult, PetEconomyEntry, PetEquipmentState, PetEventLedgerEntry,
-        PetInventoryItem, PetMilestoneCounter, PetProfile, PetStoreCatalogItem,
-        PetStoreCatalogItemState, PetStoreState, PetWallet,
+        pet_leveling::{self, SeedRecord},
+        LocalResult, PetEconomyEntry, PetEquipmentState, PetEventLedgerEntry, PetInventoryItem,
+        PetMilestoneCounter, PetProfile, PetStoreCatalogItem, PetStoreCatalogItemState,
+        PetStoreState, PetWallet,
     },
 };
 
@@ -18,1305 +23,115 @@ pub const GIFT_BOX_ITEM_KEY: &str = "gift-box-tool";
 pub const MAKEUP_TICKET_ITEM_KEY: &str = "gem-ticket-tool";
 pub const GIFT_BOX_DAILY_FREE_LIMIT: i64 = 3;
 
+const CATALOG_JSON: &str =
+    include_str!("../../../../../../packages/desktop-resources/pet/catalog.json");
+const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
+static CATALOG_ITEMS: LazyLock<Vec<PetStoreCatalogItem>> =
+    LazyLock::new(|| parse_catalog(CATALOG_JSON).expect("invalid embedded pet catalog.json"));
+
+pub(crate) fn checked_pet_experience(current: i64, growth: i64) -> LocalResult<i64> {
+    current
+        .checked_add(growth)
+        .map(|experience| experience.max(0))
+        .ok_or_else(|| "宠物经验值超出 SQLite INTEGER 范围。".into())
+}
+
 pub fn catalog_items() -> Vec<PetStoreCatalogItem> {
-    CATALOG_SEEDS
-        .iter()
-        .map(|seed| {
-            catalog_item(
-                seed.item_key,
-                seed.item_type,
-                seed.slot,
-                seed.name_zh,
-                seed.name_en,
-                seed.description_zh,
-                seed.description_en,
-                seed.rarity,
-                seed.price_lp,
-                seed.level_gate,
-                seed.stage_gate,
-                seed.milestone_gate,
-                seed.asset_key,
-                seed.growth_value,
-                true,
-                seed.sort_order,
-            )
-        })
-        .collect()
+    CATALOG_ITEMS.to_vec()
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CatalogSeed {
-    item_key: &'static str,
-    item_type: &'static str,
-    slot: &'static str,
-    name_zh: &'static str,
-    name_en: &'static str,
-    description_zh: &'static str,
-    description_en: &'static str,
-    rarity: &'static str,
+    item_key: String,
+    item_type: String,
+    slot: String,
+    name_zh: String,
+    name_en: String,
+    description_zh: String,
+    description_en: String,
+    rarity: String,
     price_lp: i64,
     level_gate: i64,
-    stage_gate: &'static str,
-    milestone_gate: &'static str,
-    asset_key: &'static str,
+    stage_gate: String,
+    milestone_gate: String,
+    asset_key: String,
     growth_value: i64,
     sort_order: i64,
+    enabled: bool,
 }
 
-const CATALOG_SEEDS: &[CatalogSeed] = &[
-    seed(
-        "libby-default",
-        "pet",
-        "pet",
-        "Libby 初始伙伴",
-        "Libby Starter",
-        "当前唯一桌宠，已随 Liberty 一起解锁。",
-        "The current only desktop companion unlocked with Liberty.",
-        "bond_forever",
-        0,
-        1,
-        "",
-        "",
-        "initial_pet",
-        10,
-    ),
-    seed(
-        "bell-accessory",
-        "cosmetic",
-        "accessory",
-        "陪伴铃铛",
-        "Companion Bell",
-        "轻巧铃铛配饰，让桌宠更有陪伴感。",
-        "A light bell accessory for a warmer companion look.",
-        "familiar",
-        160,
-        2,
-        "",
-        "",
-        "bell",
-        100,
-    ),
-    seed(
-        "clover-bow",
-        "cosmetic",
-        "accessory",
-        "幸运草蝴蝶结",
-        "Clover Bow",
-        "适合早期成长阶段的清爽装扮。",
-        "A fresh early-growth accessory.",
-        "first_meet",
-        120,
-        1,
-        "",
-        "",
-        "clover_bow",
-        110,
-    ),
-    seed(
-        "strawberry-candy",
-        "cosmetic",
-        "accessory",
-        "草莓糖果发夹",
-        "Strawberry Candy Clip",
-        "带一点甜感的日常陪伴装扮。",
-        "A sweet everyday companion accessory.",
-        "grow_together",
-        220,
-        4,
-        "grow_together",
-        "",
-        "strawberry_candy",
-        120,
-    ),
-    seed(
-        "bookshelf-scene",
-        "theme",
-        "scene",
-        "阅读书架",
-        "Reading Bookshelf",
-        "适合阅读、转写和复盘的安静场景。",
-        "A quiet scene for reading, transcription, and review.",
-        "deep_bond",
-        420,
-        4,
-        "grow_together",
-        "",
-        "bookshelf",
-        200,
-    ),
-    seed(
-        "cat-bed-scene",
-        "theme",
-        "scene",
-        "软绵猫窝",
-        "Cozy Cat Bed",
-        "让桌宠拥有安静休息角落。",
-        "A cozy rest corner for the companion.",
-        "grow_together",
-        280,
-        2,
-        "",
-        "",
-        "cat_bed",
-        210,
-    ),
-    seed(
-        "desk-lamp-scene",
-        "theme",
-        "scene",
-        "桌面小灯",
-        "Desk Lamp",
-        "专注工作时的轻量陪伴场景。",
-        "A lightweight scene for focused work.",
-        "familiar",
-        180,
-        1,
-        "",
-        "",
-        "desk_lamp",
-        220,
-    ),
-    seed(
-        "flower-pot-scene",
-        "theme",
-        "scene",
-        "治愈花盆",
-        "Healing Flower Pot",
-        "为桌面增加一点柔和生命力。",
-        "A gentle touch of life for the desktop.",
-        "grow_together",
-        260,
-        3,
-        "",
-        "",
-        "flower_pot",
-        230,
-    ),
-    seed(
-        "pillow-scene",
-        "theme",
-        "scene",
-        "午睡软枕",
-        "Nap Pillow",
-        "适合低打扰休息状态的场景。",
-        "A low-distraction rest scene.",
-        "first_meet",
-        140,
-        1,
-        "",
-        "",
-        "pillow",
-        240,
-    ),
-    seed(
-        "sheep-plush-scene",
-        "theme",
-        "scene",
-        "小羊玩偶",
-        "Sheep Plush",
-        "柔软玩偶场景，强化陪伴感。",
-        "A soft plush scene for stronger companionship.",
-        "deep_bond",
-        380,
-        4,
-        "grow_together",
-        "",
-        "sheep_plush",
-        250,
-    ),
-    seed(
-        "sofa-scene",
-        "theme",
-        "scene",
-        "云朵小沙发",
-        "Cloud Sofa",
-        "让桌宠拥有固定休息位置。",
-        "A fixed downtime spot for the companion.",
-        "deep_bond",
-        460,
-        6,
-        "",
-        "",
-        "sofa",
-        260,
-    ),
-    seed(
-        "game-console-tool",
-        "tool",
-        "consumable",
-        "掌机玩具",
-        "Game Console",
-        "互动奖励道具，适合休息时刻。",
-        "A playful interaction item for breaks.",
-        "familiar",
-        90,
-        2,
-        "",
-        "",
-        "game_console",
-        300,
-    ),
-    seed(
-        GIFT_BOX_ITEM_KEY,
-        "tool",
-        "consumable",
-        "惊喜礼盒",
-        "Gift Box",
-        "每日可免费领取 3 个，使用后随机开出商店道具、食物、装扮或场景。",
-        "Claim up to 3 free boxes daily. Use one to open a random store item, excluding pets and badges.",
-        "grow_together",
-        0,
-        1,
-        "",
-        "",
-        "gift_box",
-        310,
-    ),
-    seed(
-        "energy-capsule-tool",
-        "tool",
-        "consumable",
-        "能量胶囊",
-        "Energy Capsule",
-        "短时间提升桌宠互动活力。",
-        "Temporarily boosts companion interaction energy.",
-        "familiar",
-        60,
-        2,
-        "",
-        "",
-        "energy_capsule",
-        320,
-    ),
-    seed(
-        "energy-drink-tool",
-        "tool",
-        "consumable",
-        "能量饮料",
-        "Energy Drink",
-        "适合长时间任务后的恢复道具。",
-        "A recovery item after long work sessions.",
-        "grow_together",
-        85,
-        3,
-        "",
-        "",
-        "energy_drink",
-        330,
-    ),
-    seed(
-        MAKEUP_TICKET_ITEM_KEY,
-        "tool",
-        "consumable",
-        "补签票券",
-        "Make-up Check-in Ticket",
-        "用于补回 7 天内的断签记录。",
-        "Restores a missed check-in within the 7-day grace window.",
-        "deep_bond",
-        140,
-        5,
-        "grow_together",
-        "",
-        "gem_ticket",
-        340,
-    ),
-    seed(
-        "golden-bell-tool",
-        "tool",
-        "consumable",
-        "金色铃铛",
-        "Golden Bell",
-        "完成任务前使用可预设庆祝提示。",
-        "Prepares a celebration hint before task completion.",
-        "grow_together",
-        100,
-        4,
-        "",
-        "",
-        "golden_bell",
-        350,
-    ),
-    seed(
-        "heart-charm-tool",
-        "tool",
-        "consumable",
-        "爱心护符",
-        "Heart Charm",
-        "提升一次陪伴互动的温暖反馈。",
-        "Adds a warmer response to one companion interaction.",
-        "deep_bond",
-        120,
-        4,
-        "grow_together",
-        "",
-        "heart_charm",
-        360,
-    ),
-    seed(
-        "heart-rings-tool",
-        "tool",
-        "consumable",
-        "羁绊双环",
-        "Heart Rings",
-        "强化一次深度羁绊互动反馈。",
-        "Enhances one deep-bond interaction feedback.",
-        "bond_forever",
-        180,
-        7,
-        "",
-        "",
-        "heart_rings",
-        370,
-    ),
-    seed(
-        "magic-potion-tool",
-        "tool",
-        "consumable",
-        "魔法药水",
-        "Magic Potion",
-        "触发一次随机鼓励文案。",
-        "Triggers one random encouragement line.",
-        "grow_together",
-        95,
-        3,
-        "",
-        "",
-        "magic_potion",
-        380,
-    ),
-    seed(
-        "magic-scroll-tool",
-        "tool",
-        "consumable",
-        "魔法卷轴",
-        "Magic Scroll",
-        "解锁一段特殊陪伴提示。",
-        "Unlocks one special companion prompt.",
-        "deep_bond",
-        130,
-        5,
-        "grow_together",
-        "",
-        "magic_scroll",
-        390,
-    ),
-    seed(
-        "magic-syringe-tool",
-        "tool",
-        "consumable",
-        "活力针筒",
-        "Vigor Syringe",
-        "快速恢复一次低落状态。",
-        "Quickly recovers one low-mood state.",
-        "familiar",
-        70,
-        2,
-        "",
-        "",
-        "magic_syringe",
-        400,
-    ),
-    seed(
-        "rainbow-crystal-tool",
-        "tool",
-        "consumable",
-        "彩虹水晶",
-        "Rainbow Crystal",
-        "用于触发一次高光陪伴反馈。",
-        "Triggers one highlight companion feedback.",
-        "bond_forever",
-        200,
-        8,
-        "deep_bond",
-        "",
-        "rainbow_crystal",
-        410,
-    ),
-    seed(
-        "rune-stone-tool",
-        "tool",
-        "consumable",
-        "符文石",
-        "Rune Stone",
-        "稳定一次专注陪伴状态。",
-        "Stabilizes one focused companion state.",
-        "deep_bond",
-        115,
-        5,
-        "",
-        "",
-        "rune_stone",
-        420,
-    ),
-    seed(
-        "seed-bag-tool",
-        "tool",
-        "consumable",
-        "成长种子袋",
-        "Seed Bag",
-        "适合早期成长阶段的互动道具。",
-        "An early-growth companion interaction item.",
-        "first_meet",
-        45,
-        1,
-        "",
-        "",
-        "seed_bag",
-        430,
-    ),
-    seed(
-        "sprout-bow-tool",
-        "tool",
-        "consumable",
-        "新芽蝴蝶结",
-        "Sprout Bow",
-        "触发一次成长主题反馈。",
-        "Triggers one growth-themed feedback.",
-        "familiar",
-        65,
-        2,
-        "",
-        "",
-        "sprout_bow",
-        440,
-    ),
-    seed(
-        "star-coin-tool",
-        "tool",
-        "consumable",
-        "星星硬币",
-        "Star Coin",
-        "用于一次轻量幸运互动。",
-        "Adds one light lucky interaction.",
-        "first_meet",
-        35,
-        1,
-        "",
-        "",
-        "star_coin",
-        450,
-    ),
-    seed(
-        "star-ticket-tool",
-        "tool",
-        "consumable",
-        "星光票券",
-        "Star Ticket",
-        "触发一次星光庆祝反馈。",
-        "Triggers one starlight celebration feedback.",
-        "grow_together",
-        90,
-        3,
-        "",
-        "",
-        "star_ticket",
-        460,
-    ),
-    seed(
-        "stopwatch-tool",
-        "tool",
-        "consumable",
-        "专注秒表",
-        "Stopwatch",
-        "适合专注任务前使用的提醒道具。",
-        "A reminder item for focus sessions.",
-        "familiar",
-        75,
-        2,
-        "",
-        "",
-        "stopwatch",
-        470,
-    ),
-    food_seed(
-        "bell-pudding-food",
-        "铃铛布丁",
-        "Bell Pudding",
-        "投喂后获得一段轻快互动。",
-        "Feeds the companion with a cheerful interaction.",
-        "familiar",
-        45,
-        1,
-        "",
-        "bell_pudding",
-        6,
-        500,
-    ),
-    food_seed(
-        "bento-box-food",
-        "元气便当",
-        "Bento Box",
-        "更扎实的一份陪伴餐点。",
-        "A hearty companion meal.",
-        "grow_together",
-        75,
-        2,
-        "",
-        "bento_box",
-        14,
-        510,
-    ),
-    food_seed(
-        "bubble-tea-food",
-        "珍珠奶茶",
-        "Bubble Tea",
-        "触发一句轻松鼓励文案。",
-        "Triggers a relaxed encouragement line.",
-        "first_meet",
-        35,
-        1,
-        "",
-        "bubble_tea",
-        6,
-        520,
-    ),
-    food_seed(
-        "candy-jar-food",
-        "糖果罐",
-        "Candy Jar",
-        "适合快速提升互动氛围。",
-        "A quick mood-lifting treat.",
-        "familiar",
-        50,
-        1,
-        "",
-        "candy_jar",
-        8,
-        530,
-    ),
-    food_seed(
-        "chocolate-cake-food",
-        "巧克力蛋糕",
-        "Chocolate Cake",
-        "完成长任务后的奖励甜点。",
-        "A dessert reward after long work.",
-        "deep_bond",
-        95,
-        4,
-        "grow_together",
-        "chocolate_cake",
-        16,
-        540,
-    ),
-    food_seed(
-        "chocolate-chip-cookie-food",
-        "巧克力曲奇",
-        "Chocolate Chip Cookie",
-        "轻量投喂道具。",
-        "A light feeding item.",
-        "first_meet",
-        25,
-        1,
-        "",
-        "chocolate_chip_cookie",
-        4,
-        550,
-    ),
-    food_seed(
-        "cream-cake-food",
-        "奶油蛋糕",
-        "Cream Cake",
-        "让桌宠进入满足状态。",
-        "Helps the companion feel satisfied.",
-        "grow_together",
-        70,
-        2,
-        "",
-        "cream_cake",
-        10,
-        560,
-    ),
-    food_seed(
-        "cupcake-food",
-        "纸杯蛋糕",
-        "Cupcake",
-        "日常陪伴甜点。",
-        "An everyday companion dessert.",
-        "first_meet",
-        30,
-        1,
-        "",
-        "cupcake",
-        4,
-        570,
-    ),
-    food_seed(
-        "custard-pudding-food",
-        "焦糖布丁",
-        "Custard Pudding",
-        "柔和的休息时刻投喂。",
-        "A gentle rest-time treat.",
-        "familiar",
-        45,
-        1,
-        "",
-        "custard_pudding",
-        8,
-        580,
-    ),
-    food_seed(
-        "fruit-tart-food",
-        "水果挞",
-        "Fruit Tart",
-        "清爽的成长奖励食物。",
-        "A fresh growth reward treat.",
-        "grow_together",
-        65,
-        2,
-        "",
-        "fruit_tart",
-        10,
-        590,
-    ),
-    food_seed(
-        "ice-cream-cone-food",
-        "冰淇淋甜筒",
-        "Ice Cream Cone",
-        "休息时的轻快奖励。",
-        "A cheerful break-time reward.",
-        "familiar",
-        40,
-        1,
-        "",
-        "ice_cream_cone",
-        6,
-        600,
-    ),
-    food_seed(
-        "jelly-pudding-food",
-        "果冻布丁",
-        "Jelly Pudding",
-        "带来一段软萌互动反馈。",
-        "Adds a soft playful interaction.",
-        "familiar",
-        45,
-        1,
-        "",
-        "jelly_pudding",
-        8,
-        610,
-    ),
-    food_seed(
-        "pink-donut-food",
-        "粉色甜甜圈",
-        "Pink Donut",
-        "基础开心投喂道具。",
-        "A basic happy feeding item.",
-        "first_meet",
-        25,
-        1,
-        "",
-        "pink_donut",
-        4,
-        620,
-    ),
-    food_seed(
-        "purple-macaron-food",
-        "紫色马卡龙",
-        "Purple Macaron",
-        "精致的小份陪伴甜点。",
-        "A refined small companion treat.",
-        "grow_together",
-        60,
-        2,
-        "",
-        "purple_macaron",
-        10,
-        630,
-    ),
-    food_seed(
-        "sandwich-food",
-        "元气三明治",
-        "Sandwich",
-        "适合工作间隙的饱腹投喂。",
-        "A filling work-break feeding item.",
-        "familiar",
-        55,
-        1,
-        "",
-        "sandwich",
-        8,
-        640,
-    ),
-    food_seed(
-        "strawberry-shortcake-food",
-        "草莓奶油蛋糕",
-        "Strawberry Shortcake",
-        "高级陪伴甜点。",
-        "A premium companion dessert.",
-        "deep_bond",
-        110,
-        4,
-        "grow_together",
-        "strawberry_shortcake",
-        18,
-        650,
-    ),
-    food_seed(
-        "wheat-harvest-food",
-        "小麦",
-        "Wheat",
-        "农场收获的小麦，可作为基础投喂食物。",
-        "Wheat harvested from the farm, usable as a basic feeding item.",
-        "first_meet",
-        18,
-        1,
-        "",
-        "harvest_wheat",
-        4,
-        660,
-    ),
-    food_seed(
-        "carrot-harvest-food",
-        "胡萝卜",
-        "Carrot",
-        "农场收获的胡萝卜，清爽稳定的投喂食物。",
-        "Carrots harvested from the farm, a steady fresh feeding item.",
-        "first_meet",
-        24,
-        1,
-        "",
-        "harvest_carrot",
-        6,
-        662,
-    ),
-    food_seed(
-        "tomato-harvest-food",
-        "番茄",
-        "Tomato",
-        "农场收获的番茄，成熟后带来一份元气照顾。",
-        "Tomatoes harvested from the farm, a bright feeding item.",
-        "familiar",
-        32,
-        1,
-        "",
-        "harvest_tomato",
-        8,
-        664,
-    ),
-    food_seed(
-        "pumpkin-harvest-food",
-        "南瓜",
-        "Pumpkin",
-        "农场收获的南瓜，饱满扎实的高级投喂食物。",
-        "Pumpkins harvested from the farm, a hearty premium feeding item.",
-        "grow_together",
-        58,
-        2,
-        "",
-        "harvest_pumpkin",
-        14,
-        666,
-    ),
-    food_seed(
-        "corn-harvest-food",
-        "玉米",
-        "Corn",
-        "农场收获的玉米，适合持续补充活力。",
-        "Corn harvested from the farm, good for steady energy.",
-        "familiar",
-        30,
-        1,
-        "",
-        "harvest_corn",
-        8,
-        668,
-    ),
-    food_seed(
-        "strawberry-harvest-food",
-        "草莓",
-        "Strawberry",
-        "农场收获的草莓，甜甜的小份投喂食物。",
-        "Strawberries harvested from the farm, a sweet feeding item.",
-        "grow_together",
-        38,
-        2,
-        "",
-        "harvest_strawberry",
-        10,
-        670,
-    ),
-    food_seed(
-        "blueberry-harvest-food",
-        "蓝莓",
-        "Blueberry",
-        "农场收获的蓝莓，小而珍贵的浆果投喂食物。",
-        "Blueberries harvested from the farm, a small premium berry item.",
-        "deep_bond",
-        48,
-        3,
-        "",
-        "harvest_blueberry",
-        12,
-        672,
-    ),
-    food_seed(
-        "potato-harvest-food",
-        "土豆",
-        "Potato",
-        "农场收获的土豆，便宜稳定的基础投喂食物。",
-        "Potatoes harvested from the farm, a reliable basic feeding item.",
-        "first_meet",
-        20,
-        1,
-        "",
-        "harvest_potato",
-        5,
-        674,
-    ),
-    seed_item(
-        "wheat-seed",
-        "小麦种子",
-        "Wheat Seeds",
-        "农场播种消耗品，可种出小麦。",
-        "A farm planting consumable used to grow wheat.",
-        "first_meet",
-        4,
-        1,
-        "wheat_seed",
-        700,
-    ),
-    seed_item(
-        "carrot-seed",
-        "胡萝卜种子",
-        "Carrot Seeds",
-        "农场播种消耗品，可种出胡萝卜。",
-        "A farm planting consumable used to grow carrots.",
-        "first_meet",
-        6,
-        1,
-        "carrot_seed",
-        710,
-    ),
-    seed_item(
-        "tomato-seed",
-        "番茄种子",
-        "Tomato Seeds",
-        "农场播种消耗品，可种出番茄。",
-        "A farm planting consumable used to grow tomatoes.",
-        "familiar",
-        9,
-        1,
-        "tomato_seed",
-        720,
-    ),
-    seed_item(
-        "pumpkin-seed",
-        "南瓜种子",
-        "Pumpkin Seeds",
-        "农场播种消耗品，可种出高收益南瓜。",
-        "A farm planting consumable used to grow high-yield pumpkins.",
-        "grow_together",
-        14,
-        2,
-        "pumpkin_seed",
-        730,
-    ),
-    seed_item(
-        "corn-seed",
-        "玉米种子",
-        "Corn Seeds",
-        "农场播种消耗品，可种出玉米。",
-        "A farm planting consumable used to grow corn.",
-        "familiar",
-        8,
-        1,
-        "corn_seed",
-        740,
-    ),
-    seed_item(
-        "strawberry-seed",
-        "草莓种子",
-        "Strawberry Seeds",
-        "农场播种消耗品，可种出草莓。",
-        "A farm planting consumable used to grow strawberries.",
-        "grow_together",
-        10,
-        2,
-        "strawberry_seed",
-        750,
-    ),
-    seed_item(
-        "blueberry-seed",
-        "蓝莓种子",
-        "Blueberry Seeds",
-        "农场播种消耗品，可种出蓝莓。",
-        "A farm planting consumable used to grow blueberries.",
-        "deep_bond",
-        15,
-        3,
-        "blueberry_seed",
-        760,
-    ),
-    seed_item(
-        "potato-seed",
-        "土豆种子",
-        "Potato Seeds",
-        "农场播种消耗品，可种出土豆。",
-        "A farm planting consumable used to grow potatoes.",
-        "first_meet",
-        5,
-        1,
-        "potato_seed",
-        770,
-    ),
-    seed(
-        "baby-bottle-badge",
-        "badge",
-        "badge",
-        "小小初遇勋章",
-        "First Encounter Badge",
-        "创建 1 个任务后自动获得。",
-        "Auto-unlocked after creating 1 task.",
-        "first_meet",
-        0,
-        1,
-        "",
-        "tasks_created:1",
-        "baby_bottle_badge",
-        700,
-    ),
-    seed(
-        "bell-badge",
-        "badge",
-        "badge",
-        "提醒铃勋章",
-        "Reminder Bell Badge",
-        "创建 5 个任务后自动获得。",
-        "Auto-unlocked after creating 5 tasks.",
-        "familiar",
-        0,
-        1,
-        "",
-        "tasks_created:5",
-        "bell_badge",
-        710,
-    ),
-    seed(
-        "calendar-check-badge",
-        "badge",
-        "badge",
-        "日程完成勋章",
-        "Calendar Check Badge",
-        "创建 10 个任务后自动获得。",
-        "Auto-unlocked after creating 10 tasks.",
-        "grow_together",
-        0,
-        1,
-        "",
-        "tasks_created:10",
-        "calendar_check_badge",
-        720,
-    ),
-    seed(
-        "clover-badge",
-        "badge",
-        "badge",
-        "幸运草勋章",
-        "Clover Badge",
-        "连续签到 7 天后获得。",
-        "Earned after a 7-day check-in streak.",
-        "familiar",
-        0,
-        1,
-        "",
-        "check_in_streak:7",
-        "clover_badge",
-        730,
-    ),
-    seed(
-        "crystal-badge",
-        "badge",
-        "badge",
-        "晶石总结勋章",
-        "Crystal Summary Badge",
-        "完成 20 次 AI 总结后自动获得。",
-        "Auto-unlocked after 20 AI summaries.",
-        "bond_forever",
-        0,
-        1,
-        "",
-        "summaries_completed:20",
-        "crystal_badge",
-        740,
-    ),
-    seed(
-        "friendship-badge",
-        "badge",
-        "badge",
-        "深深羁绊勋章",
-        "Deep Bond Badge",
-        "累计活跃 14 天后自动获得。",
-        "Auto-unlocked after 14 total active days.",
-        "deep_bond",
-        0,
-        1,
-        "",
-        "active_days:14",
-        "friendship_badge",
-        750,
-    ),
-    seed(
-        "heart-badge",
-        "badge",
-        "badge",
-        "暖心陪伴勋章",
-        "Warm Heart Badge",
-        "完成 5 次 AI 总结后自动获得。",
-        "Auto-unlocked after 5 AI summaries.",
-        "grow_together",
-        0,
-        1,
-        "",
-        "summaries_completed:5",
-        "heart_badge",
-        760,
-    ),
-    seed(
-        "lantern-badge",
-        "badge",
-        "badge",
-        "夜灯陪伴勋章",
-        "Lantern Badge",
-        "累计使用深色主题 3 天后自动获得。",
-        "Auto-unlocked after 3 total dark-theme days.",
-        "grow_together",
-        0,
-        1,
-        "",
-        "dark_theme_days:3",
-        "lantern_badge",
-        770,
-    ),
-    seed(
-        "laurel-sprout-badge",
-        "badge",
-        "badge",
-        "新芽桂冠勋章",
-        "Laurel Sprout Badge",
-        "完成 20 次转写后自动获得。",
-        "Auto-unlocked after 20 transcriptions.",
-        "bond_forever",
-        0,
-        1,
-        "",
-        "transcriptions_completed:20",
-        "laurel_sprout_badge",
-        780,
-    ),
-    seed(
-        "moon-badge",
-        "badge",
-        "badge",
-        "月光陪伴勋章",
-        "Moon Badge",
-        "累计使用深色主题 7 天后自动获得。",
-        "Auto-unlocked after 7 total dark-theme days.",
-        "deep_bond",
-        0,
-        1,
-        "",
-        "dark_theme_days:7",
-        "moon_badge",
-        790,
-    ),
-    seed(
-        "mystery-badge",
-        "badge",
-        "badge",
-        "神秘伙伴勋章",
-        "Mystery Badge",
-        "导出 50 次结果后自动获得。",
-        "Auto-unlocked after 50 exports.",
-        "bond_forever",
-        0,
-        1,
-        "",
-        "exports_completed:50",
-        "mystery_badge",
-        800,
-    ),
-    seed(
-        "paw-heart-badge",
-        "badge",
-        "badge",
-        "爪印爱心勋章",
-        "Paw Heart Badge",
-        "完成 10 次 AI 总结后自动获得。",
-        "Auto-unlocked after 10 AI summaries.",
-        "deep_bond",
-        0,
-        1,
-        "",
-        "summaries_completed:10",
-        "paw_heart_badge",
-        810,
-    ),
-    seed(
-        "pets-badge",
-        "badge",
-        "badge",
-        "伙伴中心勋章",
-        "Companion Center Badge",
-        "创建 20 个任务后自动获得。",
-        "Auto-unlocked after creating 20 tasks.",
-        "bond_forever",
-        0,
-        1,
-        "",
-        "tasks_created:20",
-        "pets_badge",
-        820,
-    ),
-    seed(
-        "sheep-badge",
-        "badge",
-        "badge",
-        "小羊陪伴勋章",
-        "Sheep Companion Badge",
-        "完成 30 次转写后自动获得。",
-        "Auto-unlocked after 30 transcriptions.",
-        "bond_forever",
-        0,
-        1,
-        "",
-        "transcriptions_completed:30",
-        "sheep_badge",
-        830,
-    ),
-    seed(
-        "sprout-badge",
-        "badge",
-        "badge",
-        "一起成长勋章",
-        "Growing Together Badge",
-        "连续签到 14 天后获得。",
-        "Earned after a 14-day check-in streak.",
-        "grow_together",
-        0,
-        1,
-        "",
-        "check_in_streak:14",
-        "sprout_badge",
-        840,
-    ),
-    seed(
-        "sun-badge",
-        "badge",
-        "badge",
-        "阳光交付勋章",
-        "Sun Delivery Badge",
-        "导出 30 次结果后自动获得。",
-        "Auto-unlocked after 30 exports.",
-        "bond_forever",
-        0,
-        1,
-        "",
-        "exports_completed:30",
-        "sun_badge",
-        850,
-    ),
-];
-
-#[allow(clippy::too_many_arguments)]
-const fn seed(
-    item_key: &'static str,
-    item_type: &'static str,
-    slot: &'static str,
-    name_zh: &'static str,
-    name_en: &'static str,
-    description_zh: &'static str,
-    description_en: &'static str,
-    rarity: &'static str,
-    price_lp: i64,
-    level_gate: i64,
-    stage_gate: &'static str,
-    milestone_gate: &'static str,
-    asset_key: &'static str,
-    sort_order: i64,
-) -> CatalogSeed {
-    CatalogSeed {
-        item_key,
-        item_type,
-        slot,
-        name_zh,
-        name_en,
-        description_zh,
-        description_en,
-        rarity,
-        price_lp,
-        level_gate,
-        stage_gate,
-        milestone_gate,
-        asset_key,
-        growth_value: 0,
-        sort_order,
+fn parse_catalog(source: &str) -> LocalResult<Vec<PetStoreCatalogItem>> {
+    let seeds: Vec<SeedRecord<CatalogSeed>> =
+        serde_json::from_str(source).map_err(|err| err.to_string())?;
+    if seeds.is_empty() {
+        return Err("expected a nonempty catalog".into());
     }
+    let mut keys = HashSet::new();
+    for SeedRecord(seed) in &seeds {
+        let valid_slot = matches!(
+            (seed.item_type.as_str(), seed.slot.as_str()),
+            ("pet", "pet")
+                | ("cosmetic", "accessory")
+                | ("theme", "scene")
+                | ("food" | "seed" | "tool", "consumable")
+                | ("badge", "badge")
+        );
+        let valid_rarity = matches!(
+            seed.rarity.as_str(),
+            "first_meet" | "familiar" | "grow_together" | "deep_bond" | "bond_forever"
+        );
+        if !valid_slot
+            || !valid_rarity
+            || !keys.insert(seed.item_key.as_str())
+            || [
+                &seed.item_key,
+                &seed.name_zh,
+                &seed.name_en,
+                &seed.description_zh,
+                &seed.description_en,
+                &seed.asset_key,
+            ]
+            .iter()
+            .any(|value| value.trim().is_empty())
+            || ![seed.price_lp, seed.growth_value, seed.sort_order]
+                .into_iter()
+                .all(|value| (0..=MAX_SAFE_INTEGER).contains(&value))
+            || !(1..=pet_leveling::MAX_PET_LEVEL).contains(&seed.level_gate)
+            || (seed.item_type != "food" && seed.growth_value != 0)
+            || (!seed.stage_gate.is_empty() && !pet_leveling::is_known_stage(&seed.stage_gate))
+            || !valid_milestone_gate(&seed.milestone_gate)
+        {
+            return Err(format!(
+                "invalid or duplicate catalog item: {}",
+                seed.item_key
+            ));
+        }
+    }
+    Ok(seeds.into_iter().map(|seed| catalog_item(seed.0)).collect())
 }
 
-#[allow(clippy::too_many_arguments)]
-const fn food_seed(
-    item_key: &'static str,
-    name_zh: &'static str,
-    name_en: &'static str,
-    description_zh: &'static str,
-    description_en: &'static str,
-    rarity: &'static str,
-    price_lp: i64,
-    level_gate: i64,
-    stage_gate: &'static str,
-    asset_key: &'static str,
-    growth_value: i64,
-    sort_order: i64,
-) -> CatalogSeed {
-    CatalogSeed {
-        item_key,
-        item_type: "food",
-        slot: "consumable",
-        name_zh,
-        name_en,
-        description_zh,
-        description_en,
-        rarity,
-        price_lp,
-        level_gate,
-        stage_gate,
-        milestone_gate: "",
-        asset_key,
-        growth_value,
-        sort_order,
+fn valid_milestone_gate(value: &str) -> bool {
+    if value.is_empty() {
+        return true;
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-const fn seed_item(
-    item_key: &'static str,
-    name_zh: &'static str,
-    name_en: &'static str,
-    description_zh: &'static str,
-    description_en: &'static str,
-    rarity: &'static str,
-    price_lp: i64,
-    level_gate: i64,
-    asset_key: &'static str,
-    sort_order: i64,
-) -> CatalogSeed {
-    CatalogSeed {
-        item_key,
-        item_type: "seed",
-        slot: "consumable",
-        name_zh,
-        name_en,
-        description_zh,
-        description_en,
-        rarity,
-        price_lp,
-        level_gate,
-        stage_gate: "",
-        milestone_gate: "",
-        asset_key,
-        growth_value: 0,
-        sort_order,
-    }
+    let Some((key, required)) = value.split_once(':') else {
+        return false;
+    };
+    matches!(
+        key,
+        "tasks_created"
+            | "transcriptions_completed"
+            | "summaries_completed"
+            | "exports_completed"
+            | "active_days"
+            | "check_in_streak"
+            | "dark_theme_days"
+    ) && !required.starts_with('0')
+        && required.bytes().all(|byte| byte.is_ascii_digit())
+        && required
+            .parse::<i64>()
+            .is_ok_and(|count| (1..=MAX_SAFE_INTEGER).contains(&count))
 }
 
 pub fn ensure_store_defaults_tx(tx: &Transaction<'_>, now: &str) -> LocalResult<()> {
@@ -1519,7 +334,7 @@ pub fn find_catalog_item_by_key(item_key: &str) -> Option<PetStoreCatalogItem> {
 }
 
 pub fn current_local_date() -> String {
-    chrono::Local::now().format("%Y-%m-%d").to_string()
+    crate::infrastructure::time::local_date_string()
 }
 
 pub fn current_store_limit_date() -> String {
@@ -1668,7 +483,7 @@ pub fn use_item_tx(
         let growth_value = growth_value_for_food(&catalog_item) * quantity;
         let mut profile = crate::infrastructure::repositories::pet::load_profile_tx(tx)?;
         let previous_stage = profile.stage.clone();
-        profile.experience = (profile.experience + growth_value).max(0);
+        profile.experience = checked_pet_experience(profile.experience, growth_value)?;
         let level_snapshot = pet_leveling::level_snapshot_from_experience(profile.experience);
         profile.level = level_snapshot.level;
         profile.stage = level_snapshot.current_stage.clone();
@@ -2119,8 +934,8 @@ fn dialogue_index(key: &str, salt: i64, len: usize) -> usize {
 }
 
 fn dialogue_index_with_time(key: &str, salt: i64, now: &str, len: usize) -> usize {
-    let time_salt = chrono::DateTime::parse_from_rfc3339(now)
-        .map(|value| value.timestamp_millis().max(0) / 1_000)
+    let time_salt = crate::infrastructure::time::parse_iso(now)
+        .map(|value| value.as_millisecond().max(0) / 1_000)
         .unwrap_or(0);
     dialogue_index(key, salt + time_salt, len)
 }
@@ -2279,42 +1094,24 @@ pub fn auto_unlock_eligible_items_tx(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn catalog_item(
-    item_key: &str,
-    item_type: &str,
-    slot: &str,
-    name_zh: &str,
-    name_en: &str,
-    description_zh: &str,
-    description_en: &str,
-    rarity: &str,
-    price_lp: i64,
-    level_gate: i64,
-    stage_gate: &str,
-    milestone_gate: &str,
-    asset_key: &str,
-    growth_value: i64,
-    enabled: bool,
-    sort_order: i64,
-) -> PetStoreCatalogItem {
+fn catalog_item(seed: CatalogSeed) -> PetStoreCatalogItem {
     PetStoreCatalogItem {
-        item_key: item_key.into(),
-        item_type: item_type.into(),
-        slot: slot.into(),
-        name_zh: name_zh.into(),
-        name_en: name_en.into(),
-        description_zh: description_zh.into(),
-        description_en: description_en.into(),
-        rarity: rarity.into(),
-        price_lp,
-        level_gate,
-        stage_gate: stage_gate.into(),
-        milestone_gate: milestone_gate.into(),
-        asset_key: asset_key.into(),
-        growth_value,
-        enabled,
-        sort_order,
+        item_key: seed.item_key,
+        item_type: seed.item_type,
+        slot: seed.slot,
+        name_zh: seed.name_zh,
+        name_en: seed.name_en,
+        description_zh: seed.description_zh,
+        description_en: seed.description_en,
+        rarity: seed.rarity,
+        price_lp: seed.price_lp,
+        level_gate: seed.level_gate,
+        stage_gate: seed.stage_gate,
+        milestone_gate: seed.milestone_gate,
+        asset_key: seed.asset_key,
+        growth_value: seed.growth_value,
+        enabled: seed.enabled,
+        sort_order: seed.sort_order,
     }
 }
 
@@ -2481,9 +1278,10 @@ fn counter_label_en(counter_key: &str) -> &'static str {
 }
 
 fn find_catalog_item(item_key: &str) -> Option<PetStoreCatalogItem> {
-    catalog_items()
-        .into_iter()
+    CATALOG_ITEMS
+        .iter()
         .find(|item| item.item_key == item_key)
+        .cloned()
 }
 
 fn ensure_wallet_tx(tx: &Transaction<'_>, now: &str) -> LocalResult<()> {
@@ -2777,7 +1575,7 @@ fn list_economy(conn: &Connection, limit: usize) -> LocalResult<Vec<PetEconomyEn
                     source_type, source_key, metadata, created_at
              FROM pet_economy_ledger
              WHERE pet_id = ?1 AND currency_key = ?2
-             ORDER BY datetime(created_at) DESC, created_at DESC
+             ORDER BY datetime(created_at) DESC, created_at DESC, rowid DESC
              LIMIT ?3",
         )
         .map_err(|err| err.to_string())?;
@@ -2899,6 +1697,37 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_shared_catalog_records() {
+        for (original, replacement) in [
+            ("\"enabled\": true", "\"enabled\": null"),
+            ("\"enabled\": true", "\"enabled\": true, \"enabled\": false"),
+            ("\"enabled\": true", "\"active\": true"),
+            ("\"priceLp\": 0", "\"priceLp\": 9007199254740992"),
+            ("\"priceLp\": 0", "\"priceLp\": -1"),
+            ("\"levelGate\": 1", "\"levelGate\": 256"),
+            ("\"stageGate\": \"\"", "\"stageGate\": \"baby\""),
+            ("tasks_created:1\"", "tasks_created:01\""),
+            ("\"bell-accessory\"", "\"libby-default\""),
+        ] {
+            let invalid = CATALOG_JSON.replacen(original, replacement, 1);
+            assert_ne!(invalid, CATALOG_JSON);
+            assert!(parse_catalog(&invalid).is_err(), "accepted {replacement}");
+        }
+        assert!(parse_catalog("[]").is_err());
+    }
+
+    #[test]
+    fn checked_pet_experience_handles_i64_boundary_without_wrapping() {
+        assert_eq!(checked_pet_experience(40, 2).unwrap(), 42);
+        assert_eq!(checked_pet_experience(i64::MAX - 1, 1).unwrap(), i64::MAX);
+        assert_eq!(checked_pet_experience(i64::MAX, 0).unwrap(), i64::MAX);
+        assert_eq!(
+            checked_pet_experience(i64::MAX, 1).unwrap_err(),
+            "宠物经验值超出 SQLite INTEGER 范围。"
+        );
+    }
+
+    #[test]
     fn item_status_prioritizes_badge_achievement_before_locked() {
         let badge = find_catalog_item("sun-badge").expect("badge seed");
         let state = item_state(
@@ -2945,5 +1774,56 @@ mod tests {
             .find(|counter| counter.counter_key == "summaries_completed")
             .expect("stored counter");
         assert_eq!(counter.counter_value, 2);
+    }
+
+    #[test]
+    fn histories_order_equal_timestamps_by_latest_insertion() {
+        let mut connection = Connection::open_in_memory().expect("in-memory sqlite");
+        crate::local_db::schema::apply_test_schema(&connection).expect("schema");
+        let transaction = connection.transaction().expect("transaction");
+        crate::infrastructure::repositories::pet::ensure_default_exists_tx(&transaction)
+            .expect("default pet");
+        ensure_store_defaults_tx(&transaction, "2026-07-01T12:00:00Z").expect("store defaults");
+        for sequence in 0..27 {
+            let created = match sequence {
+                0 => "2026-07-01T12:00:01Z",
+                26 => "2026-07-01T11:59:59Z",
+                _ => "2026-07-01T12:00:00Z",
+            };
+            let identity = format!("synthetic-{:03}", 100 - sequence);
+            transaction.execute(
+                "INSERT INTO pet_economy_ledger(id,pet_id,entry_type,currency_key,amount,balance_after,source_type,source_key,created_at) VALUES(?1,'default-pet','earn','lp',1,?2,'synthetic',?1,?3)",
+                params![identity, sequence + 1, created],
+            ).expect("economy entry");
+            transaction.execute(
+                "INSERT INTO pet_blind_box_draws(id,pet_id,draw_date,item_key,item_type,quantity,duplicate_compensation_lp,created_at) VALUES(?1,'default-pet','2026-07-01','nothing','none',1,0,?2)",
+                params![identity, created],
+            ).expect("draw entry");
+        }
+        transaction.commit().expect("commit");
+        for reverse in [false, true] {
+            connection
+                .pragma_update(None, "reverse_unordered_selects", reverse)
+                .expect("query traversal");
+            let profile = crate::infrastructure::repositories::pet::load_profile(&connection)
+                .expect("profile");
+            let state = crate::infrastructure::repositories::pet_blind_box::blind_box_state(
+                &connection,
+                profile,
+            )
+            .expect("blind box state");
+            assert_eq!(state.history.len(), 20);
+            assert_eq!(state.store_state.economy.len(), 20);
+            for index in 0..20 {
+                let sequence = if index == 0 { 0 } else { 26 - index };
+                let identity = format!("synthetic-{:03}", 100 - sequence);
+                assert_eq!(state.history[index].id, identity);
+                assert_eq!(state.store_state.economy[index].id, identity);
+                assert_eq!(
+                    state.store_state.economy[index].balance_after,
+                    (sequence + 1) as i64
+                );
+            }
+        }
     }
 }

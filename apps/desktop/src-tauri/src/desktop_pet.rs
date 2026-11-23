@@ -1,5 +1,5 @@
+use crate::infrastructure::time::utc_now;
 use crate::local_db::{self, LocalResult};
-use chrono::Utc;
 use serde::Serialize;
 use std::{
     fs::{self, OpenOptions},
@@ -122,7 +122,7 @@ pub(crate) fn append_diagnostic(app: &AppHandle, line: impl AsRef<str>) {
     let _ = writeln!(
         file,
         "[{}] {}",
-        Utc::now().format("%Y-%m-%d %H:%M:%S%.3f UTC"),
+        jiff::Timestamp::now().strftime("%Y-%m-%d %H:%M:%S%.3f UTC"),
         line.as_ref()
     );
 }
@@ -346,8 +346,8 @@ pub async fn open_extra_desktop_pet(app: AppHandle) -> LocalResult<DesktopPetSta
     if !settings.desktop_enabled {
         let mut next_settings = settings;
         next_settings.desktop_enabled = true;
-        next_settings.updated_at = Utc::now().to_rfc3339();
-        local_db::save_pet_settings(&app, &next_settings)?;
+        next_settings.updated_at = utc_now();
+        local_db::save_pet_preferences(&app, &next_settings)?;
         show_desktop_pet_instance(&app, PetInstanceId::Primary, true)?;
     }
 

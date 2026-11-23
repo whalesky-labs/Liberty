@@ -1,5 +1,7 @@
-use docx_rs::*;
-use std::{fs::File, path::Path};
+use liberty_lib::minutes_document::{
+    export_summary_docx, ExportDocData, SpeechBlock as ExportSpeech,
+};
+use std::path::PathBuf;
 
 #[derive(Clone)]
 struct SpeechBlock {
@@ -10,14 +12,19 @@ struct SpeechBlock {
     summary: &'static [&'static str],
 }
 
-fn main() -> Result<(), DocxError> {
-    let output = Path::new("/tmp/liberty-meeting-minutes-table.docx");
-    let file = File::create(output).unwrap();
-
-    let body_font = RunFonts::new()
-        .east_asia("SimSun")
-        .ascii("Times New Roman")
-        .hi_ansi("Times New Roman");
+fn main() -> Result<(), String> {
+    let output = std::env::args_os()
+        .nth(1)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("liberty-meeting-minutes-table.docx"));
+    let parent = output
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(std::path::Path::new("."));
+    let output = parent
+        .canonicalize()
+        .map_err(|err| err.to_string())?
+        .join(output.file_name().ok_or("Missing document filename")?);
 
     let speech_blocks = vec![
         SpeechBlock {
@@ -98,129 +105,33 @@ fn main() -> Result<(), DocxError> {
         },
     ];
 
-    let mut rows = vec![
-        kv_row("会议名称", "标准录音 16", &body_font),
-        kv_row("会议时间", "待补充", &body_font),
-        kv_row("会议地点", "待补充", &body_font),
-        kv_row("记录人", "待补充", &body_font),
-        kv_row("出席人员", "待补充", &body_font),
-        kv_row("缺席人员", "待补充", &body_font),
-        kv_row(
-            "主要议题",
-            "五一假期接待准备、卫生安全检查、团队与市场拓展、员工工作安排",
-            &body_font,
-        ),
-        kv_row("会议主持人", "待补充", &body_font),
-        kv_row("审阅", "待补充", &body_font),
-        kv_row("发言内容", "", &body_font),
-    ];
-
-    for block in &speech_blocks {
-        rows.push(speech_row(block, &body_font));
-    }
-
-    let table = Table::new(rows)
-        .set_grid(vec![1800, 9800])
-        .align(TableAlignmentType::Center)
-        .set_borders(TableBorders::new())
-        .margins(TableCellMargins::new().margin(120, 120, 120, 120));
-
-    Docx::new()
-        .default_fonts(body_font.clone())
-        .default_size(21)
-        .page_margin(PageMargin::new().top(720).bottom(720).left(720).right(720))
-        .add_paragraph(
-            Paragraph::new().align(AlignmentType::Center).add_run(
-                Run::new()
-                    .add_text("标准录音 16会议纪要")
-                    .fonts(body_font.clone())
-                    .size(36)
-                    .bold(),
-            ),
-        )
-        .add_paragraph(Paragraph::new().add_run(Run::new().add_text("")))
-        .add_table(table)
-        .build()
-        .pack(file)?;
-
+    let lines = |items: &[&str]| items.iter().map(|text| (*text).to_owned()).collect();
+    let data = ExportDocData {
+        title: "标准录音 16会议纪要".into(),
+        meeting_name: "标准录音 16".into(),
+        meeting_time: "待补充".into(),
+        meeting_location: "待补充".into(),
+        recorder: "待补充".into(),
+        attendees: "待补充".into(),
+        absentees: "待补充".into(),
+        host: "待补充".into(),
+        reviewer: "待补充".into(),
+        topics: "五一假期接待准备、卫生安全检查、团队与市场拓展、员工工作安排".into(),
+        speech_blocks: speech_blocks
+            .into_iter()
+            .enumerate()
+            .map(|(original_index, block)| ExportSpeech {
+                name: block.name.into(),
+                department: block.department.into(),
+                weekly_summary: lines(block.weekly_summary),
+                next_week_plan: lines(block.next_week_plan),
+                summary: lines(block.summary),
+                original_index,
+            })
+            .collect(),
+        ..Default::default()
+    };
+    export_summary_docx(&data, &output)?;
     println!("{}", output.display());
     Ok(())
-}
-
-fn kv_row(label: &str, value: &str, font: &RunFonts) -> TableRow {
-    TableRow::new(vec![
-        cell_with_paragraph(
-            Paragraph::new()
-                .align(AlignmentType::Center)
-                .add_run(Run::new().add_text(label).fonts(font.clone()).bold()),
-            true,
-        ),
-        cell_with_paragraph(
-            Paragraph::new()
-                .align(AlignmentType::Left)
-                .add_run(Run::new().add_text(value).fonts(font.clone())),
-            false,
-        ),
-    ])
-}
-
-fn speech_row(block: &SpeechBlock, font: &RunFonts) -> TableRow {
-    let left = TableCell::new()
-        .vertical_align(VAlignType::Center)
-        .add_paragraph(
-            Paragraph::new().align(AlignmentType::Center).add_run(
-                Run::new()
-                    .add_text(block.department)
-                    .fonts(font.clone())
-                    .size(24)
-                    .bold(),
-            ),
-        )
-        .add_paragraph(
-            Paragraph::new().align(AlignmentType::Center).add_run(
-                Run::new()
-                    .add_text(block.name)
-                    .fonts(font.clone())
-                    .size(24)
-                    .bold(),
-            ),
-        );
-
-    let mut right = TableCell::new().vertical_align(VAlignType::Center);
-    right = right.add_paragraph(section_heading("上周总结：", font));
-    for item in block.weekly_summary {
-        right = right.add_paragraph(body_line(item, font));
-    }
-    right = right.add_paragraph(section_heading("本周计划：", font));
-    for item in block.next_week_plan {
-        right = right.add_paragraph(body_line(item, font));
-    }
-    right = right.add_paragraph(section_heading("总结：", font));
-    for item in block.summary {
-        right = right.add_paragraph(body_line(item, font));
-    }
-
-    TableRow::new(vec![left, right])
-}
-
-fn section_heading(text: &str, font: &RunFonts) -> Paragraph {
-    Paragraph::new().add_run(
-        Run::new()
-            .add_text(text)
-            .fonts(font.clone())
-            .bold()
-            .color("C00000"),
-    )
-}
-
-fn body_line(text: &str, font: &RunFonts) -> Paragraph {
-    Paragraph::new().add_run(Run::new().add_text(text).fonts(font.clone()))
-}
-
-fn cell_with_paragraph(paragraph: Paragraph, emphasize: bool) -> TableCell {
-    let mut cell = TableCell::new().vertical_align(VAlignType::Center);
-    if emphasize {
-        cell = cell.shading(Shading::new().fill("F2F2F2"));
-    }
-    cell.add_paragraph(paragraph)
 }

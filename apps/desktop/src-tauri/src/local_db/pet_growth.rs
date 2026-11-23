@@ -20,7 +20,7 @@ pub(crate) fn apply_pet_growth_event(
 ) -> LocalResult<PetProfile> {
     let tx = conn.transaction().map_err(|err| err.to_string())?;
     pet::ensure_default_exists_tx(&tx)?;
-    pet_store::ensure_store_defaults_tx(&tx, &chrono::Utc::now().to_rfc3339())?;
+    pet_store::ensure_store_defaults_tx(&tx, &crate::infrastructure::time::utc_now())?;
     let mut profile = pet::load_profile_tx(&tx)?;
     let local_date = pet_store::current_local_date();
 
@@ -35,7 +35,7 @@ pub(crate) fn apply_pet_growth_event(
         }
     }
 
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = crate::infrastructure::time::utc_now();
     pet_store::ensure_store_defaults_tx(&tx, &now)?;
     profile = migrate_profile_level_floor(profile);
     let previous_stage = profile.stage.clone();
@@ -62,7 +62,8 @@ pub(crate) fn apply_pet_growth_event(
     };
     let effective_event_value = scaled_amount(base_growth, growth_multiplier);
     let effective_lp = scaled_amount(reward.lp, lp_multiplier);
-    let next_experience = (profile.experience + effective_event_value).max(0);
+    let next_experience =
+        pet_store::checked_pet_experience(profile.experience, effective_event_value)?;
     let level_snapshot = pet_leveling::level_snapshot_from_experience(next_experience);
     profile.experience = next_experience;
     profile.level = level_snapshot.level;

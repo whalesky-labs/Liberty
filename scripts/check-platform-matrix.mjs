@@ -45,7 +45,7 @@ if (process.argv.includes("--print-matrix")) {
 }
 
 const manifest = JSON.parse(
-  readFileSync("apps/desktop/src-tauri/resources/runtime-manifest.json", "utf8"),
+  readFileSync("packages/desktop-resources/runtime/runtime-manifest.json", "utf8"),
 );
 const workflow = readFileSync(".github/workflows/build-desktop.yml", "utf8");
 const errors = [];

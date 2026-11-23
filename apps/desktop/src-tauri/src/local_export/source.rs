@@ -59,7 +59,7 @@ pub fn resolve_summary_source(
             follow_ups: job.summary.follow_ups.clone(),
         };
         let payload = reconstruct_verified_payload(job, &result, members, "", None)?;
-        make_payload_authoritative(&mut result, &payload, true);
+        make_payload_authoritative(&mut result);
         return Ok(SummaryExportSource {
             result,
             minutes_payload: payload,
@@ -102,7 +102,7 @@ fn summary_source_from_run(
         ),
     };
     mark_missing_ai_speakers(job, &mut payload);
-    make_payload_authoritative(&mut result, &payload, reconstructed_payload);
+    make_payload_authoritative(&mut result);
 
     Ok(SummaryExportSource {
         result,
@@ -128,6 +128,16 @@ pub(crate) fn reconstruct_verified_payload(
     );
     super::add_missing_transcript_speakers(job, &mut payload, members);
     mark_missing_ai_speakers(job, &mut payload);
+    let has_speech_content = payload.speaker_reports.iter().any(|report| {
+        !report.weekly_summary.is_empty()
+            || !report.next_week_plan.is_empty()
+            || !report.summary.is_empty()
+    });
+    if !has_speech_content && payload.global_summary.is_empty() {
+        let parsed = super::parse_overview_to_export_data(&result.overview);
+        payload.global_summary =
+            super::build_fallback_overview_items(&AiSummaryResult::default(), &parsed);
+    }
     validate_speaker_coverage(job, &payload)?;
     Ok(payload)
 }
@@ -193,17 +203,7 @@ pub(crate) fn validate_speaker_coverage(
     }
 }
 
-fn make_payload_authoritative(
-    result: &mut AiSummaryResult,
-    payload: &MeetingMinutesPayload,
-    allow_unstructured_fallback: bool,
-) {
-    let original_overview = result.overview.trim().to_string();
-    let has_speaker_content = payload.speaker_reports.iter().any(|report| {
-        !report.weekly_summary.is_empty()
-            || !report.next_week_plan.is_empty()
-            || !report.summary.is_empty()
-    });
+fn make_payload_authoritative(result: &mut AiSummaryResult) {
     let mut lines = Vec::new();
     append_section(&mut lines, "决策", &result.decisions);
     let actions = result
@@ -222,13 +222,6 @@ fn make_payload_authoritative(
     append_section(&mut lines, "行动项", &actions);
     append_section(&mut lines, "风险", &result.risks);
     append_section(&mut lines, "跟进事项", &result.follow_ups);
-    if allow_unstructured_fallback
-        && !has_speaker_content
-        && payload.global_summary.is_empty()
-        && !original_overview.is_empty()
-    {
-        lines.insert(0, original_overview);
-    }
     result.overview = lines.join("\n");
 }
 
@@ -311,6 +304,129 @@ fn has_legacy_summary(job: &MeetingJob) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "explicit cross-language minutes fixtures via pnpm native:compat"]
+    fn export_native_minutes_fixtures() {
+        use std::{fs, path::PathBuf};
+        let directory = PathBuf::from(
+            std::env::var_os("LIBERTY_NATIVE_FIXTURE_DIR").expect("explicit fixture directory"),
+        );
+        assert!(directory.is_absolute() && directory.is_dir());
+        let members = vec![
+            MeetingMember {
+                id: "b".into(),
+                name: "人员B".into(),
+                department: "管理部".into(),
+                sort_order: -1,
+                ..MeetingMember::default()
+            },
+            MeetingMember {
+                id: "a".into(),
+                name: "人员A".into(),
+                department: "工程部".into(),
+                sort_order: 7,
+                ..MeetingMember::default()
+            },
+        ];
+        let overviews=["", "只有原始摘要正文。", "会议名称 ： 合成会议\n会议时间：待补充\n会议地点: 测试室\n主要议题：议题A；议题B、议题C\n发言内容\n【研发部】：【人员A】\n上周总结：\n1、已完成\n本周计划：\n2、计划\n个人总结：\n3、个人\n【部门】：人员B（未发言）\n上周总结：\n1、事项\n总结：\n1、全局", "发言内容\n工程部：人员A\n上周总结：\n1、重复\n【部门】：人员A\n上周总结：\n1、重复\n2、新增\n总结：\n个人内容", "发言内容\n【部门】：人员B\n上周总结：\n1、内容\n1、工程部：此行并非讲话人\n全局总结：\n总结正文", "会议名称：：保留第二个冒号\n发言内容\n【未知】：未登记\n本周计划：\n计划正文"];
+        let mut cases = Vec::new();
+        for status in [
+            crate::domain::asr::DiarizationStatus::Completed,
+            crate::domain::asr::DiarizationStatus::LegacyUnverified,
+            crate::domain::asr::DiarizationStatus::Unavailable,
+        ] {
+            for overview in overviews {
+                let job = MeetingJob {
+                    id: "job-1700000000000-700".into(),
+                    source: "local".into(),
+                    title: "合成任务".into(),
+                    diarization_status: status,
+                    transcript_segments: vec![crate::local_db::TranscriptSegment {
+                        speaker: Some("转写原始标签".into()),
+                        ..Default::default()
+                    }],
+                    speaker_segments: vec![
+                        crate::local_db::TranscriptSegment {
+                            speaker: Some("人员A".into()),
+                            ..Default::default()
+                        },
+                        crate::local_db::TranscriptSegment {
+                            speaker: Some("人员B".into()),
+                            ..Default::default()
+                        },
+                        crate::local_db::TranscriptSegment {
+                            speaker: Some("遗漏人员".into()),
+                            ..Default::default()
+                        },
+                    ],
+                    ..Default::default()
+                };
+                let result = AiSummaryResult {
+                    title: "结果标题".into(),
+                    overview: overview.into(),
+                    decisions: vec![" 决策 ".into()],
+                    action_items: vec![AiSummaryActionItem {
+                        task: " 行动 ".into(),
+                        owner: "".into(),
+                        due_date: " 明天 ".into(),
+                    }],
+                    ..Default::default()
+                };
+                let payload = reconstruct_verified_payload(
+                    &job,
+                    &result,
+                    &members,
+                    " template ",
+                    Some("synthetic-run".into()),
+                )
+                .unwrap();
+                let mut with_run = job.clone();
+                with_run.active_summary_run_id = Some("synthetic-run".into());
+                with_run.summary_runs = vec![AiSummaryRun {
+                    id: "synthetic-run".into(),
+                    job_id: job.id.clone(),
+                    template_id: " template ".into(),
+                    status: "completed".into(),
+                    result: Some(result.clone()),
+                    ..Default::default()
+                }];
+                let source = resolve_summary_source(&with_run, &members, None).unwrap();
+                let document =
+                    super::super::build_export_doc_data_from_source(&with_run, &source, &members);
+                let document_json = serde_json::json!({"title":document.title,"info":{"meetingName":document.meeting_name,"meetingTime":document.meeting_time,"meetingLocation":document.meeting_location,"recorder":document.recorder,"attendees":document.attendees,"absentees":document.absentees,"host":document.host,"reviewer":document.reviewer},"topics":document.topics,"closingSummary":document.closing_summary,"fallbackOverview":document.fallback_overview,"speechBlocks":document.speech_blocks.iter().map(|b|serde_json::json!({"name":b.name,"department":b.department,"weeklySummary":b.weekly_summary,"nextWeekPlan":b.next_week_plan,"summary":b.summary,"originalIndex":b.original_index})).collect::<Vec<_>>()});
+                let mut zip = zip::ZipArchive::new(std::io::Cursor::new(
+                    super::super::renderer::TEMPLATE_DOCX_BYTES,
+                ))
+                .unwrap();
+                let mut xml = String::new();
+                std::io::Read::read_to_string(
+                    &mut zip.by_name("word/document.xml").unwrap(),
+                    &mut xml,
+                )
+                .unwrap();
+                let rendered =
+                    super::super::renderer::render_document_xml(&xml, &document).unwrap();
+                fs::write(
+                    directory.join(format!("minutes-{}.xml", cases.len())),
+                    rendered,
+                )
+                .unwrap();
+                cases.push(serde_json::json!({"job":{"job":job,"transcriptSegments":job.transcript_segments,"speakerSegments":job.speaker_segments},"result":result,"members":members,"template":" template ","run":"synthetic-run","expected":payload,"sourceOverview":source.result.overview}));
+                cases
+                    .last_mut()
+                    .unwrap()
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("document".into(), document_json);
+            }
+        }
+        fs::write(
+            directory.join("minutes-expected.json"),
+            serde_json::to_vec(&cases).unwrap(),
+        )
+        .unwrap();
+    }
 
     fn completed_run(id: &str, title: &str) -> AiSummaryRun {
         AiSummaryRun {
@@ -482,11 +598,431 @@ mod tests {
 
         let source = resolve_summary_source(&job, &[], None).unwrap();
 
-        assert_eq!(source.result.overview, "旧记录中唯一的会议摘要正文。");
+        assert_eq!(
+            source.minutes_payload.global_summary,
+            ["旧记录中唯一的会议摘要正文。"]
+        );
         assert_eq!(source.minutes_payload.speaker_reports.len(), 1);
         assert_eq!(
             source.minutes_payload.speaker_reports[0].resolved_name,
             "人员A"
         );
+    }
+
+    #[test]
+    fn reconstructed_unstructured_body_survives_real_backfill_and_repeated_reads() {
+        let mut run = completed_run("run-backfill", "合成AI标题");
+        run.minutes_payload = None;
+        run.result = Some(AiSummaryResult {
+            title: "合成AI标题".into(),
+            overview: "会议名称：合成产品周会\n会议时间：2026-11-20 10:00\n会议地点：合成会议室\n记录人：合成记录人\n出席人员：合成出席人\n缺席人员：合成缺席人\n会议主持人：合成主持人\n审阅：合成审阅人\nOriginal summary\n1、Second paragraph"
+                .into(),
+            ..AiSummaryResult::default()
+        });
+        let job = MeetingJob {
+            id: "job-1700000000000-621".into(),
+            title: "合成任务标题".into(),
+            created_at: "2026-11-20T00:00:00Z".into(),
+            active_summary_run_id: Some(run.id.clone()),
+            ..MeetingJob::default()
+        };
+        run.job_id.clone_from(&job.id);
+        let mut connection = rusqlite::Connection::open_in_memory().unwrap();
+        crate::local_db::schema::apply_test_schema(&connection).unwrap();
+        let transaction = connection.transaction().unwrap();
+        transaction
+            .execute(
+                "INSERT INTO jobs(id,title,created_at,lang,summary_template,upload_status,
+                 asr_status,summary_status,overall_status,hotwords_json,export_formats_json,active_summary_run_id)
+                 VALUES(?1,?2,'2026-11-20T00:00:00Z','zh','','uploaded','completed','completed','completed','[]','[]',?3)",
+                rusqlite::params![job.id, job.title, run.id],
+            )
+            .unwrap();
+        crate::infrastructure::repositories::ai_summary_runs::save_summary_run_tx(
+            &transaction,
+            &run,
+        )
+        .unwrap();
+        transaction.commit().unwrap();
+        let mut stored = job.clone();
+        stored.summary_runs =
+            crate::infrastructure::repositories::ai_summary_runs::list_summary_runs(
+                &connection,
+                &job.id,
+            )
+            .unwrap();
+        let first = resolve_summary_source(&stored, &[], None).unwrap();
+        assert!(first.reconstructed_payload);
+        assert_eq!(
+            first.minutes_payload.global_summary,
+            ["Original summary", "Second paragraph"]
+        );
+        let first_document = super::super::build_export_doc_data_from_source(&stored, &first, &[]);
+        let expected_metadata = crate::domain::meeting_minutes::MeetingMetadata {
+            meeting_name: "合成产品周会".into(),
+            meeting_time: "2026-11-20 10:00".into(),
+            meeting_location: "合成会议室".into(),
+            recorder: "合成记录人".into(),
+            attendees: "合成出席人".into(),
+            absentees: "合成缺席人".into(),
+            host: "合成主持人".into(),
+            reviewer: "合成审阅人".into(),
+        };
+        assert_eq!(
+            super::super::metadata_from_export_data(&first_document),
+            expected_metadata
+        );
+        assert_eq!(first_document.title, "合成产品周会会议纪要");
+        assert!(
+            crate::infrastructure::repositories::ai_summary_runs::backfill_minutes_payload(
+                &mut connection,
+                &job.id,
+                &run.id,
+                &first.minutes_payload,
+            )
+            .unwrap()
+        );
+        for _ in 0..3 {
+            stored.summary_runs =
+                crate::infrastructure::repositories::ai_summary_runs::list_summary_runs(
+                    &connection,
+                    &job.id,
+                )
+                .unwrap();
+            let repeated = resolve_summary_source(&stored, &[], None).unwrap();
+            assert!(!repeated.reconstructed_payload);
+            let repeated_document =
+                super::super::build_export_doc_data_from_source(&stored, &repeated, &[]);
+            assert_eq!(
+                super::super::metadata_from_export_data(&repeated_document),
+                expected_metadata
+            );
+            assert_eq!(repeated_document.title, first_document.title);
+            assert_eq!(
+                repeated_document.closing_summary,
+                first_document.closing_summary
+            );
+            assert_eq!(
+                repeated_document.fallback_overview,
+                first_document.fallback_overview
+            );
+            let blocks = |document: &super::super::ExportDocData| {
+                document
+                    .speech_blocks
+                    .iter()
+                    .map(|block| {
+                        (
+                            block.department.clone(),
+                            block.name.clone(),
+                            block.weekly_summary.clone(),
+                            block.next_week_plan.clone(),
+                            block.summary.clone(),
+                            block.original_index,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(blocks(&repeated_document), blocks(&first_document));
+        }
+    }
+
+    #[test]
+    fn reconstructed_payload_excludes_metadata_colon_variants_from_body() {
+        for separator in ["：", ":", " \t：", " \t:"] {
+            let mut run = completed_run("run-metadata-filter", "合成AI标题");
+            run.minutes_payload = None;
+            run.result.as_mut().unwrap().overview = format!(
+                "会议名称{separator}合成产品周会\n会议时间{separator}2026-11-20 10:00\n会议地点{separator}合成会议室\n记录人{separator}合成记录人\n出席人员{separator}合成出席人\n缺席人员{separator}合成缺席人\n会议主持人{separator}合成主持人\n审阅{separator}合成审阅人\n主要议题{separator}合成议题\nOriginal summary\n1、Second paragraph\n会议名称是正文的一部分"
+            );
+            let job = MeetingJob {
+                active_summary_run_id: Some(run.id.clone()),
+                summary_runs: vec![run],
+                ..MeetingJob::default()
+            };
+            let source = resolve_summary_source(&job, &[], None).unwrap();
+            assert_eq!(
+                source.minutes_payload.meeting_info.meeting_name,
+                "合成产品周会"
+            );
+            assert_eq!(
+                source.minutes_payload.global_summary,
+                [
+                    "Original summary",
+                    "Second paragraph",
+                    "会议名称是正文的一部分"
+                ],
+                "metadata separator {separator:?} entered the persisted body"
+            );
+        }
+    }
+
+    #[test]
+    fn metadata_only_ooxml_is_identical_after_real_backfill() {
+        use crate::domain::meeting_minutes::MeetingInfoSource;
+
+        for separator in ["：", ":", " \t：", " \t:"] {
+            for placeholders in [false, true] {
+                let mut run = completed_run("run-metadata-only", "合成AI标题");
+                run.minutes_payload = None;
+                let mut overview = Vec::new();
+                for (label, value) in [
+                    ("会议名称", "合成产品周会"),
+                    ("会议时间", "2026-11-20 10:00"),
+                    ("会议地点", "合成会议室"),
+                    ("记录人", "合成记录人"),
+                    ("出席人员", "合成出席人"),
+                    ("缺席人员", "合成缺席人"),
+                    ("会议主持人", "合成主持人"),
+                    ("审阅", "合成审阅人"),
+                ] {
+                    overview.push(format!(
+                        "{label}{separator}{}",
+                        if placeholders { "待补充" } else { value }
+                    ));
+                }
+                run.result.as_mut().unwrap().overview = overview.join("\n");
+                let mut job = MeetingJob {
+                    id: "job-1700000000000-632".into(),
+                    title: "合成任务标题".into(),
+                    active_summary_run_id: Some(run.id.clone()),
+                    ..MeetingJob::default()
+                };
+                run.job_id.clone_from(&job.id);
+                let original_overview = run.result.as_ref().unwrap().overview.clone();
+                let mut connection = rusqlite::Connection::open_in_memory().unwrap();
+                crate::local_db::schema::apply_test_schema(&connection).unwrap();
+                let transaction = connection.transaction().unwrap();
+                transaction
+                    .execute(
+                        "INSERT INTO jobs(id,title,created_at,lang,summary_template,upload_status,
+                         asr_status,summary_status,overall_status,hotwords_json,export_formats_json,active_summary_run_id)
+                         VALUES(?1,?2,'2026-11-20T00:00:00Z','zh','','uploaded','completed','completed','completed','[]','[]',?3)",
+                        rusqlite::params![job.id, job.title, run.id],
+                    )
+                    .unwrap();
+                crate::infrastructure::repositories::ai_summary_runs::save_summary_run_tx(
+                    &transaction,
+                    &run,
+                )
+                .unwrap();
+                transaction.commit().unwrap();
+                let mut first_xml = None;
+                for attempt in 0..4 {
+                    job.summary_runs =
+                        crate::infrastructure::repositories::ai_summary_runs::list_summary_runs(
+                            &connection,
+                            &job.id,
+                        )
+                        .unwrap();
+                    let source = resolve_summary_source(&job, &[], None).unwrap();
+                    assert_eq!(source.reconstructed_payload, attempt == 0);
+                    assert!(source.minutes_payload.global_summary.is_empty());
+                    assert_eq!(
+                        source.minutes_payload.meeting_info_source,
+                        if placeholders {
+                            MeetingInfoSource::Empty
+                        } else {
+                            MeetingInfoSource::Ai
+                        }
+                    );
+                    assert_eq!(
+                        source.minutes_payload.source_summary_run_id,
+                        Some(run.id.clone())
+                    );
+                    let document =
+                        super::super::build_export_doc_data_from_source(&job, &source, &[]);
+                    assert_eq!(
+                        document.meeting_name,
+                        if placeholders {
+                            "合成AI标题"
+                        } else {
+                            "合成产品周会"
+                        }
+                    );
+                    assert_eq!(
+                        document.meeting_time,
+                        if placeholders { "" } else { "2026-11-20 10:00" }
+                    );
+                    assert_eq!(
+                        document.meeting_location,
+                        if placeholders { "" } else { "合成会议室" }
+                    );
+                    let xml = encoded_minutes_document_xml(&document);
+                    assert!(
+                        !xml.contains("决策、行动项、风险与跟进："),
+                        "metadata-only appendix changed at attempt {attempt}, separator {separator:?}"
+                    );
+                    if let Some(first_xml) = &first_xml {
+                        assert_eq!(strict_minutes_xml_events(&xml), *first_xml);
+                    } else {
+                        first_xml = Some(strict_minutes_xml_events(&xml));
+                    }
+                    assert_eq!(
+                        job.summary_runs[0].result.as_ref().unwrap().overview,
+                        original_overview
+                    );
+                    assert_eq!(
+                        crate::infrastructure::repositories::ai_summary_runs::backfill_minutes_payload(
+                            &mut connection,
+                            &job.id,
+                            &run.id,
+                            &source.minutes_payload,
+                        )
+                        .unwrap(),
+                        attempt == 0
+                    );
+                }
+            }
+        }
+    }
+
+    fn encoded_minutes_document_xml(document: &super::super::ExportDocData) -> String {
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(
+            super::super::renderer::TEMPLATE_DOCX_BYTES,
+        ))
+        .unwrap();
+        let mut template = String::new();
+        std::io::Read::read_to_string(
+            &mut archive.by_name("word/document.xml").unwrap(),
+            &mut template,
+        )
+        .unwrap();
+        super::super::renderer::render_document_xml(&template, document).unwrap()
+    }
+
+    fn strict_minutes_xml_events(xml: &str) -> Vec<xml::reader::XmlEvent> {
+        use xml::reader::{EventReader, ParserConfig, XmlEvent};
+
+        EventReader::new_with_config(xml.as_bytes(), ParserConfig::new().ignore_comments(false))
+            .into_iter()
+            .map(|event| {
+                let mut event = event.unwrap();
+                if let XmlEvent::StartElement { attributes, .. } = &mut event {
+                    attributes.sort_by(|left, right| {
+                        (
+                            &left.name.namespace,
+                            &left.name.local_name,
+                            &left.name.prefix,
+                        )
+                            .cmp(&(
+                                &right.name.namespace,
+                                &right.name.local_name,
+                                &right.name.prefix,
+                            ))
+                    });
+                }
+                event
+            })
+            .collect()
+    }
+
+    #[test]
+    fn minutes_xml_comparison_preserves_namespaces_values_and_text() {
+        let original = strict_minutes_xml_events(
+            r#"<root xmlns:w="urn:word" w:id="value" id="plain"> Body <!--note--><w:child/></root>"#,
+        );
+        assert_eq!(
+            original,
+            strict_minutes_xml_events(
+                r#"<root id="plain" w:id="value" xmlns:w="urn:word"> Body <!--note--><w:child/></root>"#
+            )
+        );
+        for changed in [
+            r#"<root xmlns:w="urn:other" w:id="value" id="plain"> Body <!--note--><w:child/></root>"#,
+            r#"<root xmlns:w="urn:word" w:other="value" id="plain"> Body <!--note--><w:child/></root>"#,
+            r#"<root xmlns:w="urn:word" w:id="other" id="plain"> Body <!--note--><w:child/></root>"#,
+            r#"<root xmlns:w="urn:word" w:id="value" id="plain"> Body<!--note--><w:child/></root>"#,
+            r#"<root xmlns:w="urn:word" w:id="value" id="plain"> Body <!--other--><w:child/></root>"#,
+            r#"<root xmlns:w="urn:word" w:id="value" id="plain"> Body <!--note--></root>"#,
+        ] {
+            assert_ne!(original, strict_minutes_xml_events(changed));
+        }
+    }
+
+    #[test]
+    fn persisted_metadata_authority_never_restores_stale_overview() {
+        use crate::{domain::meeting_minutes::MeetingInfoSource, local_db::MeetingMinutesInfo};
+
+        for (source, name) in [
+            (MeetingInfoSource::Ai, "合成已存会议名"),
+            (MeetingInfoSource::Ai, ""),
+            (MeetingInfoSource::Empty, ""),
+            (MeetingInfoSource::User, "合成用户会议名"),
+            (MeetingInfoSource::User, ""),
+        ] {
+            let mut run = completed_run("run-metadata-authority", "合成AI标题");
+            run.result.as_mut().unwrap().overview =
+                "会议名称：旧会议名\n会议时间：旧时间\n会议地点：旧地点\n记录人：旧记录人\n会议主持人：旧主持人\nStale body".into();
+            let expected = MeetingMinutesInfo {
+                meeting_name: name.into(),
+                ..MeetingMinutesInfo::default()
+            };
+            run.minutes_payload = Some(MeetingMinutesPayload {
+                schema_version: 2,
+                meeting_info_source: source,
+                source_summary_run_id: Some(run.id.clone()),
+                meeting_info: expected.clone(),
+                ..MeetingMinutesPayload::default()
+            });
+            let before = serde_json::to_value(&run.minutes_payload).unwrap();
+            let job = MeetingJob {
+                title: "合成任务标题".into(),
+                active_summary_run_id: Some(run.id.clone()),
+                summary_runs: vec![run],
+                ..MeetingJob::default()
+            };
+            let mut first_xml = None;
+            for _ in 0..3 {
+                let resolved = resolve_summary_source(&job, &[], None).unwrap();
+                assert!(!resolved.reconstructed_payload);
+                let document =
+                    super::super::build_export_doc_data_from_source(&job, &resolved, &[]);
+                let mut expected = super::super::metadata_from_minutes_info(&expected);
+                if expected.meeting_name.is_empty() {
+                    expected.meeting_name = "合成AI标题".into();
+                }
+                assert_eq!(super::super::metadata_from_export_data(&document), expected);
+                assert!(document.closing_summary.is_empty());
+                assert!(document.fallback_overview.is_empty());
+                assert!(document.speech_blocks.is_empty());
+                let xml = encoded_minutes_document_xml(&document);
+                assert!(!xml.contains("Stale body"));
+                assert!(!xml.contains("决策、行动项、风险与跟进："));
+                if let Some(first_xml) = &first_xml {
+                    assert_eq!(strict_minutes_xml_events(&xml), *first_xml);
+                } else {
+                    first_xml = Some(strict_minutes_xml_events(&xml));
+                }
+                assert_eq!(
+                    serde_json::to_value(&job.summary_runs[0].minutes_payload).unwrap(),
+                    before
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn persisted_empty_payload_never_resurrects_old_unstructured_body() {
+        let mut run = completed_run("run-cleared", "Synthetic meeting");
+        run.result = Some(AiSummaryResult {
+            overview: "Stale unstructured summary".into(),
+            ..AiSummaryResult::default()
+        });
+        run.minutes_payload = Some(MeetingMinutesPayload {
+            source_summary_run_id: Some(run.id.clone()),
+            ..MeetingMinutesPayload::default()
+        });
+        let job = MeetingJob {
+            active_summary_run_id: Some(run.id.clone()),
+            summary_runs: vec![run],
+            ..MeetingJob::default()
+        };
+        let source = resolve_summary_source(&job, &[], None).unwrap();
+        assert!(!source.reconstructed_payload);
+        assert!(source.minutes_payload.global_summary.is_empty());
+        let document = super::super::build_export_doc_data_from_source(&job, &source, &[]);
+        assert!(document.fallback_overview.is_empty());
+        assert!(document.closing_summary.is_empty());
+        assert!(document.speech_blocks.is_empty());
     }
 }

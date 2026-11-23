@@ -3,38 +3,20 @@ import { readFileSync, writeFileSync } from "node:fs";
 const args = parseArgs(process.argv.slice(2));
 
 const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
-const desktopPackage = JSON.parse(readFileSync("apps/desktop/package.json", "utf8"));
-const tauriConfig = JSON.parse(readFileSync("apps/desktop/src-tauri/tauri.conf.json", "utf8"));
-const cargoToml = readFileSync("apps/desktop/src-tauri/Cargo.toml", "utf8");
-const cargoVersion = cargoToml.match(/^version = "([^"]+)"$/m)?.[1];
-const cargoLock = readFileSync("Cargo.lock", "utf8");
-const cargoLockVersion = readCargoLockVersion(cargoLock, "liberty");
+const nativeHost = readFileSync("apps/native/internal/host/profile.go", "utf8");
+const nativeVersion = nativeHost.match(/^const Version = "([^"]+)"$/m)?.[1];
 const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 const errors = [];
 
-if (!cargoVersion) {
-  errors.push("Unable to read version from apps/desktop/src-tauri/Cargo.toml.");
+if (!nativeVersion) {
+  errors.push("Unable to read native application version from apps/native/internal/host/profile.go.");
 }
 
-if (!cargoLockVersion) {
-  errors.push("Unable to read the liberty package version from Cargo.lock.");
-}
-
-const versions = {
-  rootPackage: rootPackage.version,
-  desktopPackage: desktopPackage.version,
-  tauriConfig: tauriConfig.version,
-  cargoToml: cargoVersion,
-  cargoLock: cargoLockVersion,
-};
-const releaseVersions = new Set([
-  rootPackage.version,
-  desktopPackage.version,
-  tauriConfig.version,
-  cargoVersion,
-  cargoLockVersion,
-].filter(Boolean));
+const versions = args.native
+  ? { rootPackage: rootPackage.version, nativeHost: nativeVersion }
+  : readProductionVersions(rootPackage.version, nativeVersion, errors);
+const releaseVersions = new Set(Object.values(versions).filter(Boolean));
 
 if (releaseVersions.size !== 1) {
   errors.push(
@@ -97,6 +79,7 @@ if (args.printVersion) {
 
 function parseArgs(values) {
   const parsed = {
+    native: false,
     tag: undefined,
     changelogOutput: undefined,
     printVersion: false,
@@ -104,7 +87,13 @@ function parseArgs(values) {
 
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
-    if (value === "--print-version") {
+    if (value === "--native") {
+      if (parsed.native) {
+        console.error("- --native may only be specified once.");
+        process.exit(1);
+      }
+      parsed.native = true;
+    } else if (value === "--print-version") {
       parsed.printVersion = true;
     } else if (value === "--tag" || value === "--changelog-output") {
       const nextValue = values[index + 1];
@@ -121,6 +110,25 @@ function parseArgs(values) {
   }
 
   return parsed;
+}
+
+function readProductionVersions(rootVersion, nativeHostVersion, errors) {
+  const desktopPackage = JSON.parse(readFileSync("apps/desktop/package.json", "utf8"));
+  const tauriConfig = JSON.parse(readFileSync("apps/desktop/src-tauri/tauri.conf.json", "utf8"));
+  const cargoToml = readFileSync("apps/desktop/src-tauri/Cargo.toml", "utf8");
+  const cargoVersion = cargoToml.match(/^version = "([^"]+)"$/m)?.[1];
+  const cargoLock = readFileSync("Cargo.lock", "utf8");
+  const cargoLockVersion = readCargoLockVersion(cargoLock, "liberty");
+  if (!cargoVersion) errors.push("Unable to read version from apps/desktop/src-tauri/Cargo.toml.");
+  if (!cargoLockVersion) errors.push("Unable to read the liberty package version from Cargo.lock.");
+  return {
+    rootPackage: rootVersion,
+    desktopPackage: desktopPackage.version,
+    tauriConfig: tauriConfig.version,
+    cargoToml: cargoVersion,
+    cargoLock: cargoLockVersion,
+    nativeHost: nativeHostVersion,
+  };
 }
 
 function readCargoLockVersion(contents, packageName) {

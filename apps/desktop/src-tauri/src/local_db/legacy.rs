@@ -9,6 +9,10 @@ use tauri::AppHandle;
 use super::{model::*, progress};
 
 pub(crate) fn import_legacy_jobs(app: &AppHandle, conn: &mut Connection) -> LocalResult<()> {
+    import_legacy_jobs_from_root(&jobs_root(app)?, conn)
+}
+
+fn import_legacy_jobs_from_root(root: &Path, conn: &mut Connection) -> LocalResult<()> {
     let imported = conn
         .query_row(
             "SELECT value FROM app_meta WHERE key = 'legacy_jobs_imported'",
@@ -22,7 +26,6 @@ pub(crate) fn import_legacy_jobs(app: &AppHandle, conn: &mut Connection) -> Loca
         return Ok(());
     }
 
-    let root = jobs_root(app)?;
     let tx = conn.transaction().map_err(|err| err.to_string())?;
 
     for entry in fs::read_dir(root).map_err(|err| err.to_string())? {
@@ -34,10 +37,31 @@ pub(crate) fn import_legacy_jobs(app: &AppHandle, conn: &mut Connection) -> Loca
         }
 
         if let Ok(job) = read_legacy_job(&path) {
+            let protected = tx
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM jobs WHERE id = ?1)
+                        OR EXISTS(SELECT 1 FROM job_deletion_ops WHERE job_id = ?1)",
+                    [&job.id],
+                    |row| row.get::<_, bool>(0),
+                )
+                .map_err(|err| err.to_string())?;
+            if protected {
+                continue;
+            }
             jobs::save_job_snapshot_tx(&tx, &job)?;
 
             if has_summary_content(&job.summary) {
                 let imported_run = imported_summary_run(&job)?;
+                let summary_exists = tx
+                    .query_row(
+                        "SELECT EXISTS(SELECT 1 FROM ai_summary_runs WHERE id = ?1)",
+                        [&imported_run.id],
+                        |row| row.get::<_, bool>(0),
+                    )
+                    .map_err(|err| err.to_string())?;
+                if summary_exists {
+                    return Err("旧任务摘要标识已存在，未导入任何任务。".into());
+                }
                 ai_summary_runs::save_summary_run_tx(&tx, &imported_run)?;
             }
         }
@@ -148,6 +172,427 @@ fn imported_summary_run(job: &MeetingJob) -> LocalResult<AiSummaryRun> {
 mod tests {
     use super::*;
     use crate::domain::transcript::TranscriptSegment;
+
+    struct LegacyTestDirectory(std::path::PathBuf);
+
+    impl LegacyTestDirectory {
+        fn new() -> Self {
+            let mut random = [0_u8; 16];
+            ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut random).unwrap();
+            let suffix = random
+                .iter()
+                .map(|value| format!("{value:02x}"))
+                .collect::<String>();
+            let path = std::env::temp_dir().join(format!("liberty-legacy-{suffix}"));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for LegacyTestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn write_legacy_snapshot(root: &Path, job: &MeetingJob) {
+        let directory = root.join(&job.id);
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("job.json"), serde_json::to_vec(job).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn legacy_import_preserves_existing_sqlite_and_persisted_deletions_after_reopen() {
+        let directory = LegacyTestDirectory::new();
+        let root = directory.path().join("jobs");
+        let database = directory.path().join("synthetic.sqlite3");
+        fs::create_dir(&root).unwrap();
+        let mut connection = Connection::open(&database).unwrap();
+        crate::local_db::schema::apply_test_schema(&connection).unwrap();
+        let mut existing = MeetingJob {
+            id: "job-1700000000000-701".into(),
+            title: "Authoritative SQLite result".into(),
+            source: "local".into(),
+            created_at: "2026-11-20T00:00:00Z".into(),
+            lang: "zh".into(),
+            overall_status: "completed".into(),
+            asr_status: "completed".into(),
+            summary_status: "completed".into(),
+            process_log: Some("Authoritative process log".into()),
+            source_files: vec![MeetingSourceFile {
+                id: "synthetic-source-701".into(),
+                name: "synthetic.wav".into(),
+                kind: "audio".into(),
+                ..MeetingSourceFile::default()
+            }],
+            transcript_segments: vec![TranscriptSegment {
+                id: "synthetic-transcript-701".into(),
+                start_ms: 0,
+                end_ms: 1000,
+                speaker: None,
+                text: "Authoritative transcript".into(),
+            }],
+            summary: MeetingSummary {
+                overview: "Authoritative summary".into(),
+                ..MeetingSummary::default()
+            },
+            ..MeetingJob::default()
+        };
+        let summary = imported_summary_run(&existing).unwrap();
+        existing.active_summary_run_id = Some(summary.id.clone());
+        let transaction = connection.transaction().unwrap();
+        jobs::save_job_snapshot_tx(&transaction, &existing).unwrap();
+        ai_summary_runs::save_summary_run_tx(&transaction, &summary).unwrap();
+        transaction
+            .execute(
+                "INSERT INTO job_runs(job_id,attempt_id,lease_token,status) VALUES(?1,3,4,'completed')",
+                [&existing.id],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO job_events(id,job_id,event_type,message,created_at)
+                 VALUES('synthetic-event-701',?1,'completed','Authoritative event','2026-11-20T00:00:00Z')",
+                [&existing.id],
+            )
+            .unwrap();
+        let deleted_id = "job-1700000000000-702";
+        transaction
+            .execute(
+                "INSERT INTO job_deletion_ops(operation_id,job_id,trash_name,phase,created_at_ms,updated_at_ms)
+                 VALUES('synthetic-delete-702',?1,'synthetic-trash-702','database_deleted',1,2)",
+                [deleted_id],
+            )
+            .unwrap();
+        transaction.commit().unwrap();
+        let before =
+            serde_json::to_value(jobs::load_job_snapshot(&connection, &existing.id).unwrap())
+                .unwrap();
+        let stale = MeetingJob {
+            id: existing.id.clone(),
+            title: "Stale JSON result".into(),
+            source: "local".into(),
+            created_at: existing.created_at.clone(),
+            overall_status: "queued".into(),
+            asr_status: "queued".into(),
+            ..MeetingJob::default()
+        };
+        write_legacy_snapshot(&root, &stale);
+        let deleted = MeetingJob {
+            id: deleted_id.into(),
+            ..stale.clone()
+        };
+        write_legacy_snapshot(&root, &deleted);
+        let missing = MeetingJob {
+            id: "job-1700000000000-703".into(),
+            title: "Missing task imported".into(),
+            ..stale
+        };
+        write_legacy_snapshot(&root, &missing);
+        import_legacy_jobs_from_root(&root, &mut connection).unwrap();
+        for _ in 0..3 {
+            drop(connection);
+            connection = Connection::open(&database).unwrap();
+            let after =
+                serde_json::to_value(jobs::load_job_snapshot(&connection, &existing.id).unwrap())
+                    .unwrap();
+            assert_eq!(after, before);
+            let run = connection
+                .query_row(
+                    "SELECT attempt_id,lease_token,status FROM job_runs WHERE job_id=?1",
+                    [&existing.id],
+                    |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            row.get::<_, i64>(1)?,
+                            row.get::<_, String>(2)?,
+                        ))
+                    },
+                )
+                .unwrap();
+            assert_eq!(run, (3, 4, "completed".into()));
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT message FROM job_events WHERE id='synthetic-event-701'",
+                        [],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .unwrap(),
+                "Authoritative event"
+            );
+            assert!(jobs::load_job_snapshot(&connection, deleted_id).is_err());
+            assert_eq!(
+                jobs::load_job_snapshot(&connection, &missing.id)
+                    .unwrap()
+                    .title,
+                missing.title
+            );
+            import_legacy_jobs_from_root(&root, &mut connection).unwrap();
+        }
+    }
+
+    #[test]
+    fn legacy_import_marker_failure_rolls_back_new_tasks_and_retries() {
+        let directory = LegacyTestDirectory::new();
+        let root = directory.path().join("jobs");
+        fs::create_dir(&root).unwrap();
+        let database = directory.path().join("synthetic.sqlite3");
+        let mut connection = Connection::open(&database).unwrap();
+        crate::local_db::schema::apply_test_schema(&connection).unwrap();
+        let job = MeetingJob {
+            id: "job-1700000000000-711".into(),
+            title: "Synthetic imported task".into(),
+            created_at: "2026-11-20T00:00:00Z".into(),
+            summary: MeetingSummary {
+                overview: "Synthetic imported summary".into(),
+                ..MeetingSummary::default()
+            },
+            ..MeetingJob::default()
+        };
+        write_legacy_snapshot(&root, &job);
+        connection
+            .execute_batch(
+                "CREATE TRIGGER reject_import_marker BEFORE INSERT ON app_meta
+                 WHEN NEW.key='legacy_jobs_imported'
+                 BEGIN SELECT RAISE(ABORT,'synthetic import marker failure'); END;",
+            )
+            .unwrap();
+        assert!(import_legacy_jobs_from_root(&root, &mut connection).is_err());
+        drop(connection);
+        connection = Connection::open(&database).unwrap();
+        for table in [
+            "jobs",
+            "job_source_files",
+            "transcript_segments",
+            "ai_summary_runs",
+        ] {
+            let count = connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap();
+            assert_eq!(count, 0, "{table} changed after failed import");
+        }
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM app_meta WHERE key='legacy_jobs_imported'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        connection
+            .execute_batch("DROP TRIGGER reject_import_marker")
+            .unwrap();
+        import_legacy_jobs_from_root(&root, &mut connection).unwrap();
+        drop(connection);
+        connection = Connection::open(&database).unwrap();
+        let imported = jobs::load_job_snapshot(&connection, &job.id).unwrap();
+        assert_eq!(imported.title, job.title);
+        assert_eq!(imported.summary_runs.len(), 1);
+        import_legacy_jobs_from_root(&root, &mut connection).unwrap();
+        assert_eq!(
+            jobs::load_job_snapshot(&connection, &job.id)
+                .unwrap()
+                .summary_runs
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn legacy_import_summary_identity_collision_preserves_existing_owner() {
+        let directory = LegacyTestDirectory::new();
+        let root = directory.path().join("jobs");
+        fs::create_dir(&root).unwrap();
+        let database = directory.path().join("synthetic.sqlite3");
+        let mut connection = Connection::open(&database).unwrap();
+        crate::local_db::schema::apply_test_schema(&connection).unwrap();
+        let existing = MeetingJob {
+            id: "job-1700000000000-721".into(),
+            title: "Authoritative SQLite task".into(),
+            ..MeetingJob::default()
+        };
+        let imported = MeetingJob {
+            id: "job-1700000000000-722".into(),
+            title: "Synthetic old task".into(),
+            summary: MeetingSummary {
+                overview: "Synthetic imported summary".into(),
+                ..MeetingSummary::default()
+            },
+            ..MeetingJob::default()
+        };
+        write_legacy_snapshot(&root, &imported);
+        let mut conflicting = imported_summary_run(&imported).unwrap();
+        conflicting.job_id.clone_from(&existing.id);
+        conflicting.result.as_mut().unwrap().overview = "Authoritative existing summary".into();
+        let transaction = connection.transaction().unwrap();
+        jobs::save_job_snapshot_tx(&transaction, &existing).unwrap();
+        ai_summary_runs::save_summary_run_tx(&transaction, &conflicting).unwrap();
+        transaction.commit().unwrap();
+        let before =
+            serde_json::to_value(jobs::load_job_snapshot(&connection, &existing.id).unwrap())
+                .unwrap();
+        assert!(import_legacy_jobs_from_root(&root, &mut connection).is_err());
+        drop(connection);
+        connection = Connection::open(&database).unwrap();
+        assert_eq!(
+            serde_json::to_value(jobs::load_job_snapshot(&connection, &existing.id).unwrap())
+                .unwrap(),
+            before
+        );
+        assert!(jobs::load_job_snapshot(&connection, &imported.id).is_err());
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM app_meta WHERE key='legacy_jobs_imported'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        connection
+            .execute("DELETE FROM ai_summary_runs WHERE id=?1", [&conflicting.id])
+            .unwrap();
+        import_legacy_jobs_from_root(&root, &mut connection).unwrap();
+        assert_eq!(
+            jobs::load_job_snapshot(&connection, &imported.id)
+                .unwrap()
+                .summary_runs
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    #[ignore = "explicit cross-language legacy fixtures via pnpm native:compat"]
+    fn export_native_legacy_fixtures() {
+        use std::{fs::OpenOptions, path::PathBuf};
+        let directory = PathBuf::from(
+            std::env::var_os("LIBERTY_NATIVE_FIXTURE_DIR").expect("explicit fixture directory"),
+        );
+        assert!(directory.is_absolute() && directory.is_dir());
+        let root = directory.join("legacy-input").join("jobs");
+        fs::create_dir_all(&root).unwrap();
+        let mut ids = Vec::new();
+        for index in 0..6 {
+            let id = format!("job-1700000000000-{}", 500 + index);
+            let path = root.join(&id);
+            fs::create_dir(&path).unwrap();
+            let mut job = MeetingJob {
+                id: id.clone(),
+                title: format!("合成旧任务 {index}"),
+                source: "local".into(),
+                created_at: "2026-11-17T00:00:00Z".into(),
+                lang: "zh".into(),
+                enable_speaker: true,
+                upload_status: "uploaded".into(),
+                asr_status: "queued".into(),
+                summary_status: "queued".into(),
+                overall_status: "queued".into(),
+                export_formats: vec!["txt".into(), "md".into()],
+                hotwords: vec!["合成关键词".into()],
+                python_path: Some("synthetic-python".into()),
+                runner_script_path: Some("synthetic-runner".into()),
+                source_files: vec![MeetingSourceFile {
+                    id: format!("legacy-source-{index}"),
+                    name: "synthetic.wav".into(),
+                    path: Some("synthetic-media.wav".into()),
+                    size_label: "1 KB".into(),
+                    kind: "audio".into(),
+                }],
+                ..MeetingJob::default()
+            };
+            let segments = vec![
+                TranscriptSegment {
+                    id: "s1".into(),
+                    start_ms: 10,
+                    end_ms: 1000,
+                    speaker: Some("人员A".into()),
+                    text: "合成文本A".into(),
+                },
+                TranscriptSegment {
+                    id: "s2".into(),
+                    start_ms: 1001,
+                    end_ms: 2000,
+                    speaker: Some("人员B".into()),
+                    text: "合成文本B".into(),
+                },
+            ];
+            if index % 2 == 0 {
+                job.transcript_segments = segments.clone();
+                job.speaker_segments = segments.clone();
+                job.diarization_status = crate::domain::asr::DiarizationStatus::Completed;
+                job.asr_backend = crate::domain::asr::AsrBackend::Funasr;
+                job.runner_protocol_version = Some(2);
+            }
+            job.summary = MeetingSummary {
+                overview: if index == 4 {
+                    "旧记录唯一的摘要。".into()
+                } else {
+                    "会议名称：合成周会\n会议时间：待补充\n发言内容\n【研发部】：人员A\n上周总结：\n1、已完成合成事项\n本周计划：\n1、下周事项".into()
+                },
+                topics: vec!["合成议题".into()],
+                action_items: vec!["合成行动项".into()],
+                ..MeetingSummary::default()
+            };
+            if index == 5 {
+                job.summary = MeetingSummary::default();
+                job.failure_reason = Some("saved reason".into());
+            }
+            let mut value = serde_json::to_value(&job).unwrap();
+            if index == 1 {
+                for key in [
+                    "asrBackend",
+                    "diarizationStatus",
+                    "runnerProtocolVersion",
+                    "source",
+                    "summaryRuns",
+                ] {
+                    value.as_object_mut().unwrap().remove(key);
+                }
+            }
+            fs::write(path.join("job.json"), serde_json::to_vec(&value).unwrap()).unwrap();
+            fs::write(path.join("result.json"),serde_json::to_vec(&serde_json::json!({"durationMinutes":3,"transcriptSegments":segments,"speakerSegments":segments,"failureReason":"result fallback"})).unwrap()).unwrap();
+            fs::write(path.join("progress.json"),serde_json::to_vec(&serde_json::json!({"stage":if index==5 {"failed"}else if index==3 {"speaker_processing"}else{"completed"},"statusMessage":"Synthetic progress","failureReason":null,"progressPercent":50})).unwrap()).unwrap();
+            fs::write(
+                path.join("process.log"),
+                "  Synthetic process log\nsecond line  \n",
+            )
+            .unwrap();
+            ids.push(id);
+        }
+        let invalid = root.join("job-1700000000000-599");
+        fs::create_dir(&invalid).unwrap();
+        fs::write(invalid.join("job.json"), "{invalid").unwrap();
+        let database = directory.join("legacy-expected.sqlite3");
+        OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&database)
+            .unwrap();
+        let mut conn = Connection::open(&database).unwrap();
+        crate::local_db::schema::apply_test_schema(&conn).unwrap();
+        import_legacy_jobs_from_root(&root, &mut conn).unwrap();
+        let mut expected = Vec::new();
+        for id in ids {
+            let job = crate::local_db::jobs::load_job_snapshot(&conn, &id).unwrap();
+            expected.push(serde_json::json!({"job":job,"transcriptSegments":job.transcript_segments,"speakerSegments":job.speaker_segments,"summary":job.summary,"summaryRuns":job.summary_runs,"processLog":job.process_log}));
+        }
+        fs::write(
+            directory.join("legacy-expected.json"),
+            serde_json::to_vec(&expected).unwrap(),
+        )
+        .unwrap();
+    }
 
     #[test]
     fn imported_completed_run_persists_verified_payload_with_snapshot_speakers() {

@@ -1,18 +1,21 @@
 use std::{fs, path::PathBuf};
 
-use rusqlite::{
-    params, Connection, DatabaseName, OptionalExtension, Transaction, TransactionBehavior,
-};
+use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
+use serde::{Deserialize, Serialize};
 
 use crate::infrastructure::{
     credentials::{
         credential_key_for_ai_model, credential_key_for_remote_api_token, CredentialStore,
     },
     ids,
+    repositories::credential_cleanup,
+    restore_credentials,
 };
 use crate::local_db::LocalResult;
 
 pub const CURRENT_SCHEMA_VERSION: i64 = 10;
+const CREDENTIAL_JOURNAL_KEY: &str = "native_credential_migration_v3";
+const CREDENTIAL_JOURNAL_ERROR: &str = "无法恢复系统凭据迁移记录。";
 
 pub type MigrationFn = for<'transaction> fn(&Transaction<'transaction>) -> LocalResult<()>;
 
@@ -60,10 +63,12 @@ pub fn run_migrations(
 ) -> LocalResult<i64> {
     let mut version = ensure_schema_version(conn)?;
     validate_migration_sequence(migrations)?;
+    let restore_credentials = restore_credentials::read(conn)?;
     if version < CURRENT_SCHEMA_VERSION {
         create_consistent_backup(conn)?;
         version = ensure_schema_version(conn)?;
     }
+    recover_credential_migration(conn, credential_store)?;
 
     while version < CURRENT_SCHEMA_VERSION {
         let migration = &migrations[version as usize];
@@ -88,6 +93,9 @@ pub fn run_migrations(
         ));
     }
 
+    if let Some(records) = restore_credentials {
+        records.recover(conn)?;
+    }
     Ok(version)
 }
 
@@ -113,38 +121,77 @@ fn run_sql_migration(
     Ok(migration.version)
 }
 
+#[cfg(test)]
+pub(crate) fn run_test_migration(
+    conn: &Connection,
+    credential_store: &dyn CredentialStore,
+    migration: &Migration,
+) -> LocalResult<i64> {
+    match migration.kind {
+        MigrationKind::Sql(apply) => run_sql_migration(conn, migration, apply),
+        MigrationKind::Credentials => run_credential_migration(conn, credential_store, migration),
+    }
+}
+
 fn run_credential_migration(
     conn: &Connection,
     credential_store: &dyn CredentialStore,
     migration: &Migration,
 ) -> LocalResult<i64> {
-    let plan = CredentialMigrationPlan::read(conn)?;
-    let staged = plan.stage(credential_store)?;
-    let result = publish_credential_migration(conn, migration, &staged);
-    match result {
-        Ok(PublishOutcome::Applied) => {
-            staged.finalize(credential_store);
-            Ok(migration.version)
+    recover_credential_migration(conn, credential_store)?;
+    ensure_credential_journal_durability(conn)?;
+    let plan = {
+        let transaction = exclusive_transaction(conn, migration)?;
+        let version = ensure_schema_version(&transaction)?;
+        if version >= migration.version {
+            return Ok(version);
         }
-        Ok(PublishOutcome::AlreadyApplied(version)) => {
-            staged.rollback(credential_store)?;
-            Ok(version)
-        }
+        ensure_next_version(version, migration)?;
+        let plan = CredentialMigrationPlan::read(&transaction)?;
+        let mut journal = read_credential_journal(&transaction)?.unwrap_or_default();
+        journal
+            .entries
+            .extend(plan.entries.iter().map(|entry| CredentialJournalEntry {
+                reference: entry.staged_reference.clone(),
+                previous: entry.previous_reference.clone(),
+            }));
+        save_credential_journal(&transaction, &journal)?;
+        transaction
+            .commit()
+            .map_err(|_| CREDENTIAL_JOURNAL_ERROR.to_string())?;
+        plan
+    };
+    if let Err(error) = plan.stage(credential_store) {
+        return Err(credential_migration_failure(conn, credential_store, error));
+    }
+    let outcome = match publish_credential_migration(conn, migration, &plan) {
+        Ok(outcome) => outcome,
         Err(error) => {
-            if credential_migration_was_published(conn, migration.version, &staged)? {
-                staged.finalize(credential_store);
-                Ok(migration.version)
-            } else {
-                Err(staged.rollback_with_error(credential_store, error))
-            }
+            return Err(credential_migration_failure(conn, credential_store, error));
         }
+    };
+    recover_credential_migration(conn, credential_store)?;
+    match outcome {
+        PublishOutcome::Applied => Ok(migration.version),
+        PublishOutcome::AlreadyApplied(version) => Ok(version),
+    }
+}
+
+fn credential_migration_failure(
+    conn: &Connection,
+    credential_store: &dyn CredentialStore,
+    error: String,
+) -> String {
+    match recover_credential_migration(conn, credential_store) {
+        Ok(()) => error,
+        Err(cleanup_error) => format!("{error}；{cleanup_error}"),
     }
 }
 
 fn publish_credential_migration(
     conn: &Connection,
     migration: &Migration,
-    staged: &StagedCredentialMigration,
+    plan: &CredentialMigrationPlan,
 ) -> LocalResult<PublishOutcome> {
     let transaction = exclusive_transaction(conn, migration)?;
     let version = ensure_schema_version(&transaction)?;
@@ -152,9 +199,20 @@ fn publish_credential_migration(
         return Ok(PublishOutcome::AlreadyApplied(version));
     }
     ensure_next_version(version, migration)?;
-    staged
-        .apply(&transaction)
+    plan.apply(&transaction)
         .map_err(|error| migration_error(migration, error))?;
+    let mut journal = read_credential_journal(&transaction)?
+        .ok_or_else(|| CREDENTIAL_JOURNAL_ERROR.to_string())?;
+    if !plan.entries.iter().all(|entry| {
+        journal.entries.iter().any(|record| {
+            record.reference == entry.staged_reference
+                && record.previous == entry.previous_reference
+        })
+    }) {
+        return Err(CREDENTIAL_JOURNAL_ERROR.to_string());
+    }
+    journal.published = true;
+    save_credential_journal(&transaction, &journal)?;
     record_schema_version(&transaction, migration)?;
     transaction.commit().map_err(|error| {
         format!(
@@ -224,7 +282,7 @@ fn create_consistent_backup(conn: &Connection) -> LocalResult<Option<PathBuf>> {
     };
     // SQLite's backup API owns the source read snapshot. Starting it from a
     // write transaction on the same connection can wait on its own lock.
-    if let Err(error) = conn.backup(DatabaseName::Main, &backup_path, None) {
+    if let Err(error) = conn.backup(rusqlite::MAIN_DB, &backup_path, None::<fn(_)>) {
         let _ = fs::remove_file(&backup_path);
         return Err(format!(
             "无法创建数据库迁移前备份 {}: {error}",
@@ -269,6 +327,21 @@ pub fn add_column_if_missing(
     Ok(())
 }
 
+pub(crate) fn sql_blocks<const COUNT: usize>(
+    source: &'static str,
+) -> LocalResult<[&'static str; COUNT]> {
+    let blocks = source
+        .split("-- next block")
+        .map(str::trim)
+        .collect::<Vec<_>>();
+    if blocks.iter().any(|block| block.is_empty()) {
+        return Err("共享数据库迁移包含空 SQL 块。".into());
+    }
+    blocks
+        .try_into()
+        .map_err(|_| format!("共享数据库迁移需要 {COUNT} 个 SQL 块。"))
+}
+
 struct CredentialMigrationPlan {
     entries: Vec<CredentialMigrationEntry>,
 }
@@ -285,10 +358,6 @@ enum CredentialTarget {
     AiModel(String),
 }
 
-struct StagedCredentialMigration {
-    entries: Vec<CredentialMigrationEntry>,
-}
-
 impl CredentialMigrationPlan {
     fn read(conn: &Connection) -> LocalResult<Self> {
         let mut entries = Vec::new();
@@ -302,8 +371,7 @@ impl CredentialMigrationPlan {
             .optional()
             .map_err(|error| error.to_string())?
         {
-            let plaintext = plaintext.trim().to_string();
-            if !plaintext.is_empty() {
+            if !plaintext.trim().is_empty() {
                 entries.push(CredentialMigrationEntry::new(
                     CredentialTarget::Settings,
                     plaintext,
@@ -336,9 +404,12 @@ impl CredentialMigrationPlan {
             credentials
         };
         for (model_id, plaintext, previous_reference) in model_credentials {
+            if plaintext.trim().is_empty() {
+                continue;
+            }
             entries.push(CredentialMigrationEntry::new(
                 CredentialTarget::AiModel(model_id.clone()),
-                plaintext.trim().to_string(),
+                plaintext,
                 previous_reference,
                 &credential_key_for_ai_model(&model_id),
             ));
@@ -346,29 +417,23 @@ impl CredentialMigrationPlan {
         Ok(Self { entries })
     }
 
-    fn stage(
-        self,
-        credential_store: &dyn CredentialStore,
-    ) -> LocalResult<StagedCredentialMigration> {
-        let mut staged = StagedCredentialMigration {
-            entries: Vec::with_capacity(self.entries.len()),
-        };
-        for entry in self.entries {
-            if let Err(error) = credential_store
-                .set_secret(&entry.staged_reference, &entry.plaintext)
-                .map_err(String::from)
+    fn stage(&self, credential_store: &dyn CredentialStore) -> LocalResult<()> {
+        for entry in &self.entries {
+            let plaintext = entry.plaintext.trim();
+            if credential_store
+                .set_secret(&entry.staged_reference, plaintext)
+                .is_err()
+                || !credential_store
+                    .get_secret(&entry.staged_reference)
+                    .is_ok_and(|stored| stored.as_deref() == Some(plaintext))
             {
-                return Err(staged.rollback_with_error(
-                    credential_store,
-                    format!(
-                        "无法把{}迁移到系统凭据库；数据库明文未清除，可修复凭据库后重试: {error}",
-                        entry.label()
-                    ),
+                return Err(format!(
+                    "无法把{}迁移到系统凭据库；数据库明文未清除，可修复凭据库后重试。",
+                    entry.label()
                 ));
             }
-            staged.entries.push(entry);
         }
-        Ok(staged)
+        Ok(())
     }
 }
 
@@ -398,7 +463,7 @@ impl CredentialMigrationEntry {
     }
 }
 
-impl StagedCredentialMigration {
+impl CredentialMigrationPlan {
     fn apply(&self, transaction: &Transaction<'_>) -> LocalResult<()> {
         for entry in &self.entries {
             let updated = match &entry.target {
@@ -436,70 +501,154 @@ impl StagedCredentialMigration {
         }
         Ok(())
     }
-
-    fn rollback(&self, credential_store: &dyn CredentialStore) -> LocalResult<()> {
-        let mut failures = Vec::new();
-        for entry in &self.entries {
-            if let Err(error) = credential_store.delete_secret(&entry.staged_reference) {
-                failures.push(format!("{}: {error}", entry.staged_reference));
-            }
-        }
-        if failures.is_empty() {
-            Ok(())
-        } else {
-            Err(format!("清理暂存凭据失败: {}", failures.join("; ")))
-        }
-    }
-
-    fn rollback_with_error(&self, credential_store: &dyn CredentialStore, error: String) -> String {
-        match self.rollback(credential_store) {
-            Ok(()) => error,
-            Err(cleanup_error) => format!("{error}; {cleanup_error}"),
-        }
-    }
-
-    fn finalize(&self, credential_store: &dyn CredentialStore) {
-        for entry in &self.entries {
-            if !entry.previous_reference.is_empty()
-                && entry.previous_reference != entry.staged_reference
-            {
-                let _ = credential_store.delete_secret(&entry.previous_reference);
-            }
-        }
-    }
 }
 
-fn credential_migration_was_published(
-    conn: &Connection,
-    version: i64,
-    staged: &StagedCredentialMigration,
-) -> LocalResult<bool> {
-    if ensure_schema_version(conn)? < version {
-        return Ok(false);
+#[derive(Default, Deserialize, Serialize)]
+struct CredentialMigrationJournal {
+    published: bool,
+    #[serde(deserialize_with = "deserialize_journal_entries")]
+    entries: Vec<CredentialJournalEntry>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct CredentialJournalEntry {
+    reference: String,
+    previous: String,
+}
+
+fn deserialize_journal_entries<'de, Deserializer>(
+    deserializer: Deserializer,
+) -> Result<Vec<CredentialJournalEntry>, Deserializer::Error>
+where
+    Deserializer: serde::Deserializer<'de>,
+{
+    Ok(Option::<Vec<CredentialJournalEntry>>::deserialize(deserializer)?.unwrap_or_default())
+}
+
+fn read_credential_journal(conn: &Connection) -> LocalResult<Option<CredentialMigrationJournal>> {
+    let failed = || CREDENTIAL_JOURNAL_ERROR.to_string();
+    let has_metadata = conn
+        .query_row(
+            "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'app_meta')",
+            [],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|_| failed())?;
+    if !has_metadata {
+        return Ok(None);
     }
-    for entry in &staged.entries {
-        let published = match &entry.target {
-            CredentialTarget::Settings => conn.query_row(
-                "SELECT 1 FROM app_settings
-                 WHERE id = 1 AND api_token = '' AND api_token_ref = ?1",
-                params![entry.staged_reference],
-                |_| Ok(()),
-            ),
-            CredentialTarget::AiModel(model_id) => conn.query_row(
-                "SELECT 1 FROM ai_model_configs
-                 WHERE id = ?1 AND api_key = '' AND api_key_ref = ?2",
-                params![model_id, entry.staged_reference],
-                |_| Ok(()),
-            ),
-        }
+    let text = conn
+        .query_row(
+            "SELECT value FROM app_meta WHERE key = ?1",
+            params![CREDENTIAL_JOURNAL_KEY],
+            |row| row.get::<_, String>(0),
+        )
         .optional()
-        .map_err(|error| error.to_string())?
-        .is_some();
-        if !published {
-            return Ok(false);
+        .map_err(|_| failed())?;
+    let Some(text) = text else {
+        return Ok(None);
+    };
+    let journal: CredentialMigrationJournal = serde_json::from_str(&text).map_err(|_| failed())?;
+    if journal
+        .entries
+        .iter()
+        .any(|entry| entry.reference.trim().is_empty())
+    {
+        return Err(failed());
+    }
+    Ok(Some(journal))
+}
+
+fn save_credential_journal(
+    conn: &Connection,
+    journal: &CredentialMigrationJournal,
+) -> LocalResult<()> {
+    let failed = || CREDENTIAL_JOURNAL_ERROR.to_string();
+    let text = serde_json::to_string(journal).map_err(|_| failed())?;
+    conn.execute(
+        "INSERT INTO app_meta(key, value) VALUES(?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        params![CREDENTIAL_JOURNAL_KEY, text],
+    )
+    .map_err(|_| failed())?;
+    Ok(())
+}
+
+fn ensure_credential_journal_durability(conn: &Connection) -> LocalResult<()> {
+    conn.pragma_update(None, "synchronous", "FULL")
+        .map_err(|_| CREDENTIAL_JOURNAL_ERROR.to_string())
+}
+
+fn migration_reference_is_live(conn: &Connection, reference: &str) -> LocalResult<bool> {
+    let failed = || CREDENTIAL_JOURNAL_ERROR.to_string();
+    let version = ensure_schema_version(conn).map_err(|_| failed())?;
+    let mut referenced = false;
+    for (table, column, reference_sql) in [
+        (
+            "ai_model_configs",
+            "api_key_ref",
+            "SELECT EXISTS (SELECT 1 FROM ai_model_configs WHERE api_key_ref = ?1)",
+        ),
+        (
+            "app_settings",
+            "api_token_ref",
+            "SELECT EXISTS (SELECT 1 FROM app_settings WHERE api_token_ref = ?1)",
+        ),
+    ] {
+        if !table_has_column(conn, table, column).map_err(|_| failed())? {
+            if version >= 3 {
+                return Err(failed());
+            }
+            continue;
+        }
+        referenced |= conn
+            .query_row(reference_sql, params![reference], |row| {
+                row.get::<_, bool>(0)
+            })
+            .map_err(|_| failed())?;
+    }
+    Ok(referenced)
+}
+
+fn recover_credential_migration(
+    conn: &Connection,
+    credential_store: &dyn CredentialStore,
+) -> LocalResult<()> {
+    let Some(journal) = read_credential_journal(conn)? else {
+        return Ok(());
+    };
+    ensure_credential_journal_durability(conn)?;
+    let mut retained = false;
+    for entry in &journal.entries {
+        let references = [
+            entry.reference.as_str(),
+            if journal.published {
+                entry.previous.as_str()
+            } else {
+                ""
+            },
+        ];
+        for reference in references {
+            if reference.is_empty() || migration_reference_is_live(conn, reference)? {
+                continue;
+            }
+            if credential_cleanup::backup_is_referenced(conn, reference)? {
+                retained = true;
+                continue;
+            }
+            credential_store
+                .delete_secret(reference)
+                .map_err(|_| "系统凭据迁移清理仍有待重试项。".to_string())?;
         }
     }
-    Ok(true)
+    if !retained {
+        conn.execute(
+            "DELETE FROM app_meta WHERE key = ?1",
+            params![CREDENTIAL_JOURNAL_KEY],
+        )
+        .map_err(|_| CREDENTIAL_JOURNAL_ERROR.to_string())?;
+    }
+    Ok(())
 }
 
 fn read_schema_version(conn: &Connection) -> LocalResult<i64> {
@@ -586,4 +735,708 @@ fn table_has_column(conn: &Connection, table: &str, column: &str) -> LocalResult
         }
     }
     Ok(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        cell::{Cell, RefCell},
+        collections::HashMap,
+    };
+
+    use super::*;
+    use crate::{domain::error::AppError, infrastructure::credentials::CredentialResult};
+
+    const TEST_SCHEMA: &str = "
+        CREATE TABLE app_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE app_settings(id INTEGER PRIMARY KEY, api_token TEXT NOT NULL, api_token_ref TEXT);
+        CREATE TABLE ai_model_configs(id TEXT PRIMARY KEY, api_key TEXT NOT NULL, api_key_ref TEXT);";
+    const REMOTE_MATERIAL: &str = " synthetic-remote-material ";
+    const MODEL_MATERIAL: &str = "\tsynthetic-model-material\n";
+
+    fn test_baseline(transaction: &Transaction<'_>) -> LocalResult<()> {
+        transaction
+            .execute_batch(TEST_SCHEMA)
+            .map_err(|error| error.to_string())
+    }
+
+    fn test_noop(_transaction: &Transaction<'_>) -> LocalResult<()> {
+        Ok(())
+    }
+
+    const TEST_MIGRATIONS: &[Migration] = &[
+        Migration::new(1, "test baseline", test_baseline),
+        Migration::new(2, "test v2", test_noop),
+        Migration::credentials(3, "system credentials"),
+        Migration::new(4, "test v4", test_noop),
+        Migration::new(5, "test v5", test_noop),
+        Migration::new(6, "test v6", test_noop),
+        Migration::new(7, "test v7", test_noop),
+        Migration::new(8, "test v8", test_noop),
+        Migration::new(9, "test v9", test_noop),
+        Migration::new(10, "test v10", test_noop),
+    ];
+
+    struct TestDirectory(PathBuf);
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    struct TestProfile {
+        connection: Connection,
+        directory: TestDirectory,
+    }
+
+    impl TestProfile {
+        fn empty() -> Self {
+            let directory = std::env::temp_dir().join(format!(
+                "liberty-migration-journal-{}-{}",
+                std::process::id(),
+                ids::timestamped_id("test")
+            ));
+            fs::create_dir(&directory).unwrap();
+            let directory = TestDirectory(directory);
+            let connection = Connection::open(directory.0.join("synthetic #资料.sqlite3")).unwrap();
+            Self {
+                connection,
+                directory,
+            }
+        }
+
+        fn legacy() -> Self {
+            let profile = Self::empty();
+            profile.connection.execute_batch(TEST_SCHEMA).unwrap();
+            profile
+                .connection
+                .execute("INSERT INTO app_meta VALUES ('schema_version', '2')", [])
+                .unwrap();
+            profile
+                .connection
+                .execute(
+                    "INSERT INTO app_settings VALUES (1, ?1, 'synthetic-remote-before')",
+                    [REMOTE_MATERIAL],
+                )
+                .unwrap();
+            profile
+                .connection
+                .execute(
+                    "INSERT INTO ai_model_configs VALUES ('model-a', ?1, 'synthetic-model-before')",
+                    [MODEL_MATERIAL],
+                )
+                .unwrap();
+            profile
+        }
+
+        fn path(&self) -> PathBuf {
+            self.directory.0.join("synthetic #资料.sqlite3")
+        }
+
+        fn reopen(&mut self) {
+            let old =
+                std::mem::replace(&mut self.connection, Connection::open_in_memory().unwrap());
+            drop(old);
+            self.connection = Connection::open(self.path()).unwrap();
+        }
+
+        fn backups(&self) -> Vec<PathBuf> {
+            fs::read_dir(&self.directory.0)
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .filter(|path| {
+                    let filename = path.file_name().unwrap().to_string_lossy();
+                    filename.starts_with("synthetic #资料.sqlite3.pre-")
+                        && filename.ends_with(".bak")
+                })
+                .collect()
+        }
+
+        fn remove_backups(&self) {
+            for backup in self.backups() {
+                fs::remove_file(backup).unwrap();
+            }
+        }
+    }
+
+    struct TestCredentialStore {
+        path: PathBuf,
+        secrets: RefCell<HashMap<String, String>>,
+        writes: RefCell<Vec<String>>,
+        deletes: RefCell<Vec<String>>,
+        fail_set_at: Cell<Option<usize>>,
+        omit_write: Cell<bool>,
+        fail_read: Cell<bool>,
+        fail_delete: Cell<bool>,
+    }
+
+    impl TestCredentialStore {
+        fn new(profile: &TestProfile) -> Self {
+            Self {
+                path: profile.path(),
+                secrets: RefCell::new(HashMap::from([
+                    (
+                        "synthetic-remote-before".into(),
+                        "synthetic-previous-remote".into(),
+                    ),
+                    (
+                        "synthetic-model-before".into(),
+                        "synthetic-previous-model".into(),
+                    ),
+                ])),
+                writes: RefCell::new(Vec::new()),
+                deletes: RefCell::new(Vec::new()),
+                fail_set_at: Cell::new(None),
+                omit_write: Cell::new(false),
+                fail_read: Cell::new(false),
+                fail_delete: Cell::new(false),
+            }
+        }
+    }
+
+    impl CredentialStore for TestCredentialStore {
+        fn get_secret(&self, key: &str) -> CredentialResult<Option<String>> {
+            if self.fail_read.get() {
+                return Err(AppError::Infrastructure("synthetic-read-failure".into()));
+            }
+            Ok(self.secrets.borrow().get(key).cloned())
+        }
+
+        fn set_secret(&self, key: &str, value: &str) -> CredentialResult<()> {
+            let connection = Connection::open(&self.path).unwrap();
+            let journal = read_credential_journal(&connection).unwrap().unwrap();
+            assert!(journal.entries.len() >= 2);
+            assert!(journal.entries.iter().any(|entry| entry.reference == key));
+            let text = serde_json::to_string(&journal).unwrap();
+            assert!(!text.contains(value));
+            self.writes.borrow_mut().push(key.to_string());
+            if !self.omit_write.get() {
+                self.secrets
+                    .borrow_mut()
+                    .insert(key.to_string(), value.to_string());
+            }
+            if self.fail_set_at.get() == Some(self.writes.borrow().len()) {
+                return Err(AppError::Infrastructure(
+                    "synthetic-partial-set-failure".into(),
+                ));
+            }
+            Ok(())
+        }
+
+        fn delete_secret(&self, key: &str) -> CredentialResult<()> {
+            self.deletes.borrow_mut().push(key.to_string());
+            if self.fail_delete.get() {
+                return Err(AppError::Infrastructure("synthetic-delete-failure".into()));
+            }
+            self.secrets.borrow_mut().remove(key);
+            Ok(())
+        }
+    }
+
+    fn assert_legacy_unpublished(connection: &Connection) {
+        assert_eq!(ensure_schema_version(connection).unwrap(), 2);
+        let token = connection
+            .query_row(
+                "SELECT api_token, api_token_ref FROM app_settings WHERE id = 1",
+                [],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            token,
+            (
+                REMOTE_MATERIAL.to_string(),
+                "synthetic-remote-before".to_string()
+            )
+        );
+        let model = connection
+            .query_row(
+                "SELECT api_key, api_key_ref FROM ai_model_configs WHERE id = 'model-a'",
+                [],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            model,
+            (
+                MODEL_MATERIAL.to_string(),
+                "synthetic-model-before".to_string()
+            )
+        );
+    }
+
+    fn assert_published_material(connection: &Connection, store: &TestCredentialStore) {
+        let mut statement = connection
+            .prepare("SELECT api_token, api_token_ref FROM app_settings UNION ALL SELECT api_key, api_key_ref FROM ai_model_configs")
+            .unwrap();
+        let values = statement
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(values.len(), 2);
+        for ((plaintext, reference), expected) in
+            values.into_iter().zip([REMOTE_MATERIAL, MODEL_MATERIAL])
+        {
+            assert!(plaintext.is_empty());
+            assert_eq!(
+                store.secrets.borrow().get(&reference).map(String::as_str),
+                Some(expected.trim())
+            );
+        }
+    }
+
+    #[test]
+    fn migration_backup_keeps_previous_credentials_until_removed_after_reopen() {
+        let mut profile = TestProfile::legacy();
+        let store = TestCredentialStore::new(&profile);
+
+        assert_eq!(
+            run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap(),
+            10
+        );
+
+        assert_published_material(&profile.connection, &store);
+        let journal = read_credential_journal(&profile.connection)
+            .unwrap()
+            .unwrap();
+        assert!(journal.published);
+        assert_eq!(journal.entries.len(), 2);
+        assert!(store.deletes.borrow().is_empty());
+        let text = serde_json::to_value(&journal).unwrap();
+        assert_eq!(text.as_object().unwrap().len(), 2);
+        for entry in text["entries"].as_array().unwrap() {
+            assert_eq!(entry.as_object().unwrap().len(), 2);
+            assert!(entry["reference"].is_string());
+            assert!(entry["previous"].is_string());
+        }
+        assert_eq!(profile.backups().len(), 1);
+        let backup = Connection::open(&profile.backups()[0]).unwrap();
+        assert_legacy_unpublished(&backup);
+        drop(backup);
+
+        profile.reopen();
+        run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
+        assert_eq!(store.writes.borrow().len(), 2);
+        assert!(read_credential_journal(&profile.connection)
+            .unwrap()
+            .is_some());
+        profile.remove_backups();
+        profile.reopen();
+        run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
+
+        assert!(read_credential_journal(&profile.connection)
+            .unwrap()
+            .is_none());
+        assert!(!store
+            .secrets
+            .borrow()
+            .contains_key("synthetic-remote-before"));
+        assert!(!store
+            .secrets
+            .borrow()
+            .contains_key("synthetic-model-before"));
+        assert_eq!(store.writes.borrow().len(), 2);
+        assert_published_material(&profile.connection, &store);
+    }
+
+    #[test]
+    fn partial_stage_and_failed_rollback_are_journaled_before_every_write() {
+        let mut profile = TestProfile::legacy();
+        let store = TestCredentialStore::new(&profile);
+        store.fail_set_at.set(Some(2));
+        store.fail_delete.set(true);
+
+        let error = run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap_err();
+
+        assert!(error.contains("数据库明文未清除"));
+        assert!(error.contains("待重试项"));
+        assert_legacy_unpublished(&profile.connection);
+        let journal = read_credential_journal(&profile.connection)
+            .unwrap()
+            .unwrap();
+        assert!(!journal.published);
+        assert_eq!(journal.entries.len(), 2);
+        let failed_references = store.writes.borrow().clone();
+        assert_eq!(failed_references.len(), 2);
+        for reference in &failed_references {
+            assert!(journal
+                .entries
+                .iter()
+                .any(|entry| &entry.reference == reference));
+            assert!(store.secrets.borrow().contains_key(reference));
+        }
+
+        profile.reopen();
+        store.fail_set_at.set(None);
+        store.fail_delete.set(false);
+        run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
+
+        for reference in &failed_references {
+            assert!(!store.secrets.borrow().contains_key(reference));
+        }
+        assert_eq!(store.writes.borrow().len(), 4);
+        assert_published_material(&profile.connection, &store);
+    }
+
+    #[test]
+    fn missing_or_unreadable_staged_value_never_publishes_plaintext_removal() {
+        for unreadable in [false, true] {
+            let mut profile = TestProfile::legacy();
+            let store = TestCredentialStore::new(&profile);
+            store.omit_write.set(!unreadable);
+            store.fail_read.set(unreadable);
+            store.fail_delete.set(true);
+
+            assert!(run_migrations(&profile.connection, &store, TEST_MIGRATIONS).is_err());
+
+            assert_legacy_unpublished(&profile.connection);
+            let journal = read_credential_journal(&profile.connection)
+                .unwrap()
+                .unwrap();
+            assert!(!journal.published);
+            assert_eq!(journal.entries.len(), 2);
+            let attempted = store.writes.borrow()[0].clone();
+            profile.reopen();
+            store.omit_write.set(false);
+            store.fail_read.set(false);
+            store.fail_delete.set(false);
+            run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
+            assert!(!store.secrets.borrow().contains_key(&attempted));
+            assert_published_material(&profile.connection, &store);
+        }
+    }
+
+    #[test]
+    fn published_cleanup_failure_is_retried_from_v3_without_restaging() {
+        let mut profile = TestProfile::legacy();
+        let store = TestCredentialStore::new(&profile);
+        store.fail_delete.set(true);
+
+        let error =
+            run_test_migration(&profile.connection, &store, &TEST_MIGRATIONS[2]).unwrap_err();
+
+        assert!(error.contains("待重试项"));
+        assert_eq!(ensure_schema_version(&profile.connection).unwrap(), 3);
+        assert!(
+            read_credential_journal(&profile.connection)
+                .unwrap()
+                .unwrap()
+                .published
+        );
+        assert_published_material(&profile.connection, &store);
+        profile.reopen();
+        store.fail_delete.set(false);
+        run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
+
+        assert_eq!(ensure_schema_version(&profile.connection).unwrap(), 10);
+        assert_eq!(store.writes.borrow().len(), 2);
+        assert!(read_credential_journal(&profile.connection)
+            .unwrap()
+            .is_none());
+        assert!(!store
+            .secrets
+            .borrow()
+            .contains_key("synthetic-remote-before"));
+        assert!(!store
+            .secrets
+            .borrow()
+            .contains_key("synthetic-model-before"));
+        assert_published_material(&profile.connection, &store);
+    }
+
+    #[test]
+    fn publication_and_journal_phase_rollback_in_the_same_transaction() {
+        let mut profile = TestProfile::legacy();
+        profile
+            .connection
+            .execute_batch(
+                "CREATE TRIGGER reject_published_journal BEFORE UPDATE OF value ON app_meta
+             WHEN NEW.key = 'native_credential_migration_v3'
+              AND instr(NEW.value, '\"published\":true') > 0
+             BEGIN SELECT RAISE(ABORT, 'synthetic-publication-failure'); END;",
+            )
+            .unwrap();
+        let store = TestCredentialStore::new(&profile);
+        store.fail_delete.set(true);
+
+        assert!(run_test_migration(&profile.connection, &store, &TEST_MIGRATIONS[2]).is_err());
+
+        assert_legacy_unpublished(&profile.connection);
+        assert!(
+            !read_credential_journal(&profile.connection)
+                .unwrap()
+                .unwrap()
+                .published
+        );
+        let attempted = store.writes.borrow().clone();
+        profile
+            .connection
+            .execute_batch("DROP TRIGGER reject_published_journal")
+            .unwrap();
+        profile.reopen();
+        store.fail_delete.set(false);
+        run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
+        for reference in attempted {
+            assert!(!store.secrets.borrow().contains_key(&reference));
+        }
+        assert_published_material(&profile.connection, &store);
+    }
+
+    #[test]
+    fn journal_persistence_failure_prevents_all_vault_writes() {
+        let profile = TestProfile::legacy();
+        profile
+            .connection
+            .execute_batch(
+                "CREATE TRIGGER reject_new_journal BEFORE INSERT ON app_meta
+             WHEN NEW.key = 'native_credential_migration_v3'
+             BEGIN SELECT RAISE(ABORT, 'synthetic-journal-failure'); END;",
+            )
+            .unwrap();
+        let store = TestCredentialStore::new(&profile);
+
+        assert!(run_test_migration(&profile.connection, &store, &TEST_MIGRATIONS[2]).is_err());
+
+        assert_legacy_unpublished(&profile.connection);
+        assert!(read_credential_journal(&profile.connection)
+            .unwrap()
+            .is_none());
+        assert!(store.writes.borrow().is_empty());
+        assert!(store.deletes.borrow().is_empty());
+    }
+
+    #[test]
+    fn v0_without_metadata_and_go_null_entries_are_recoverable_without_vault_calls() {
+        let mut profile = TestProfile::empty();
+        let store = TestCredentialStore::new(&profile);
+
+        assert_eq!(
+            run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap(),
+            10
+        );
+
+        profile
+            .connection
+            .execute(
+                "INSERT INTO app_meta VALUES (?1, ?2)",
+                params![
+                    CREDENTIAL_JOURNAL_KEY,
+                    r#"{"published":false,"entries":null}"#
+                ],
+            )
+            .unwrap();
+        profile.reopen();
+        run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
+        assert!(read_credential_journal(&profile.connection)
+            .unwrap()
+            .is_none());
+        assert!(store.writes.borrow().is_empty());
+        assert!(store.deletes.borrow().is_empty());
+    }
+
+    #[test]
+    fn current_schema_recovers_go_journal_using_live_references_and_phase() {
+        for published in [false, true] {
+            let mut profile = TestProfile::legacy();
+            profile
+                .connection
+                .execute_batch("UPDATE app_meta SET value = '10'")
+                .unwrap();
+            let store = TestCredentialStore::new(&profile);
+            store.secrets.borrow_mut().insert(
+                "liberty:migration:synthetic-unused".into(),
+                "synthetic-orphan".into(),
+            );
+            let text = format!(
+                "{{\n  \"published\": {published},\n  \"entries\": [\n    {{\"reference\": \"synthetic-model-before\", \"previous\": \"\"}},\n    {{\"reference\": \"liberty:migration:synthetic-unused\", \"previous\": \"synthetic-remote-before\"}}\n  ]\n}}"
+            );
+            profile
+                .connection
+                .execute(
+                    "INSERT INTO app_meta VALUES (?1, ?2)",
+                    params![CREDENTIAL_JOURNAL_KEY, text],
+                )
+                .unwrap();
+            profile.reopen();
+
+            run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
+
+            assert!(read_credential_journal(&profile.connection)
+                .unwrap()
+                .is_none());
+            assert!(store
+                .secrets
+                .borrow()
+                .contains_key("synthetic-model-before"));
+            assert!(store
+                .secrets
+                .borrow()
+                .contains_key("synthetic-remote-before"));
+            assert_eq!(
+                *store.deletes.borrow(),
+                ["liberty:migration:synthetic-unused"]
+            );
+            assert!(store.writes.borrow().is_empty());
+        }
+    }
+
+    #[test]
+    fn retry_merges_journal_entries_retained_by_an_earlier_backup() {
+        let mut profile = TestProfile::legacy();
+        let store = TestCredentialStore::new(&profile);
+        store.secrets.borrow_mut().insert(
+            "synthetic-earlier-staged".into(),
+            "synthetic-earlier-material".into(),
+        );
+        save_credential_journal(
+            &profile.connection,
+            &CredentialMigrationJournal {
+                published: false,
+                entries: vec![CredentialJournalEntry {
+                    reference: "synthetic-earlier-staged".into(),
+                    previous: String::new(),
+                }],
+            },
+        )
+        .unwrap();
+        let backup_path = profile
+            .directory
+            .0
+            .join("synthetic #资料.sqlite3.pre-restore-v2-earlier.bak");
+        profile
+            .connection
+            .backup(rusqlite::MAIN_DB, &backup_path, None::<fn(_)>)
+            .unwrap();
+        let backup = Connection::open(backup_path).unwrap();
+        backup.execute_batch("UPDATE ai_model_configs SET api_key = '', api_key_ref = 'synthetic-earlier-staged'").unwrap();
+        drop(backup);
+
+        run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
+
+        let journal = read_credential_journal(&profile.connection)
+            .unwrap()
+            .unwrap();
+        assert!(journal.published);
+        assert_eq!(journal.entries.len(), 3);
+        assert!(journal
+            .entries
+            .iter()
+            .any(|entry| entry.reference == "synthetic-earlier-staged"));
+        assert!(store
+            .secrets
+            .borrow()
+            .contains_key("synthetic-earlier-staged"));
+        assert!(!store
+            .deletes
+            .borrow()
+            .iter()
+            .any(|reference| reference == "synthetic-earlier-staged"));
+        profile.remove_backups();
+        profile.reopen();
+        run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
+
+        assert!(read_credential_journal(&profile.connection)
+            .unwrap()
+            .is_none());
+        assert!(!store
+            .secrets
+            .borrow()
+            .contains_key("synthetic-earlier-staged"));
+        assert_published_material(&profile.connection, &store);
+    }
+
+    #[test]
+    fn invalid_journal_or_unreadable_backup_keeps_durable_recovery_state() {
+        for text in [
+            "not-json",
+            r#"{"published":true,"entries":[{"reference":"","previous":""}]}"#,
+            r#"{"published":false,"entries":[{"reference":"synthetic-unused","previous":""}]}"#,
+        ] {
+            let profile = TestProfile::legacy();
+            profile
+                .connection
+                .execute_batch("UPDATE app_meta SET value = '10'")
+                .unwrap();
+            profile
+                .connection
+                .execute(
+                    "INSERT INTO app_meta VALUES (?1, ?2)",
+                    params![CREDENTIAL_JOURNAL_KEY, text],
+                )
+                .unwrap();
+            fs::write(
+                profile
+                    .directory
+                    .0
+                    .join("synthetic #资料.sqlite3.pre-native-corrupt.bak"),
+                b"not sqlite",
+            )
+            .unwrap();
+            let store = TestCredentialStore::new(&profile);
+            store.secrets.borrow_mut().insert(
+                "synthetic-unused".into(),
+                "synthetic-unused-material".into(),
+            );
+
+            assert!(run_migrations(&profile.connection, &store, TEST_MIGRATIONS).is_err());
+
+            let stored = profile
+                .connection
+                .query_row(
+                    "SELECT value FROM app_meta WHERE key = ?1",
+                    params![CREDENTIAL_JOURNAL_KEY],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap();
+            assert_eq!(stored, text);
+            assert!(store.writes.borrow().is_empty());
+            assert!(store.deletes.borrow().is_empty());
+            assert!(store.secrets.borrow().contains_key("synthetic-unused"));
+        }
+    }
+
+    #[test]
+    fn journal_is_fully_synchronized_before_system_store_writes() {
+        struct SyncCheckingStore<'connection> {
+            connection: &'connection Connection,
+            inner: TestCredentialStore,
+        }
+
+        impl CredentialStore for SyncCheckingStore<'_> {
+            fn get_secret(&self, key: &str) -> CredentialResult<Option<String>> {
+                self.inner.get_secret(key)
+            }
+
+            fn set_secret(&self, key: &str, value: &str) -> CredentialResult<()> {
+                let synchronous = self
+                    .connection
+                    .pragma_query_value(None, "synchronous", |row| row.get::<_, i64>(0))
+                    .unwrap();
+                assert_eq!(synchronous, 2);
+                self.inner.set_secret(key, value)
+            }
+
+            fn delete_secret(&self, key: &str) -> CredentialResult<()> {
+                self.inner.delete_secret(key)
+            }
+        }
+
+        let profile = TestProfile::legacy();
+        profile
+            .connection
+            .execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;")
+            .unwrap();
+        let store = SyncCheckingStore {
+            connection: &profile.connection,
+            inner: TestCredentialStore::new(&profile),
+        };
+
+        run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
+
+        assert_published_material(&profile.connection, &store.inner);
+    }
 }

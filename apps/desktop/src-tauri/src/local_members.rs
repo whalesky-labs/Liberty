@@ -1,6 +1,5 @@
 use crate::local_db::{self, LocalResult, MeetingMember, MeetingMemberImportResult};
 use calamine::{open_workbook_auto, Data, Reader};
-use chrono::Utc;
 use rust_xlsxwriter::Workbook;
 use std::{collections::HashSet, path::Path};
 use tauri::{AppHandle, Webview};
@@ -238,5 +237,101 @@ fn parse_recorder_flag(value: &str, name: &str) -> LocalResult<bool> {
 }
 
 fn current_iso_timestamp() -> String {
-    Utc::now().to_rfc3339()
+    crate::infrastructure::time::utc_now()
+}
+
+#[cfg(test)]
+mod native_compatibility {
+    use super::*;
+
+    fn escaped_members() -> [(&'static str, &'static str); 5] {
+        [
+            ("_x0041_", "literal _x000D_ / _x005F_"),
+            (
+                "_x005F_x0041_",
+                "before\rafter / before\nafter / before\tafter",
+            ),
+            ("转义 📷", "_xD83D__xDCF7_ / _x004a_"),
+            ("overlap _x0041_x0042_", "prefix _x005F_x000D_ tail"),
+            ("near _x123_ _xGGGG_ _X0041_", "A&B <研发>"),
+        ]
+    }
+
+    #[test]
+    #[ignore = "explicit synthetic Go/Rust escaped workbook interoperability"]
+    fn export_escaped_members_workbook() {
+        let directory = std::path::PathBuf::from(
+            std::env::var_os("LIBERTY_NATIVE_FIXTURE_DIR").expect("explicit fixture directory"),
+        );
+        assert!(directory.is_absolute() && directory.is_dir());
+        let mut workbook = Workbook::new();
+        let worksheet = workbook.add_worksheet();
+        worksheet.set_name("人员信息").unwrap();
+        for (column, header) in ["姓名", "部门", "排序", "是否设置会议记录人"]
+            .iter()
+            .enumerate()
+        {
+            worksheet.write_string(0, column as u16, *header).unwrap();
+        }
+        for (index, (name, department)) in escaped_members().iter().enumerate() {
+            let row = (index + 1) as u32;
+            worksheet.write_string(row, 0, *name).unwrap();
+            worksheet.write_string(row, 1, *department).unwrap();
+            worksheet.write_number(row, 2, index as u32).unwrap();
+            worksheet
+                .write_string(row, 3, if index == 0 { "是" } else { "否" })
+                .unwrap();
+        }
+        let output = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(directory.join("rust-escaped-members.xlsx"))
+            .unwrap();
+        workbook.save_to_writer(output).unwrap();
+    }
+
+    #[test]
+    #[ignore = "explicit synthetic Go/Rust escaped workbook interoperability"]
+    fn read_native_escaped_members_workbook() {
+        let directory = std::path::PathBuf::from(
+            std::env::var_os("LIBERTY_NATIVE_FIXTURE_DIR").expect("explicit fixture directory"),
+        );
+        let members = parse_members_excel(&directory.join("go-escaped-members.xlsx")).unwrap();
+        assert_eq!(members.len(), escaped_members().len());
+        for (index, (member, (name, department))) in
+            members.iter().zip(escaped_members()).enumerate()
+        {
+            assert_eq!(member.name, name, "name at row {index}");
+            assert_eq!(member.department, department, "department at row {index}");
+            assert_eq!(member.sort_order, index as i64);
+            assert_eq!(member.is_recorder, index == 0);
+        }
+        let encoded = parse_members_excel(&directory.join("go-encoded-members.xlsx")).unwrap();
+        assert_eq!(encoded.len(), 2);
+        assert_eq!(encoded[0].name, "_x005FA");
+        assert_eq!(encoded[0].department, "📷");
+        assert_eq!(encoded[0].sort_order, -7);
+        assert!(encoded[0].is_recorder);
+        assert_eq!(encoded[1].name, "before�after");
+        assert_eq!(encoded[1].department, "A");
+        assert_eq!(encoded[1].sort_order, i64::MAX);
+        assert!(!encoded[1].is_recorder);
+    }
+
+    #[test]
+    #[ignore = "explicit synthetic Go/Rust workbook interoperability via pnpm native:compat"]
+    fn read_native_members_workbook() {
+        let directory = std::path::PathBuf::from(
+            std::env::var_os("LIBERTY_NATIVE_FIXTURE_DIR").expect("explicit fixture directory"),
+        );
+        let members = parse_members_excel(&directory.join("go-members.xlsx")).unwrap();
+        assert_eq!(members.len(), 2);
+        assert_eq!(members[0].name, "合成人员");
+        assert_eq!(members[0].department, "A&B <研发>");
+        assert_eq!(members[0].sort_order, -7);
+        assert!(members[0].is_recorder);
+        assert_eq!(members[1].name, "=SUM(1,2)");
+        assert_eq!(members[1].sort_order, i64::MAX);
+        assert!(!members[1].is_recorder);
+    }
 }

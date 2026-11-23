@@ -1,4 +1,3 @@
-use chrono::Utc;
 use std::{
     fs::{self, OpenOptions},
     io::Write,
@@ -75,7 +74,9 @@ fn runtime_log_prefix() -> String {
 }
 
 fn format_display_timestamp() -> String {
-    Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string()
+    jiff::Timestamp::now()
+        .strftime("%Y-%m-%d %H:%M:%S UTC")
+        .to_string()
 }
 
 pub fn unix_timestamp_millis() -> u128 {

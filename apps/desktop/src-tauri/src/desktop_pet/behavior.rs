@@ -1,5 +1,5 @@
+use crate::infrastructure::time::parse_iso;
 use crate::local_db::{self, LocalResult, PetEventLedgerEntry, PetSettings};
-use chrono::Utc;
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -185,8 +185,8 @@ fn resolve_pet_action(
     }
 
     let latest_event_at = latest_event
-        .and_then(|event| chrono::DateTime::parse_from_rfc3339(&event.event_time).ok())
-        .map(|value| value.timestamp_millis().max(0) as u64)
+        .and_then(|event| parse_iso(&event.event_time).ok())
+        .map(|value| value.as_millisecond().max(0) as u64)
         .unwrap_or(0);
     let now_ms = now_ms();
     let idle_ms = if latest_event_at > 0 {
@@ -360,9 +360,10 @@ fn pet_frame_number(path: &Path) -> Option<u32> {
 }
 
 fn pet_resource_root(app: &AppHandle) -> LocalResult<PathBuf> {
+    const SHARED_PET_ACTIONS: &str = "packages/desktop-resources/images/pet/action";
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let manifest_candidates = [
-        manifest_dir.join("../src/assets/images/action"),
+        manifest_dir.join("../../..").join(SHARED_PET_ACTIONS),
         manifest_dir.join("resources/pet"),
     ];
     for candidate in manifest_candidates {
@@ -373,8 +374,8 @@ fn pet_resource_root(app: &AppHandle) -> LocalResult<PathBuf> {
 
     if let Ok(current_dir) = std::env::current_dir() {
         let dev_candidates = [
-            current_dir.join("src/assets/images/action"),
-            current_dir.join("apps/desktop/src/assets/images/action"),
+            current_dir.join("../..").join(SHARED_PET_ACTIONS),
+            current_dir.join(SHARED_PET_ACTIONS),
             current_dir.join("resources/pet"),
             current_dir.join("src-tauri/resources/pet"),
             current_dir.join("apps/desktop/src-tauri/resources/pet"),
@@ -492,12 +493,7 @@ pub(crate) fn attach_window_position_persistence(app: &AppHandle, window: &Windo
 pub(crate) fn persist_pet_window_position(app: &AppHandle, window: &Window) -> LocalResult<()> {
     let position = window.outer_position().map_err(|err| err.to_string())?;
     let scale = window.scale_factor().map_err(|err| err.to_string())?;
-    let mut settings = local_db::get_pet_settings(app)?;
-    settings.last_window_x = Some(position.x as f64 / scale);
-    settings.last_window_y = Some(position.y as f64 / scale);
-    settings.updated_at = Utc::now().to_rfc3339();
-    local_db::save_pet_settings(app, &settings)?;
-    Ok(())
+    local_db::save_pet_position(app, position.x as f64 / scale, position.y as f64 / scale)
 }
 
 fn now_ms() -> u64 {

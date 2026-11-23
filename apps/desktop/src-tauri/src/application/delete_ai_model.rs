@@ -21,7 +21,7 @@ pub fn delete_ai_model(
     }
 
     let credential_reference = ai_models::find_credential_reference(connection, model_id)?;
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = crate::infrastructure::time::utc_now();
     let transaction = connection
         .transaction()
         .map_err(|error| error.to_string())?;

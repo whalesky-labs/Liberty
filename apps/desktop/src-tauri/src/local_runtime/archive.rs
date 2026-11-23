@@ -228,7 +228,7 @@ fn extract_zip(
 
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(|err| err.to_string())?;
-        let entry_name = safe_archive_path(entry.name())?;
+        let entry_name = safe_archive_path(&entry.name().map_err(|err| err.to_string())?)?;
         let output_path = destination.join(entry_name);
 
         if entry.is_dir() {
@@ -289,18 +289,22 @@ fn preflight_zip(archive_path: &Path) -> LocalResult<()> {
     if archive.len() > MAX_ARCHIVE_ENTRIES {
         return Err(format!("ZIP 条目数超过限制：{}", archive.len()));
     }
+    archive
+        .validate_header_consistency()
+        .map_err(|err| err.to_string())?;
 
     let mut expanded_bytes = 0u64;
     for index in 0..archive.len() {
         let entry = archive.by_index(index).map_err(|err| err.to_string())?;
-        safe_archive_path(entry.name())?;
+        let name = entry.name().map_err(|err| err.to_string())?;
+        safe_archive_path(&name)?;
         if entry
             .unix_mode()
             .is_some_and(|mode| mode & 0o170000 == 0o120000)
         {
-            return Err(format!("ZIP 包含不允许的符号链接：{}", entry.name()));
+            return Err(format!("ZIP 包含不允许的符号链接：{name}"));
         }
-        expanded_bytes = checked_expanded_size(expanded_bytes, entry.size(), entry.name())?;
+        expanded_bytes = checked_expanded_size(expanded_bytes, entry.size(), &name)?;
     }
     Ok(())
 }

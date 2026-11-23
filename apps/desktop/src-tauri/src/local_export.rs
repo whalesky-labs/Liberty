@@ -8,7 +8,7 @@ mod xml;
 
 use crate::{
     application::project_meeting_minutes::{project_meeting_minutes, ProjectMeetingMinutesRequest},
-    domain::meeting_minutes::{MeetingMetadata, PersistedMeetingMetadata},
+    domain::meeting_minutes::{MeetingInfoSource, MeetingMetadata, PersistedMeetingMetadata},
     infrastructure::repositories::ai_summary_runs,
     local_db::{
         self, AiSummaryResult, LocalResult, MeetingJob, MeetingMember, MeetingMinutesInfo,
@@ -19,13 +19,13 @@ use crate::{
 use std::collections::{HashMap, HashSet};
 use tauri::{AppHandle, WebviewWindow};
 
-use model::{ExportDocData, SpeechBlock};
+pub use model::{ExportDocData, SpeechBlock};
 use output::authorized_output_path;
 use parser::{
     is_missing_value, non_empty, normalize_member_name, parse_overview_to_export_data,
     parse_speaker_header, trim_numbered_prefix,
 };
-use renderer::export_summary_docx;
+pub use renderer::export_summary_docx;
 use source::{resolve_summary_source, SummaryExportSource};
 use text::TextExportInput;
 
@@ -178,13 +178,19 @@ fn build_export_doc_data_from_minutes_payload(
 ) -> ExportDocData {
     let mut data = ExportDocData::default();
     let parsed = parse_overview_to_export_data(&summary.overview);
+    let ai_metadata =
+        if payload.schema_version >= 2 && payload.meeting_info_source == MeetingInfoSource::Ai {
+            metadata_from_minutes_info(&payload.meeting_info)
+        } else {
+            metadata_from_export_data(&parsed)
+        };
     let metadata = project_meeting_minutes(ProjectMeetingMinutesRequest {
         persisted: Some(PersistedMeetingMetadata {
             schema_version: payload.schema_version,
             source: payload.meeting_info_source,
             metadata: metadata_from_minutes_info(&payload.meeting_info),
         }),
-        ai_metadata: metadata_from_export_data(&parsed),
+        ai_metadata,
     });
     for warning in &metadata.warnings {
         eprintln!("[meeting-minutes] warning={warning}");
@@ -617,18 +623,23 @@ fn build_fallback_overview_items(summary: &AiSummaryResult, data: &ExportDocData
 
 fn is_metadata_line(line: &str) -> bool {
     [
-        "会议名称：",
-        "会议时间：",
-        "会议地点：",
-        "记录人：",
-        "出席人员：",
-        "缺席人员：",
-        "主要议题：",
-        "会议主持人：",
-        "审阅：",
+        "会议名称",
+        "会议时间",
+        "会议地点",
+        "记录人",
+        "出席人员",
+        "缺席人员",
+        "主要议题",
+        "会议主持人",
+        "审阅",
     ]
-    .iter()
-    .any(|prefix| line.starts_with(prefix))
+    .into_iter()
+    .any(|prefix| {
+        line.trim()
+            .strip_prefix(prefix)
+            .and_then(|value| value.trim_start().strip_prefix(['：', ':']))
+            .is_some()
+    })
 }
 
 fn is_section_heading(line: &str) -> bool {
@@ -659,6 +670,43 @@ mod tests {
         data.attendees = "李兰、肖明容".into();
         data.recorder = "肖明容".into();
         data
+    }
+
+    #[test]
+    fn export_metadata_keeps_legacy_projection_contract() {
+        for fresh in [false, true] {
+            let payload = MeetingMinutesPayload {
+                schema_version: 1,
+                meeting_info: MeetingMinutesInfo {
+                    meeting_name: "合成旧会议".into(),
+                    meeting_time: "2026-11-19 09:00".into(),
+                    meeting_location: "合成旧会议室".into(),
+                    ..MeetingMinutesInfo::default()
+                },
+                ..MeetingMinutesPayload::default()
+            };
+            let mut summary = AiSummaryResult::default();
+            let expected = if fresh {
+                summary.overview =
+                    "会议名称:合成新会议\n会议时间 :2026-11-20 10:00\n会议地点 ：合成新会议室"
+                        .into();
+                MeetingMetadata {
+                    meeting_name: "合成新会议".into(),
+                    meeting_time: "2026-11-20 10:00".into(),
+                    meeting_location: "合成新会议室".into(),
+                    ..MeetingMetadata::default()
+                }
+            } else {
+                metadata_from_minutes_info(&payload.meeting_info)
+            };
+            let document = build_export_doc_data_from_minutes_payload(
+                &MeetingJob::default(),
+                &summary,
+                &payload,
+                &[],
+            );
+            assert_eq!(metadata_from_export_data(&document), expected);
+        }
     }
 
     #[test]

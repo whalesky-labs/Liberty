@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "id": "funasr-1.3.9-liberty.local2-metadata-v1",
+  "upstream": {
+    "name": "funasr",
+    "version": "1.3.9",
+    "filename": "funasr-1.3.9-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/69/76/5b09344699d2961ab888ee96ef49d11232948cf137629465f105c1a2767d/funasr-1.3.9-py3-none-any.whl",
+    "sha256": "3a2be55d6b3abc24ebb5e537789f321076df3077b000ad29530d52b3c73eed72",
+    "bytes": 915605,
+    "purl": "pkg:pypi/funasr@1.3.9",
+    "gitCommit": null
+  },
+  "output": {
+    "version": "1.3.9+liberty.local2",
+    "filename": "funasr-1.3.9+liberty.local2-py3-none-any.whl",
+    "sha256": "38919720a30ab86428e2aded9a9e12cd9800cc36ebebc17f5b6b33182364f78e",
+    "bytes": 915876
+  },
+  "inventory": {
+    "files": 424,
+    "pythonFiles": 417,
+    "pythonManifestSha256": "2107ede6109163e77ca8b93dd2b7f57d4b29331c22f609294a6308730721bba7",
+    "metadataSha256": "b590f82e5f563cd1eff6124ce20abda70183871d924af34a32f053a5abd63c31",
+    "patchedMetadataSha256": "c3c5fbb663bdc4f8b27c72353ab5bda11c443a72448fdb285adf4098e0678e74",
+    "wheelMetadataSha256": "69e6228a0d35958183cc1812f07c565ce837b95eb51bd8a33acba9fa4f68d6c9",
+    "recordSha256": "4275373e0171701054cea30c6659956394aadb43406ecfe51212cca7f5b4fb64",
+    "license": {
+      "id": "MIT",
+      "path": "licenses/LICENSE",
+      "sha256": "f382b62dcc61fc566b9215b1e3b604b539bfd96ed52ae1eeff5090f6dc176057"
+    }
+  },
+  "patch": {
+    "dependencyBefore": "Requires-Dist: oss2\n",
+    "dependencyAfter": "Requires-Dist: six>=1.16.0\nRequires-Dist: oss2; extra == \"oss\"\nProvides-Extra: oss\n",
+    "metadataDiffSha256": "a1f8a70c0b5a3646facb98d41e37ec4b98f2f76be56a9e04a823680763cdb2ec",
+    "scope": "Only METADATA dependency declarations change: move oss2 to explicit oss extra and add six. Update METADATA Version, funasr/version.txt, dist-info paths and RECORD as distribution bookkeeping. All Python sources and other payload bytes remain identical. No model or package code is executed."
+  },
+  "archive": {
+    "timestamp": [2026, 11, 19, 0, 0, 0],
+    "compression": "deflate",
+    "compressionLevel": 6,
+    "createSystem": 3,
+    "mode": 33188,
+    "note": "The verified target-only local2 builder passed ZipInfo objects without a per-entry compression level; its effective zlib level was the default 6 despite the ZipFile level 9 argument. Pin level 6 explicitly and require the historical output digest. A different compressor result fails closed."
+  },
+  "limits": {
+    "archiveBytes": 2097152,
+    "entries": 512,
+    "entryBytes": 262144,
+    "totalBytes": 8388608,
+    "compressionRatio": 200
+  },
+  "deliveryBoundary": "This is a local metadata-only candidate recipe, not an immutable distribution URL, installer integration, model/platform acceptance or production security clearance. The source SBOM retains upstream FunASR 1.3.9 for vulnerability scanning; a local version must not hide its upstream identity."
+}

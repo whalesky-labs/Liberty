@@ -1,5 +1,7 @@
 # 农场地图 gpt-image-2 执行清单
 
+适用范围：按需重新制作美术素材，非构建或客户端启动步骤。2026-11-20 核对 wrapper 和文件引用，未调用图像服务；模型、额度及本机 CLI 需由制作环境提供。生成中间文件名保留原配方，运行时命名与 Go 同步见[素材规范](farm-map-gpt-image-2-asset-plan.md)。
+
 ## 前置条件
 
 ```bash
@@ -94,20 +96,19 @@ node scripts/run-codex-image-gen.mjs edit \
   --prompt-file docs/images/prompts/plot-3-tomato-prompt.txt
 ```
 
-## 5. 复制到运行资产目录
+## 5. 映射到当前运行资产
 
-只有通过视觉验收后，才复制到正式运行目录：
+只有通过视觉验收并适配现有层尺寸后，才更新正式来源目录。初版中间文件与当前来源的映射为：
 
-```bash
-cp "$FARM_OUT/farm-background.png" apps/desktop/src/assets/images/farm-layers/farm-background.png
-cp "$FARM_OUT/farm-foreground.png" apps/desktop/src/assets/images/farm-layers/farm-foreground.png
-cp "$FARM_OUT/plot-1-soil.png" apps/desktop/src/assets/images/farm-layers/plot-1-soil.png
-cp "$FARM_OUT/plot-2-soil.png" apps/desktop/src/assets/images/farm-layers/plot-2-soil.png
-cp "$FARM_OUT/plot-3-soil.png" apps/desktop/src/assets/images/farm-layers/plot-3-soil.png
-cp "$FARM_OUT/plot-1-wheat.png" apps/desktop/src/assets/images/farm-layers/plot-1-wheat.png
-cp "$FARM_OUT/plot-2-carrot.png" apps/desktop/src/assets/images/farm-layers/plot-2-carrot.png
-cp "$FARM_OUT/plot-3-tomato.png" apps/desktop/src/assets/images/farm-layers/plot-3-tomato.png
-```
+| 制作中间文件 | `packages/desktop-resources/images/farm-layers/` 下的来源 |
+| --- | --- |
+| `farm-background.png` | `farm-background.png` |
+| `plot-1/2/3-soil.png` | 分别为 `plot-wheat-soil.png`、`plot-carrot-soil.png`、`plot-tomato-soil.png` |
+| `plot-1-wheat.png` | `crop-wheat-overlay.png` |
+| `plot-2-carrot.png` | `crop-carrot-overlay.png` |
+| `plot-3-tomato.png` | `crop-tomato-overlay.png` |
+
+`farm-foreground.png` 是制作参考，不在当前原生生成清单内。其余五种作物和巡逻帧继续使用已审定来源；是否新增图层需要同时修改场景与生成源，不能仅复制文件就宣称已接入。
 
 ## 验收规则
 
@@ -117,3 +118,7 @@ cp "$FARM_OUT/plot-3-tomato.png" apps/desktop/src/assets/images/farm-layers/plot
 - 作物层不能包含整块土地图背景。
 - 组装结果必须能接近 `farm-full-map.png`。
 - 前端运行时不能直接把 `farm-full-map.png` 当背景图使用。
+
+## 运行时交付
+
+人工审查后，将中间图转换为[当前素材规范](farm-map-gpt-image-2-asset-plan.md)中的来源文件，核对透明边缘和坐标，再执行 `pnpm native:work-art:generate` 与 `pnpm native:work-art:check`。不要把本配方的输出目录直接作为 Go 运行时资源目录，也不要提交凭据、临时日志或未审定中间图。

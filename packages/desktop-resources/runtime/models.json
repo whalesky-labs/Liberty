@@ -1,0 +1,22 @@
+[
+  {
+    "role": "model",
+    "modelId": "iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+    "revision": "0141367fdc9b6ba58b0442ef34bceb56a6c1789c"
+  },
+  {
+    "role": "vad",
+    "modelId": "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
+    "revision": "f9a8b8274674755d925277e27063869038d41515"
+  },
+  {
+    "role": "punc",
+    "modelId": "iic/punc_ct-transformer_cn-en-common-vocab471067-large",
+    "revision": "45ab6961ad58a973ce7785401b4e93a0aab907a3"
+  },
+  {
+    "role": "spk",
+    "modelId": "iic/speech_campplus_sv_zh-cn_16k-common",
+    "revision": "a045b2afcaa9c3049c98a9215a2bc274407ab237"
+  }
+]

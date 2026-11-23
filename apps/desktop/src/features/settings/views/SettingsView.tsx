@@ -176,7 +176,13 @@ export default function SettingsView() {
     <section className="settings-page">
         <div className="settings-detail" aria-labelledby="settings-detail-title">
           <header className="settings-detail-header">
-            <h2 id="settings-detail-title">{activeNavigationItem?.label}</h2>
+            <p className="settings-detail-kicker">{messages.pageTitle}</p>
+            <div className="settings-detail-heading">
+              <h2 id="settings-detail-title">{activeNavigationItem?.label ?? messages.pageTitle}</h2>
+              {activeNavigationItem?.description && (
+                <p className="settings-detail-description">{activeNavigationItem.description}</p>
+              )}
+            </div>
           </header>
 
           <div className="settings-detail-content">
@@ -198,6 +204,7 @@ export default function SettingsView() {
                     key={mode}
                     className={`preview-card ${store.settings.themeMode === mode ? "active" : ""}`}
                     type="button"
+                    aria-pressed={store.settings.themeMode === mode}
                     onClick={() => setThemeMode(mode)}
                   >
                     <span className={`preview-art preview-theme preview-theme-${mode}`} />
@@ -220,6 +227,7 @@ export default function SettingsView() {
                     key={style}
                     className={`preview-card ${store.settings.liquidGlassStyle === style ? "active" : ""}`}
                     type="button"
+                    aria-pressed={store.settings.liquidGlassStyle === style}
                     onClick={() => setGlassStyle(style)}
                   >
                     <span className={`preview-art preview-glass preview-glass-${style} ${glassPreviewThemeClass}`} />
@@ -262,6 +270,8 @@ export default function SettingsView() {
                       className={`color-dot ${store.settings.accentColor.toLowerCase() === color ? "active" : ""}`}
                       style={{ background: color }}
                       type="button"
+                      aria-label={messages.colorLabels[color]}
+                      aria-pressed={store.settings.accentColor.toLowerCase() === color}
                       title={messages.colorLabels[color]}
                       onClick={() => setAccentColor(color)}
                     />

@@ -3,3 +3,10 @@ packages:
   - "packages/*"
 allowBuilds:
   esbuild: true
+overrides:
+  '@tiptap/core@3.30.2': 3.30.5
+  '@tiptap/pm@3.30.2': 3.30.5
+  'fast-copy@3.0.2': 3.1.0
+  'js-yaml@4.3.1': 4.3.2
+  'prosemirror-view@1.42.2': 1.42.3
+  'source-map-js@1.2.1': 1.2.2

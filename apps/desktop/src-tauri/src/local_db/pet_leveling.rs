@@ -1,17 +1,77 @@
+use serde::{de, Deserialize, Deserializer};
+use std::{collections::HashSet, fmt, marker::PhantomData, sync::LazyLock};
+
 use super::model::{PetLevelSnapshot, PetStageThreshold};
 
 pub const MAX_PET_LEVEL: i64 = 255;
 
-const STAGE_THRESHOLDS: &[(&str, &str, &str, i64)] = &[
-    ("first_meet", "小小初遇", "First Encounter", 1),
-    ("familiar", "轻轻熟悉", "Getting Familiar", 11),
-    ("steady_companion", "稳定陪伴", "Steady Companion", 31),
-    ("grow_together", "一起成长", "Growing Together", 61),
-    ("tacit_bond", "默契养成", "Tacit Bond", 101),
-    ("deep_bond", "深深羁绊", "Deep Bond", 141),
-    ("long_company", "长久相伴", "Long Company", 181),
-    ("bond_forever", "不离不弃", "Never Apart", 221),
-];
+const STAGES_JSON: &str = include_str!("../../../../../packages/desktop-resources/pet/stages.json");
+static STAGE_THRESHOLDS: LazyLock<Vec<StageSeed>> =
+    LazyLock::new(|| parse_stages(STAGES_JSON).expect("invalid embedded pet stages.json"));
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StageSeed {
+    stage: String,
+    label_zh: String,
+    label_en: String,
+    level: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(transparent, bound(deserialize = "T: Deserialize<'de>"))]
+pub(crate) struct SeedRecord<T>(#[serde(deserialize_with = "deserialize_seed_object")] pub T);
+
+fn deserialize_seed_object<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<T, D::Error> {
+    struct ObjectVisitor<T>(PhantomData<T>);
+
+    impl<'de, T: Deserialize<'de>> de::Visitor<'de> for ObjectVisitor<T> {
+        type Value = T;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("a seed object with named fields")
+        }
+
+        fn visit_map<A: de::MapAccess<'de>>(self, map: A) -> Result<T, A::Error> {
+            T::deserialize(de::value::MapAccessDeserializer::new(map))
+        }
+    }
+
+    deserializer.deserialize_map(ObjectVisitor(PhantomData))
+}
+
+fn parse_stages(source: &str) -> Result<Vec<StageSeed>, String> {
+    let stages: Vec<SeedRecord<StageSeed>> =
+        serde_json::from_str(source).map_err(|err| err.to_string())?;
+    let stages: Vec<_> = stages.into_iter().map(|seed| seed.0).collect();
+    if stages.len() != 8 || stages[0].level != 1 {
+        return Err("expected eight stages starting at level 1".into());
+    }
+
+    let mut keys = HashSet::new();
+    let mut previous = 0;
+    for seed in &stages {
+        if matches!(seed.stage.as_str(), "baby" | "growing" | "mature")
+            || !seed.stage.split('_').all(|part| {
+                !part.is_empty()
+                    && part
+                        .bytes()
+                        .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+            })
+            || !keys.insert(seed.stage.as_str())
+            || seed.label_zh.trim().is_empty()
+            || seed.label_en.trim().is_empty()
+            || seed.level <= previous
+            || seed.level > MAX_PET_LEVEL
+        {
+            return Err(format!("invalid or duplicate stage: {}", seed.stage));
+        }
+        previous = seed.level;
+    }
+    Ok(stages)
+}
 
 pub(crate) fn required_exp_for_level(level: i64) -> i64 {
     let level = level.clamp(1, MAX_PET_LEVEL);
@@ -61,8 +121,7 @@ pub(crate) fn level_snapshot_from_experience(experience: i64) -> PetLevelSnapsho
     } else {
         (current_level_exp as f64 / next_level_required as f64).clamp(0.0, 1.0)
     };
-    let (current_stage, current_stage_label_zh, current_stage_label_en, _) =
-        stage_info_from_level(level);
+    let current_stage = stage_info_from_level(level);
     let next_stage = next_stage_from_level(level);
 
     PetLevelSnapshot {
@@ -70,9 +129,9 @@ pub(crate) fn level_snapshot_from_experience(experience: i64) -> PetLevelSnapsho
         current_level_exp,
         next_level_required,
         total_experience,
-        current_stage: current_stage.into(),
-        current_stage_label_zh: current_stage_label_zh.into(),
-        current_stage_label_en: current_stage_label_en.into(),
+        current_stage: current_stage.stage.clone(),
+        current_stage_label_zh: current_stage.label_zh.clone(),
+        current_stage_label_en: current_stage.label_en.clone(),
         next_stage: next_stage.as_ref().map(|stage| stage.stage.clone()),
         next_stage_level: next_stage.as_ref().map(|stage| stage.level),
         progress_ratio,
@@ -86,21 +145,21 @@ pub(crate) fn total_required_exp_for_level(level: i64) -> i64 {
 }
 
 pub(crate) fn stage_from_level(level: i64) -> &'static str {
-    stage_info_from_level(level).0
+    &stage_info_from_level(level).stage
 }
 
 pub(crate) fn stage_label_zh(stage: &str) -> &'static str {
-    stage_info_from_stage(stage).1
+    &stage_info_from_stage(stage).label_zh
 }
 
 pub(crate) fn stage_label_en(stage: &str) -> &'static str {
-    stage_info_from_stage(stage).2
+    &stage_info_from_stage(stage).label_en
 }
 
 pub(crate) fn stage_rank(stage: &str) -> i64 {
     STAGE_THRESHOLDS
         .iter()
-        .position(|(candidate, _, _, _)| *candidate == normalize_stage_key(stage))
+        .position(|seed| seed.stage == normalize_stage_key(stage))
         .map(|index| index as i64 + 1)
         .unwrap_or(1)
 }
@@ -137,32 +196,30 @@ pub(crate) fn lp_reward_multiplier(level: i64) -> f64 {
 fn next_stage_from_level(level: i64) -> Option<PetStageThreshold> {
     STAGE_THRESHOLDS
         .iter()
-        .find(|(_, _, _, threshold)| *threshold > level)
-        .map(|(stage, zh, en, threshold)| PetStageThreshold {
-            stage: (*stage).into(),
-            label_zh: (*zh).into(),
-            label_en: (*en).into(),
-            level: *threshold,
+        .find(|seed| seed.level > level)
+        .map(|seed| PetStageThreshold {
+            stage: seed.stage.clone(),
+            label_zh: seed.label_zh.clone(),
+            label_en: seed.label_en.clone(),
+            level: seed.level,
         })
 }
 
-fn stage_info_from_level(level: i64) -> (&'static str, &'static str, &'static str, i64) {
+fn stage_info_from_level(level: i64) -> &'static StageSeed {
     let level = level.clamp(1, MAX_PET_LEVEL);
     STAGE_THRESHOLDS
         .iter()
         .rev()
-        .find(|(_, _, _, threshold)| level >= *threshold)
-        .copied()
-        .unwrap_or(STAGE_THRESHOLDS[0])
+        .find(|seed| level >= seed.level)
+        .unwrap_or(&STAGE_THRESHOLDS[0])
 }
 
-fn stage_info_from_stage(stage: &str) -> (&'static str, &'static str, &'static str, i64) {
+fn stage_info_from_stage(stage: &str) -> &'static StageSeed {
     let normalized = normalize_stage_key(stage);
     STAGE_THRESHOLDS
         .iter()
-        .find(|(candidate, _, _, _)| *candidate == normalized)
-        .copied()
-        .unwrap_or(STAGE_THRESHOLDS[0])
+        .find(|seed| seed.stage == normalized)
+        .unwrap_or(&STAGE_THRESHOLDS[0])
 }
 
 fn normalize_stage_key(stage: &str) -> &str {
@@ -174,10 +231,8 @@ fn normalize_stage_key(stage: &str) -> &str {
     }
 }
 
-fn is_known_stage(stage: &str) -> bool {
-    STAGE_THRESHOLDS
-        .iter()
-        .any(|(candidate, _, _, _)| *candidate == stage)
+pub(crate) fn is_known_stage(stage: &str) -> bool {
+    STAGE_THRESHOLDS.iter().any(|seed| seed.stage == stage)
 }
 
 fn lerp_required(min: i64, max: i64, level: i64, start: i64, end: i64) -> i64 {
@@ -194,6 +249,25 @@ mod tests {
 
     fn exp_to_reach_level(level: i64) -> i64 {
         total_required_exp_for_level(level)
+    }
+
+    #[test]
+    fn rejects_invalid_shared_stage_records() {
+        for (original, replacement) in [
+            ("\"level\": 11", "\"level\": 1"),
+            ("\"level\": 11", "\"level\": 11.0"),
+            ("\"level\": 11", "\"level\": 11, \"level\": 11"),
+            ("\"level\": 11", "\"threshold\": 11"),
+            ("\"familiar\"", "\"first_meet\""),
+        ] {
+            let invalid = STAGES_JSON.replacen(original, replacement, 1);
+            assert_ne!(invalid, STAGES_JSON);
+            assert!(parse_stages(&invalid).is_err(), "accepted {replacement}");
+        }
+        assert!(serde_json::from_str::<SeedRecord<StageSeed>>(
+            r#"["first_meet","初遇","First Encounter",1]"#
+        )
+        .is_err());
     }
 
     #[test]

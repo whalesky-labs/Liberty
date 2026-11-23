@@ -60,7 +60,7 @@ pub fn reconcile_profile_leveling(conn: &Connection) -> LocalResult<()> {
             level_snapshot.level,
             effective_experience,
             normalized_stage,
-            chrono::Utc::now().to_rfc3339()
+            crate::infrastructure::time::utc_now()
         ],
     )
     .map_err(|err| err.to_string())?;
@@ -157,6 +157,36 @@ pub fn save_settings(conn: &Connection, settings: &PetSettings) -> LocalResult<(
             settings.last_window_y,
             settings.updated_at
         ],
+    )
+    .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+pub fn save_preferences(conn: &Connection, settings: &PetSettings) -> LocalResult<()> {
+    conn.execute(
+        "UPDATE pet_settings
+         SET desktop_enabled = ?1, always_on_top = ?2, muted = ?3,
+             focus_mode_enabled = ?4, proactive_level = ?5, updated_at = ?6
+         WHERE pet_id = 'default-pet'",
+        params![
+            settings.desktop_enabled,
+            settings.always_on_top,
+            settings.muted,
+            settings.focus_mode_enabled,
+            settings.proactive_level,
+            settings.updated_at
+        ],
+    )
+    .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+pub fn save_position(conn: &Connection, x: f64, y: f64, updated_at: &str) -> LocalResult<()> {
+    conn.execute(
+        "UPDATE pet_settings
+         SET last_window_x = ?1, last_window_y = ?2, updated_at = ?3
+         WHERE pet_id = 'default-pet'",
+        params![x, y, updated_at],
     )
     .map_err(|err| err.to_string())?;
     Ok(())
@@ -299,7 +329,7 @@ pub fn ensure_default_exists(conn: &Connection) -> LocalResult<()> {
         return Ok(());
     }
 
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = crate::infrastructure::time::utc_now();
     conn.execute(
         "INSERT INTO pet_profile (
             id, name, level, experience, stage, current_mood, created_at, updated_at
@@ -307,14 +337,17 @@ pub fn ensure_default_exists(conn: &Connection) -> LocalResult<()> {
         params![now],
     )
     .map_err(|err| err.to_string())?;
-    conn.execute(
-        "INSERT INTO pet_settings (
-            pet_id, desktop_enabled, always_on_top, muted, focus_mode_enabled,
-            proactive_level, last_window_x, last_window_y, updated_at
-         ) VALUES ('default-pet', 1, 1, 0, 0, 2, NULL, NULL, ?1)",
-        params![chrono::Utc::now().to_rfc3339()],
-    )
-    .map_err(|err| err.to_string())?;
+    save_settings(
+        conn,
+        &PetSettings {
+            pet_id: "default-pet".into(),
+            desktop_enabled: true,
+            always_on_top: true,
+            proactive_level: 2,
+            updated_at: crate::infrastructure::time::utc_now(),
+            ..PetSettings::default()
+        },
+    )?;
     Ok(())
 }
 
@@ -331,7 +364,7 @@ pub fn ensure_default_exists_tx(tx: &Transaction<'_>) -> LocalResult<()> {
         return Ok(());
     }
 
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = crate::infrastructure::time::utc_now();
     tx.execute(
         "INSERT INTO pet_profile (
             id, name, level, experience, stage, current_mood, created_at, updated_at
@@ -339,14 +372,17 @@ pub fn ensure_default_exists_tx(tx: &Transaction<'_>) -> LocalResult<()> {
         params![now],
     )
     .map_err(|err| err.to_string())?;
-    tx.execute(
-        "INSERT INTO pet_settings (
-            pet_id, desktop_enabled, always_on_top, muted, focus_mode_enabled,
-            proactive_level, last_window_x, last_window_y, updated_at
-         ) VALUES ('default-pet', 1, 1, 0, 0, 2, NULL, NULL, ?1)",
-        params![chrono::Utc::now().to_rfc3339()],
-    )
-    .map_err(|err| err.to_string())?;
+    save_settings(
+        tx,
+        &PetSettings {
+            pet_id: "default-pet".into(),
+            desktop_enabled: true,
+            always_on_top: true,
+            proactive_level: 2,
+            updated_at: crate::infrastructure::time::utc_now(),
+            ..PetSettings::default()
+        },
+    )?;
     Ok(())
 }
 
@@ -384,4 +420,161 @@ fn map_pet_profile(row: &rusqlite::Row<'_>) -> rusqlite::Result<PetProfile> {
         created_at: row.get(6)?,
         updated_at: row.get(7)?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    struct SettingsDatabase(PathBuf);
+
+    impl SettingsDatabase {
+        fn new() -> Self {
+            let directory = std::env::temp_dir().join(crate::infrastructure::ids::timestamped_id(
+                "synthetic-pet-settings",
+            ));
+            std::fs::create_dir(&directory).unwrap();
+            Self(directory)
+        }
+
+        fn open(&self) -> Connection {
+            Connection::open(self.0.join("liberty.sqlite3")).unwrap()
+        }
+
+        fn seed(&self) -> PetSettings {
+            let connection = self.open();
+            crate::local_db::schema::apply_test_schema(&connection).unwrap();
+            ensure_default_exists(&connection).unwrap();
+            let mut settings = load_settings(&connection).unwrap();
+            settings.last_window_x = Some(10.25);
+            settings.last_window_y = Some(-20.5);
+            settings.updated_at = "2026-07-01T12:00:00Z".into();
+            save_settings(&connection, &settings).unwrap();
+            settings
+        }
+    }
+
+    impl Drop for SettingsDatabase {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+
+    fn change_preferences(settings: &mut PetSettings) {
+        settings.desktop_enabled = false;
+        settings.always_on_top = false;
+        settings.muted = true;
+        settings.focus_mode_enabled = true;
+        settings.proactive_level = 3;
+    }
+
+    #[test]
+    fn stale_preferences_preserve_newer_drag_position_after_reopen() {
+        let database = SettingsDatabase::new();
+        let mut stale_form = database.seed();
+        let mut drag = stale_form.clone();
+        drag.last_window_x = Some(-800.5);
+        drag.last_window_y = Some(120.25);
+        drag.updated_at = "2026-07-01T12:00:01Z".into();
+        save_position(
+            &database.open(),
+            drag.last_window_x.unwrap(),
+            drag.last_window_y.unwrap(),
+            &drag.updated_at,
+        )
+        .unwrap();
+        change_preferences(&mut stale_form);
+        stale_form.updated_at = "2026-07-01T12:00:02Z".into();
+        save_preferences(&database.open(), &stale_form).unwrap();
+
+        let mut expected = stale_form;
+        expected.last_window_x = drag.last_window_x;
+        expected.last_window_y = drag.last_window_y;
+        for _ in 0..3 {
+            let actual = load_settings(&database.open()).unwrap();
+            assert_eq!(
+                serde_json::to_value(actual).unwrap(),
+                serde_json::to_value(&expected).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn stale_drag_preserves_newer_preferences_after_reopen() {
+        let database = SettingsDatabase::new();
+        let mut stale_drag = database.seed();
+        let mut preferences = stale_drag.clone();
+        change_preferences(&mut preferences);
+        preferences.updated_at = "2026-07-01T12:00:01Z".into();
+        save_preferences(&database.open(), &preferences).unwrap();
+        stale_drag.last_window_x = Some(100.75);
+        stale_drag.last_window_y = Some(-200.125);
+        stale_drag.updated_at = "2026-07-01T12:00:02Z".into();
+        save_position(
+            &database.open(),
+            stale_drag.last_window_x.unwrap(),
+            stale_drag.last_window_y.unwrap(),
+            &stale_drag.updated_at,
+        )
+        .unwrap();
+
+        let mut expected = preferences;
+        expected.last_window_x = stale_drag.last_window_x;
+        expected.last_window_y = stale_drag.last_window_y;
+        expected.updated_at = stale_drag.updated_at;
+        for _ in 0..3 {
+            let actual = load_settings(&database.open()).unwrap();
+            assert_eq!(
+                serde_json::to_value(actual).unwrap(),
+                serde_json::to_value(&expected).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn failed_preferences_and_position_writes_preserve_settings_after_reopen() {
+        let database = SettingsDatabase::new();
+        let before = database.seed();
+        let connection = database.open();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER synthetic_pet_settings_failure BEFORE UPDATE ON pet_settings
+                 BEGIN SELECT RAISE(ABORT, 'synthetic-pet-settings-write-failure'); END;",
+            )
+            .unwrap();
+        let mut preferences = before.clone();
+        change_preferences(&mut preferences);
+        preferences.updated_at = "2026-07-01T12:00:01Z".into();
+        assert_eq!(
+            save_preferences(&connection, &preferences).unwrap_err(),
+            "synthetic-pet-settings-write-failure"
+        );
+        assert_eq!(
+            save_position(&connection, -800.5, 120.25, &preferences.updated_at).unwrap_err(),
+            "synthetic-pet-settings-write-failure"
+        );
+        connection.close().unwrap();
+        for _ in 0..3 {
+            let actual = load_settings(&database.open()).unwrap();
+            assert_eq!(
+                serde_json::to_value(actual).unwrap(),
+                serde_json::to_value(&before).unwrap()
+            );
+        }
+        let connection = database.open();
+        connection
+            .execute_batch("DROP TRIGGER synthetic_pet_settings_failure")
+            .unwrap();
+        save_preferences(&connection, &preferences).unwrap();
+        save_position(&connection, -800.5, 120.25, "2026-07-01T12:00:02Z").unwrap();
+        connection.close().unwrap();
+        preferences.last_window_x = Some(-800.5);
+        preferences.last_window_y = Some(120.25);
+        preferences.updated_at = "2026-07-01T12:00:02Z".into();
+        assert_eq!(
+            serde_json::to_value(load_settings(&database.open()).unwrap()).unwrap(),
+            serde_json::to_value(preferences).unwrap()
+        );
+    }
 }

@@ -1,9 +1,9 @@
 import "./WorkMarketView.css";
-import niumaMarketImage from "@/assets/images/work-maps/niuma-market.webp";
-import farmCoverImage from "@/assets/images/work-maps/farm-isometric.webp";
-import mineCoverImage from "@/assets/images/work-maps/mine-map.webp";
-import factoryCoverImage from "@/assets/images/work-maps/factory-map.webp";
-import convenienceStoreCoverImage from "@/assets/images/work-maps/convenience-store-map.webp";
+import niumaMarketImage from "@liberty-resources/images/work-maps/niuma-market.webp";
+import farmCoverImage from "@liberty-resources/images/work-maps/farm-isometric.webp";
+import mineCoverImage from "@liberty-resources/images/work-maps/mine-map.webp";
+import factoryCoverImage from "@liberty-resources/images/work-maps/factory-map.webp";
+import convenienceStoreCoverImage from "@liberty-resources/images/work-maps/convenience-store-map.webp";
 import { useRouter } from "@/app/router/RouterContext";
 import { useFarmStore } from "@/features/farm-work/stores/useFarmStore";
 import { useMeetingStore } from "@/features/meeting/stores/useMeetingStore";

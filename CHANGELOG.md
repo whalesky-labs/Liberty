@@ -2,47 +2,73 @@
 
 ## Unreleased
 
+本节描述尚未发布的工作区变化；Go/MyGo 为隔离候选，未切换默认生产入口。下方已发布版本记录保留其发布时事实。 / This section describes unreleased work; Go/MyGo remains an isolated candidate, with no production-entry cutover. Published version records retain their original context.
+
 ### 中文
 
 #### 新增
 
+- 新增 Go + MyGo 原生候选客户端，覆盖会议、资源、设置、宠物与打工流程；提供独立资料身份、显式接管/备份/恢复、兼容差分和四目标候选打包。
+- 新增原生工厂装配练习，仅保存局内状态，不结算 LP 或商品。
 - 新增聚合工作台，集中展示任务指标、处理趋势、结果完整度、最近任务、资源配置和桌宠状态。
 - 新增按任务来源、任务 ID 与临时作用域令牌授权的独立结果工作台，可重命名已验证说话人、导出结果，并安全请求 AI 总结与会议纪要窗口。
 - 新增跨 Rust、TypeScript 与 Python 的版本化 Runner/IPC 契约，以及前端、Python、依赖治理和 ASR 证据阻断测试。
+- 新增独立 Native 质量、安全与四平台候选 CI 构建链，以及原生许可证和 SBOM 归档；保留失败阻断、固定工具来源和只读交付权限。
+- 新增 macOS 签名/公证 DMG 与 Windows x64/x86 MSI 的分发构建、核验及安装事务验收入口；缺少身份或证据时拒绝，当前仍为隔离候选，真实签名与安装验收尚未完成。
+- 新增离线资料快照导入，将 WAL 一致性数据迁入独立 Native 目录并复制凭据到新引用；生产资料保持只读，恢复保留安全快照及凭据补偿记录。
 
 #### 调整
 
+- 运行时清单、模型版本、Word 模板、双语文案和农场/打工素材迁至两端共用的资源目录，保持现有内容和运行时版本不变。
+- 原生系统设置与主菜单共用主题和导航状态配色；项目文档按当前架构、开发/验收入口和历史过程记录重新整理。
 - 独立结果中心并入任务队列；已完成任务直接打开结果工作台，旧结果入口兼容跳转到已完成任务筛选。
 - 重做任务创建、任务队列、系统设置、模型、模板和人员管理界面，统一卡片、表单和独立编辑窗口交互。
 - 系统设置按分类导航，并可分别查看、选择来源、安装、修复或校验 Python、ffmpeg 与模型资源。
 - 本地 ASR 并发改为内存和 CPU 感知的资源上限，8 GiB 设备默认单任务运行，工具栏指标覆盖 Liberty 进程树。
+- 默认生产运行时升级为 CPython 3.11.18 与 FunASR `1.3.9+liberty.local2`，固定上游、构建器及产物摘要，并更新三平台哈希锁。2026-11-22 当前例外策略扫描通过，未扩展或延期现有例外；无例外扫描仍保留 Torch 漏洞，Transformers 的 Torch 后端继续停用，范围见[发布要求](docs/architecture/release-readiness.md)。
+- Native 兼容检查改为重放独立共享目录中的脱敏历史黄金样本，生成与构建入口不再依赖旧客户端源码；正式切换及旧端退役继续受发布门禁约束。
 
 #### 修复
 
+- 修复原生 AI、远端、Runner V1 与旧 JSON 导入中的字段匹配兼容边界，防止异常字段覆盖有效状态或正文；补充真实 HTTP/子进程、SQLite 重开与显式重试回归。
 - 修复缺少真实说话人结果时伪造默认标签的问题；说话人能力不可用或失败时保留逐字稿、警告和真实状态。
 - 强化 AI/远端网络目标、系统凭据补偿、原子导出、结构化脱敏日志、WebView 策略和按窗口最小权限。
 - 修复依赖安全策略与 CI 质量门禁校验，使缺少扫描器、ASR 证据或必要检查时明确阻断而不是跳过。
+- 修复资料导入部分凭据补偿失败后无法重试，以及运行时失败终态被误判为活跃操作的问题；活跃或未知操作仍在写入凭据和发布数据库前拒绝。
+- 强化生产托管安装的上游大小限制、私有输入快照、就绪标记和完整解释器版本绑定；macOS ARM 默认生产运行时已完成新安装、两种说话人模式处理及重开持久化验收，其他平台、GUI 和正式分发仍待验证。
 
 ### English
 
 #### Added
 
+- Added an isolated Go + MyGo native candidate for meeting, resource, settings, companion and work-game flows, with separate profile identity, explicit handover/backup/restore, compatibility comparisons and four-target candidate packaging.
+- Added native factory assembly practice with session-only state and no LP or item rewards.
 - Added an aggregate dashboard for job metrics, processing trends, result completeness, recent jobs, resources, and desktop-companion state.
 - Added a dedicated result workbench authorized by job source, job ID, and an ephemeral scope token, with verified-speaker renaming, exports, and scoped AI-summary or meeting-notes requests.
 - Added versioned Runner/IPC contracts across Rust, TypeScript, and Python, plus frontend, Python, dependency-governance, and ASR evidence blocking tests.
+- Added independent Native quality, security and four-platform candidate CI delivery, with license and SBOM artifacts, required failure gates, pinned tools and read-only delivery permissions.
+- Added build, verification and installation-transaction acceptance entries for signed/notarized macOS DMGs and Windows x64/x86 MSIs. Missing identities or evidence block execution; distributions retain the isolated candidate identity, and actual signing and installation acceptance remain incomplete.
+- Added offline profile snapshot import with WAL-consistent data and newly owned credential references in a separate Native directory. Production profiles remain read only, and restore retains safety snapshots and credential compensation records.
 
 #### Changed
 
+- Moved runtime manifests, model pins, the Word template, bilingual messages, and farm/work assets into a shared directory without changing their content or runtime versions.
+- Unified native Settings and main-navigation theme/state colors, and reorganized project documentation around current architecture, development/acceptance entry points and historical records.
 - Folded the standalone Results Center into the job queue; completed jobs now open the result workbench directly, and legacy result routes redirect to the completed-job filter.
 - Redesigned job creation, the job queue, Settings, and model, template, and member management around consistent cards, forms, and dedicated editor windows.
 - Categorized Settings and exposed independent source selection, installation, repair, and validation for Python, ffmpeg, and model resources.
 - Made local ASR concurrency memory- and CPU-aware, defaulting 8 GiB devices to one job and aggregating toolbar metrics across the Liberty process tree.
+- Upgraded the default production runtime to CPython 3.11.18 and FunASR `1.3.9+liberty.local2`, with pinned upstream, builder and output hashes and updated locks for three runtime platforms. The 2026-11-22 scans passed the existing exception policy without expanding or extending exceptions; unfiltered scans retain Torch findings, and the Transformers Torch backend remains disabled. See the [release requirements](docs/architecture/release-readiness.md).
+- Changed Native compatibility checks to replay sanitized historical golden fixtures from shared resources, removing old-client source dependencies from generation and Native build entries. Production cutover and old-client retirement remain subject to release gates.
 
 #### Fixed
 
+- Corrected native AI, remote, Runner V1 and legacy JSON field-matching boundaries so malformed aliases cannot override valid state or content, with real HTTP/subprocess, SQLite reopen and explicit-retry regressions.
 - Stopped synthesizing default labels when no real diarization result exists; unavailable or failed diarization now preserves the transcript, warnings, and truthful capability state.
 - Hardened AI and remote network targets, credential compensation, atomic exports, structured redacted logs, WebView policy, and least-privilege window capabilities.
 - Fixed dependency-security policy and CI quality-gate validation so missing scanners, ASR evidence, or required checks block explicitly instead of being skipped.
+- Fixed profile import retries after partial credential compensation and stopped treating failed runtime operations as active work. Active or unknown operations are still rejected before credential writes or database publication.
+- Hardened production managed installation with upstream size limits, private input snapshots, ready-marker binding and exact interpreter-version checks. Fresh default-production installation, both speaker modes and persistence after reopening passed on macOS ARM; other platforms, GUI workflows and formal distribution remain unverified.
 
 ## 1.1.24 - 2026-07-30
 

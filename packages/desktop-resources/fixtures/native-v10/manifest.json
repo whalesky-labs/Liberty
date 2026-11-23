@@ -1,0 +1,890 @@
+{
+  "format": 1,
+  "version": "1.1.24",
+  "schemaVersion": 10,
+  "created": "2026-11-21",
+  "synthetic": true,
+  "referenceSourceSHA256": "f2d0fffd469bfd5223e32e378454133ca7637fb37e3ba9a4d350b58c3c5eb362",
+  "archive": {
+    "path": "samples.tar.gz",
+    "bytes": 20364361,
+    "sha256": "c04de642a1939c112f0aa36c73bc39bec2cca3fe36f663f08c4fb34e1b2a1ed6"
+  },
+  "files": [
+    {
+      "path": "ai-expected.json",
+      "bytes": 1759980,
+      "sha256": "e8d416d2a7ab57fb223eaec9610a5358091a1e5f7d19a3623b0c7adf1a06be22"
+    },
+    {
+      "path": "checkin-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "bfcef53f2883645dd02a8c32dd47e6771d7e4f41a70ff6c759721dcf502d7c23"
+    },
+    {
+      "path": "checkin-expected.json",
+      "bytes": 21097568,
+      "sha256": "7cf4290e18f15594eae3bb44f4a26c3501f6d9568dfc8ea3e5e9dd189bb1d795"
+    },
+    {
+      "path": "checkin-rust.sqlite3",
+      "bytes": 458752,
+      "sha256": "5dc96de5000126a19e9130e208f1e26babf242ea7efdfdca14d968b3df280ae0"
+    },
+    {
+      "path": "expected.json",
+      "bytes": 163760,
+      "sha256": "19d83005b6cbb613d23ede9b04db63053ec1d2688acbef329863c4b39dd110e9"
+    },
+    {
+      "path": "gameplay-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "a28295cc86b884174b63b722ae709e4a31eede9d57bfa0ed737ad14aa0e8a68f"
+    },
+    {
+      "path": "gameplay-expected.json",
+      "bytes": 815168,
+      "sha256": "afed401bcecd6b9670883d515d8c7aeebccee4f2957e41bef1b7b2b61d553fee"
+    },
+    {
+      "path": "gameplay-farm-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "95ea396d5d4cf47b21136fb95b7ac140a15300f358e5839244e689027f93013d"
+    },
+    {
+      "path": "gameplay-full-expected.json",
+      "bytes": 25041838,
+      "sha256": "8c8c2f39c2776cd2c35b7865098e2fec9be015d3a88bbe275b7f62e1cc7ba5ea"
+    },
+    {
+      "path": "gameplay-full-farm-blueberry-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "3391a238dc9d4c3e5baa512deda2f28623ec6d2f095e891fab183be0e0eeec54"
+    },
+    {
+      "path": "gameplay-full-farm-blueberry-rust.sqlite3",
+      "bytes": 458752,
+      "sha256": "49c5cd160784eae639af79e59e2d8eaba154095f9842ddc9327ce09761f8dfb0"
+    },
+    {
+      "path": "gameplay-full-farm-carrot-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "7a9d1153713cfbd5bc58487dab88f3bc092f1e29e660a0df4ae99a7aee500435"
+    },
+    {
+      "path": "gameplay-full-farm-carrot-rust.sqlite3",
+      "bytes": 454656,
+      "sha256": "8126b525421e244de2b383f1843251c9ca096d35c8855ca08211d9e198e05d3b"
+    },
+    {
+      "path": "gameplay-full-farm-corn-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "2affcb7ac2bd98066ea86f785f241ab65909d6919148a39a14d189885a84577d"
+    },
+    {
+      "path": "gameplay-full-farm-corn-rust.sqlite3",
+      "bytes": 454656,
+      "sha256": "4b453090877e770966881b69785b48f2bda74e5c5fb1a4654971bcd8ae838e4d"
+    },
+    {
+      "path": "gameplay-full-farm-potato-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "f68f08185659a678bca12054633dcf3660c41220bbae33e5d13c45c4a32e27ac"
+    },
+    {
+      "path": "gameplay-full-farm-potato-rust.sqlite3",
+      "bytes": 454656,
+      "sha256": "7ad9bc0b6b8be6a28b5d8704d641e4f02a15c428793f4abcd8cbe0bd65170be6"
+    },
+    {
+      "path": "gameplay-full-farm-pumpkin-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "45ba84a4995a1976def8028c725315cf8ddfc9fc3639d8af07eb976e3921421c"
+    },
+    {
+      "path": "gameplay-full-farm-pumpkin-rust.sqlite3",
+      "bytes": 454656,
+      "sha256": "af849dfee833e5b293c104457a6b6fc52e0f68c918828620ea936df05393fcac"
+    },
+    {
+      "path": "gameplay-full-farm-strawberry-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "dbeb0a748217bc15e72c3f4bbd80cefa9df02892c87109b1ae20edac9601d77c"
+    },
+    {
+      "path": "gameplay-full-farm-strawberry-rust.sqlite3",
+      "bytes": 458752,
+      "sha256": "3cf79bb54772e159c45c5e159e6979e00233a26052f5b9d4a843d0fdecd0d538"
+    },
+    {
+      "path": "gameplay-full-farm-tomato-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "0de7640cfc328000a57f726cc4ce5188c47c1ce6a5f310a94d96545895ce1909"
+    },
+    {
+      "path": "gameplay-full-farm-tomato-rust.sqlite3",
+      "bytes": 454656,
+      "sha256": "e9f3f45b4f2e08c543951cb86481c9ce2afb454a6053117c6abf36e8e9d11927"
+    },
+    {
+      "path": "gameplay-full-farm-wheat-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "9db30f8c8e8051548da5611ed96d2c3ce6ec9e5fcbda529c5931e743b653ce72"
+    },
+    {
+      "path": "gameplay-full-farm-wheat-rust.sqlite3",
+      "bytes": 454656,
+      "sha256": "e7d4d7196283a277456b58d54084a1b77f75533fdeda32c601f1eb41c40e62f1"
+    },
+    {
+      "path": "gameplay-full-work-convenience-store-day-shift-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "690e49bdb63780f7aa8179f0d9469de58edd0654322d6a9caae6e361b90192dc"
+    },
+    {
+      "path": "gameplay-full-work-convenience-store-day-shift-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "705c47fd55ad65df9b996ba4b01092bda95f7f054f316925ead11135b5a60fba"
+    },
+    {
+      "path": "gameplay-full-work-convenience-store-evening-shift-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "690e49bdb63780f7aa8179f0d9469de58edd0654322d6a9caae6e361b90192dc"
+    },
+    {
+      "path": "gameplay-full-work-convenience-store-evening-shift-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "7f1d2ab925b150f28c4b2cbbadbdc4a3d9e3077f8052e3fb6834e48c6386c5a3"
+    },
+    {
+      "path": "gameplay-full-work-convenience-store-night-shift-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "690e49bdb63780f7aa8179f0d9469de58edd0654322d6a9caae6e361b90192dc"
+    },
+    {
+      "path": "gameplay-full-work-convenience-store-night-shift-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "ecc6c74428c0df64bf46c7c00ad5f56376bcf0b8f219ee7c6f01cc667956d14b"
+    },
+    {
+      "path": "gameplay-full-work-factory-basic-assembly-application-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "690e49bdb63780f7aa8179f0d9469de58edd0654322d6a9caae6e361b90192dc"
+    },
+    {
+      "path": "gameplay-full-work-factory-basic-assembly-application-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "ccb1a6e5f8593b73c8f4a0f1bf9366c2bb6925aff03a1fefd65b551563e14242"
+    },
+    {
+      "path": "gameplay-full-work-factory-basic-assembly-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "690e49bdb63780f7aa8179f0d9469de58edd0654322d6a9caae6e361b90192dc"
+    },
+    {
+      "path": "gameplay-full-work-factory-basic-assembly-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "88300ff95ff86e0576c1f59173d0f4c6362e274933c95c2aac1a2d72fd77af81"
+    },
+    {
+      "path": "gameplay-full-work-factory-precision-check-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "690e49bdb63780f7aa8179f0d9469de58edd0654322d6a9caae6e361b90192dc"
+    },
+    {
+      "path": "gameplay-full-work-factory-precision-check-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "2d7523f6af4acb1ed5a6ddfb34202ca1d1429100c07c990a0305ccd8d2bf510d"
+    },
+    {
+      "path": "gameplay-full-work-factory-rush-order-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "690e49bdb63780f7aa8179f0d9469de58edd0654322d6a9caae6e361b90192dc"
+    },
+    {
+      "path": "gameplay-full-work-factory-rush-order-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "b964772a91f852bf1e9cf74dd708200164990df3b9440a4940dd9d041a49c1a5"
+    },
+    {
+      "path": "gameplay-full-work-mine-deep-vein-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "690e49bdb63780f7aa8179f0d9469de58edd0654322d6a9caae6e361b90192dc"
+    },
+    {
+      "path": "gameplay-full-work-mine-deep-vein-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "6e79927e82a7721347eb2588619adfbbdc56144aac65f9c8258a676851f41d60"
+    },
+    {
+      "path": "gameplay-full-work-mine-glowing-vein-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "690e49bdb63780f7aa8179f0d9469de58edd0654322d6a9caae6e361b90192dc"
+    },
+    {
+      "path": "gameplay-full-work-mine-glowing-vein-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "97d5ce863557c9d60a6eeb8a9d02669273640b616d1a9d52593e588f320f4f13"
+    },
+    {
+      "path": "gameplay-full-work-mine-shallow-vein-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "690e49bdb63780f7aa8179f0d9469de58edd0654322d6a9caae6e361b90192dc"
+    },
+    {
+      "path": "gameplay-full-work-mine-shallow-vein-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "8af6ea4b5421d95759f9a5a208adb991830e533f68cb57aaa96f648e25bcb1e4"
+    },
+    {
+      "path": "gameplay-work-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "57c542176fbca9fe139edcd4b87f5446f4279bcab3daabbb9b986dd532c02d26"
+    },
+    {
+      "path": "legacy-expected.json",
+      "bytes": 33026,
+      "sha256": "9111ac324b15687a2398f9710a3ec7558bafbf6f77c8e5457385e9a46a9db909"
+    },
+    {
+      "path": "legacy-expected.sqlite3",
+      "bytes": 450560,
+      "sha256": "7d61bce7b64460c666f1267dd4e33b0981a153fec379bfadcd0cd6c2d49f2673"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-500/job.json",
+      "bytes": 1545,
+      "sha256": "10ff0a7e1059fa2740c4c3d490a233ccd09dcc0b612aeb9845ef6709a4f54155"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-500/process.log",
+      "bytes": 38,
+      "sha256": "0b10101859888100a2fb376190fd262667d7a8b7225245ad9a26c15ae9355635"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-500/progress.json",
+      "bytes": 100,
+      "sha256": "74e18c9613ba7990737ebd63e5a2b8bad28331615ab06af3be8b0248c6cc4ccc"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-500/result.json",
+      "bytes": 426,
+      "sha256": "bbf8a503ebc7ae8f362987ee3d728c77f05dda1c39f603d11d90e42861f32cec"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-501/job.json",
+      "bytes": 1105,
+      "sha256": "f1522557cb555535b780364b914890f6db74ba281aeddfb0b88a0b09ac163ac3"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-501/process.log",
+      "bytes": 38,
+      "sha256": "0b10101859888100a2fb376190fd262667d7a8b7225245ad9a26c15ae9355635"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-501/progress.json",
+      "bytes": 100,
+      "sha256": "74e18c9613ba7990737ebd63e5a2b8bad28331615ab06af3be8b0248c6cc4ccc"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-501/result.json",
+      "bytes": 426,
+      "sha256": "bbf8a503ebc7ae8f362987ee3d728c77f05dda1c39f603d11d90e42861f32cec"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-502/job.json",
+      "bytes": 1545,
+      "sha256": "f7ee463f06b25e7d46cc1178d323edf8756b8e2d041d9f752a04ae7592a2c27d"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-502/process.log",
+      "bytes": 38,
+      "sha256": "0b10101859888100a2fb376190fd262667d7a8b7225245ad9a26c15ae9355635"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-502/progress.json",
+      "bytes": 100,
+      "sha256": "74e18c9613ba7990737ebd63e5a2b8bad28331615ab06af3be8b0248c6cc4ccc"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-502/result.json",
+      "bytes": 426,
+      "sha256": "bbf8a503ebc7ae8f362987ee3d728c77f05dda1c39f603d11d90e42861f32cec"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-503/job.json",
+      "bytes": 1231,
+      "sha256": "09ca9a2f45da172b08354734d8f74ff22eaab10083d8645c169ca6440e718cec"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-503/process.log",
+      "bytes": 38,
+      "sha256": "0b10101859888100a2fb376190fd262667d7a8b7225245ad9a26c15ae9355635"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-503/progress.json",
+      "bytes": 109,
+      "sha256": "387d1fe704564cf0b8d38cfa425c2ff59f24b0772993bf46d3d6329e9a343fd5"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-503/result.json",
+      "bytes": 426,
+      "sha256": "bbf8a503ebc7ae8f362987ee3d728c77f05dda1c39f603d11d90e42861f32cec"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-504/job.json",
+      "bytes": 1399,
+      "sha256": "89706244ffc7bef207a06e0739a9daa0cce80fb039a3291dbfe39bd50ff61a53"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-504/process.log",
+      "bytes": 38,
+      "sha256": "0b10101859888100a2fb376190fd262667d7a8b7225245ad9a26c15ae9355635"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-504/progress.json",
+      "bytes": 100,
+      "sha256": "74e18c9613ba7990737ebd63e5a2b8bad28331615ab06af3be8b0248c6cc4ccc"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-504/result.json",
+      "bytes": 426,
+      "sha256": "bbf8a503ebc7ae8f362987ee3d728c77f05dda1c39f603d11d90e42861f32cec"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-505/job.json",
+      "bytes": 1037,
+      "sha256": "b469c96b95e0c47f845316a8d3257351fd9b3f33b893a0028646261326c5f8ce"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-505/process.log",
+      "bytes": 38,
+      "sha256": "0b10101859888100a2fb376190fd262667d7a8b7225245ad9a26c15ae9355635"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-505/progress.json",
+      "bytes": 97,
+      "sha256": "9194a534cfac7679c26d39c9f29104745fff730d11fa8d4287ca511edbdafb8c"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-505/result.json",
+      "bytes": 426,
+      "sha256": "bbf8a503ebc7ae8f362987ee3d728c77f05dda1c39f603d11d90e42861f32cec"
+    },
+    {
+      "path": "legacy-input/jobs/job-1700000000000-599/job.json",
+      "bytes": 8,
+      "sha256": "40b5cafe045b9c9e31a1c3fdcfbc89f934906ff06a6276b55c2a0e517be21655"
+    },
+    {
+      "path": "liberty.sqlite3",
+      "bytes": 446464,
+      "sha256": "790340e2db127c2853df45ac9043017ec9451a83174fd1ba762bc44e43382184"
+    },
+    {
+      "path": "migration-v0-expected.sqlite3",
+      "bytes": 446464,
+      "sha256": "a6186ae4f3caa19fbd873e3c5ebbc44aa349786624166b5238b0f27ae8d79456"
+    },
+    {
+      "path": "migration-v0.sqlite3",
+      "bytes": 1,
+      "sha256": "8de0b3c47f112c59745f717a626932264c422a7563954872e237b223af4ad643"
+    },
+    {
+      "path": "migration-v1-expected.sqlite3",
+      "bytes": 450560,
+      "sha256": "3b6dbd689f944a02a2988fb77e0f6fd10e4a0ee0cde6c1cb5db8486968e984c5"
+    },
+    {
+      "path": "migration-v1-expected.sqlite3.pre-migration-v1-snapshot-1795271622174-0.bak",
+      "bytes": 360448,
+      "sha256": "fc80b9785fa8145ae97eaf45752917285909bb351a0b41b400bd5bfb58502bcc"
+    },
+    {
+      "path": "migration-v1.sqlite3",
+      "bytes": 360448,
+      "sha256": "49b79357b977beedd03a4850be31a4e47c02a0812b9b80808d142382335cd111"
+    },
+    {
+      "path": "migration-v10-expected.sqlite3",
+      "bytes": 450560,
+      "sha256": "fccf1cc5a5d38a53889c10376c9aa214718ab35cbf392faa79d08a759a537f5b"
+    },
+    {
+      "path": "migration-v10.sqlite3",
+      "bytes": 442368,
+      "sha256": "c76a991c6a22b3e6010b902964d004984c588513521a53b92af42bd4016b2915"
+    },
+    {
+      "path": "migration-v2-expected.sqlite3",
+      "bytes": 450560,
+      "sha256": "c8702f748aa5523573526ca2b504a6429db211cfb3e8fb98830d1c16d0745ee2"
+    },
+    {
+      "path": "migration-v2-expected.sqlite3.pre-migration-v2-snapshot-1795271622575-3.bak",
+      "bytes": 360448,
+      "sha256": "cae31039162642e507cd67ece75d945beb5a399f36dc94c4c7f7fab4d6d6d57f"
+    },
+    {
+      "path": "migration-v2.sqlite3",
+      "bytes": 360448,
+      "sha256": "3347dc66bbd351d2556de1918342143e808bccc167f5ce83c25731e8332f7311"
+    },
+    {
+      "path": "migration-v3-expected.sqlite3",
+      "bytes": 450560,
+      "sha256": "7aaeb532e4af9c2c0ee1751b3b634b9b0df8652a8e767c3fe40df19c811c4b7e"
+    },
+    {
+      "path": "migration-v3-expected.sqlite3.pre-migration-v3-snapshot-1795271623070-8.bak",
+      "bytes": 360448,
+      "sha256": "7f803f977bec79d913965989b75f93cb290ef6723e9f238f8905e4540354a1a4"
+    },
+    {
+      "path": "migration-v3.sqlite3",
+      "bytes": 360448,
+      "sha256": "76857a8dd3274a29bac639253d97ff3f11d4db012915023a54448d6c987bf946"
+    },
+    {
+      "path": "migration-v4-expected.sqlite3",
+      "bytes": 450560,
+      "sha256": "e9a97e0a1eb145246ed244b1de479e8e39aa11b3dc6fb300c091391bca5e4d32"
+    },
+    {
+      "path": "migration-v4-expected.sqlite3.pre-migration-v4-snapshot-1795271623810-11.bak",
+      "bytes": 360448,
+      "sha256": "0725ed09497618e2a433221530f9c9e62f57357ec6a9b2b3374c2938f1ae4a22"
+    },
+    {
+      "path": "migration-v4.sqlite3",
+      "bytes": 360448,
+      "sha256": "3b2651fb6b1a7e0a83f013d52d6362b01d4b766baa5030a4fe1d89f68a68b108"
+    },
+    {
+      "path": "migration-v5-expected.sqlite3",
+      "bytes": 450560,
+      "sha256": "6fbac6a73c7641d66521a33e325a946e3a574c95b922bba3cb7a60fbf20644f9"
+    },
+    {
+      "path": "migration-v5-expected.sqlite3.pre-migration-v5-snapshot-1795271624294-14.bak",
+      "bytes": 376832,
+      "sha256": "db1ec45fbfcb16bfcc1cf61edd165d3707129b9b955420cfa15fe0329d7eb8d1"
+    },
+    {
+      "path": "migration-v5.sqlite3",
+      "bytes": 376832,
+      "sha256": "f1f8d2559080865d3b0fb4143cab8ae3059aaf5214f4e0dc08f51c8150811a4b"
+    },
+    {
+      "path": "migration-v6-expected.sqlite3",
+      "bytes": 450560,
+      "sha256": "30ba5d4b1ea255d07d25e5a8345dcaf6c371e6f357105906a0379b3764b05de2"
+    },
+    {
+      "path": "migration-v6-expected.sqlite3.pre-migration-v6-snapshot-1795271624708-17.bak",
+      "bytes": 376832,
+      "sha256": "c04f675ac0f7c3abc031c02d091d90ec2b50236c2b31ba411bf40dcd618146af"
+    },
+    {
+      "path": "migration-v6.sqlite3",
+      "bytes": 376832,
+      "sha256": "a7f7405b1e80a37c71c49d5ee9c00a498dda282c32622a9e0ac6fd409b72f893"
+    },
+    {
+      "path": "migration-v7-expected.sqlite3",
+      "bytes": 450560,
+      "sha256": "1445567c498b8ba1fe68027712d31a489ec4f43613e4724fcda70ada84d61f08"
+    },
+    {
+      "path": "migration-v7-expected.sqlite3.pre-migration-v7-snapshot-1795271625068-20.bak",
+      "bytes": 397312,
+      "sha256": "cfce45fd0bd3ca2ba391e0233b788dd41f4e25e7da910f833caf39a2b4e1b187"
+    },
+    {
+      "path": "migration-v7.sqlite3",
+      "bytes": 397312,
+      "sha256": "396ddb7b89e5f089fddeb839e97a6f7e33e9eb9758e029980f5fee812c085baf"
+    },
+    {
+      "path": "migration-v8-expected.sqlite3",
+      "bytes": 450560,
+      "sha256": "fc144bb9e66da7bfb39cc13af344d614c50565faf54e7e8536f987027bc77eaf"
+    },
+    {
+      "path": "migration-v8-expected.sqlite3.pre-migration-v8-snapshot-1795271625677-23.bak",
+      "bytes": 417792,
+      "sha256": "43a36f55827963ec47856e7ba390d46406b68df504faa72390d74c39e28c9c03"
+    },
+    {
+      "path": "migration-v8.sqlite3",
+      "bytes": 417792,
+      "sha256": "8e5d0636910c4e0d4aa90e3dedf642ac7117bfdb1a82737c86caaa2d03fa903b"
+    },
+    {
+      "path": "migration-v9-expected.sqlite3",
+      "bytes": 450560,
+      "sha256": "60805e3dfc7e87f44911a8746b41123861891a2963c5997f37da24dd61ba8fa5"
+    },
+    {
+      "path": "migration-v9-expected.sqlite3.pre-migration-v9-snapshot-1795271626021-26.bak",
+      "bytes": 421888,
+      "sha256": "be75eab52547c7483b5b0e643719dc739fd54597036ea5f908e96c18170ab128"
+    },
+    {
+      "path": "migration-v9.sqlite3",
+      "bytes": 421888,
+      "sha256": "9db5c6da48fce9be26ff14492ac24814b107beaba5af541bd91742e9f909be0b"
+    },
+    {
+      "path": "minutes-0.xml",
+      "bytes": 18344,
+      "sha256": "ca7f132b55252a2cd799bf644a4e3629586f379bc040760a5c46192937713b66"
+    },
+    {
+      "path": "minutes-1.xml",
+      "bytes": 18107,
+      "sha256": "079c32caacebb80242d015b720332876dcebab307f24b9a14307256e52877fe8"
+    },
+    {
+      "path": "minutes-10.xml",
+      "bytes": 16052,
+      "sha256": "110f6baf36a6c69dbf74be3c6f1ccb0ca9b53ae4127cedcf52a2a3ce006375a4"
+    },
+    {
+      "path": "minutes-11.xml",
+      "bytes": 15290,
+      "sha256": "c3697a30c4d11b75e1330d3b66725f9f4f4b87f25db6c3d915cc36b218355247"
+    },
+    {
+      "path": "minutes-12.xml",
+      "bytes": 13752,
+      "sha256": "853d24db8aa8f8af48172cdd6584b1d50af582738ca22deb7c9b11be60d2a45b"
+    },
+    {
+      "path": "minutes-13.xml",
+      "bytes": 13515,
+      "sha256": "1752596c013bc8cd4b5fed42a1723f0b907fa696527787d8819cd163846154d9"
+    },
+    {
+      "path": "minutes-14.xml",
+      "bytes": 18089,
+      "sha256": "21b562e853911177d165413f038762c0cbb2136c149aa9ed721771be29ddb067"
+    },
+    {
+      "path": "minutes-15.xml",
+      "bytes": 16025,
+      "sha256": "123441339cfbea700da0eb2d90d6d81024bfe4033310dfa563e08ff6957eacb1"
+    },
+    {
+      "path": "minutes-16.xml",
+      "bytes": 16052,
+      "sha256": "8321214016c9e21b1799fd2b29b41e54dc013def91d3d7237df3715c93b09fe7"
+    },
+    {
+      "path": "minutes-17.xml",
+      "bytes": 15290,
+      "sha256": "535c20a4c5df6eb9b547da4dc414fc15c99421a03cbf0887f80bfc84144a3718"
+    },
+    {
+      "path": "minutes-2.xml",
+      "bytes": 18077,
+      "sha256": "b96f9391994ae6315734ad46849b7fb310db120553b9019b0f234d5a3ca203b2"
+    },
+    {
+      "path": "minutes-3.xml",
+      "bytes": 18315,
+      "sha256": "e8f50841bc56dde392f2a5b5c77ef98ebaaae2cf9ce80599719f4aafef508552"
+    },
+    {
+      "path": "minutes-4.xml",
+      "bytes": 18342,
+      "sha256": "33920f9f70af0a6b4d42d0e2e362ba2919410199ed3f168a6d203a05b8d89848"
+    },
+    {
+      "path": "minutes-5.xml",
+      "bytes": 19882,
+      "sha256": "1cca864c6624448bdbc1f11d7e680b43393ff2c73d3b05851cf3adc11b14cd84"
+    },
+    {
+      "path": "minutes-6.xml",
+      "bytes": 13752,
+      "sha256": "4f57bf1897033c53b163ad35ab1aa9c105982c7c3dc9e257ba45b682a59fe166"
+    },
+    {
+      "path": "minutes-7.xml",
+      "bytes": 13515,
+      "sha256": "dcaabd6189d9f0593b5294b1ffcb6eb50df580b8bd400785bd6c983bbd4efc64"
+    },
+    {
+      "path": "minutes-8.xml",
+      "bytes": 18089,
+      "sha256": "df3a0445b47b514363613213f10533555f58a7118bf4fc34dd1187c2999cb853"
+    },
+    {
+      "path": "minutes-9.xml",
+      "bytes": 16025,
+      "sha256": "4768a604765afade3bc555bb311cf568bd1229977ecfb33a39b85c5d4e24bfe4"
+    },
+    {
+      "path": "minutes-expected.json",
+      "bytes": 72251,
+      "sha256": "dc6859b08d79bc71d50716f32eb93117dab62b3487aa61a5a272525b23d9b9de"
+    },
+    {
+      "path": "pet-box-blind-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "54404eba707a57b8daad5f2a311aa8c95b4d98f4af257fa175f27b507aaa8b04"
+    },
+    {
+      "path": "pet-box-blind-rust.sqlite3",
+      "bytes": 598016,
+      "sha256": "5aec137069614505ac7fd94c194bc98cfe9f0e6bfafbb2be363020c46e741bb9"
+    },
+    {
+      "path": "pet-box-expected.json",
+      "bytes": 88030021,
+      "sha256": "31e82636c8d6846b352e6823b427e8f7e4d2b725b10ee89cf62012c3d796e84c"
+    },
+    {
+      "path": "pet-box-gift-default-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "dff1c0c154ba90d4d86a77f24f6350d5db8e8fe18f4547972e81a5d61ba1b871"
+    },
+    {
+      "path": "pet-box-gift-default-rust.sqlite3",
+      "bytes": 454656,
+      "sha256": "99eee37f5ffcbae65d1520e7c17fec5423c6dab2fb6ca131b7a400747bf903ee"
+    },
+    {
+      "path": "pet-box-gift-missing-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "acf802a1f0a53aa14b8397228e1913a8f18fa2f1744be42be580b2dacbb277d4"
+    },
+    {
+      "path": "pet-box-gift-missing-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "10a2ff4803799cce1f68362ad4fb236160b0597601ca735872c58c3b288e8952"
+    },
+    {
+      "path": "pet-box-gift-unlocked-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "fde7d17c85f0ca2ed95731169c847e423d31b1db700b0fb69979c56a27981110"
+    },
+    {
+      "path": "pet-box-gift-unlocked-rust.sqlite3",
+      "bytes": 499712,
+      "sha256": "c011246db5c2cdfbccdaf3540cd11b21e8da94b9e081d866c232339c84f742e4"
+    },
+    {
+      "path": "pet-box-gift-zero-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "ab5557d095bf2b34520c4f5886ca6a94dddf0629e6341ed0e595838696057fd5"
+    },
+    {
+      "path": "pet-box-gift-zero-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "c506c10d45ebc953c9e0f945ca86341791819d027d51d654148f59709c1f112a"
+    },
+    {
+      "path": "pet-core-defaults-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "b387ce0325bd4aa4f3f3942ccbed0e4e2c2bb2ce8deaef4fa476604416a1993e"
+    },
+    {
+      "path": "pet-core-defaults-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "01be13979e750f5dd3fd1466ea2f3fbb31504e5b0f6055ce38bd6475c0a2f328"
+    },
+    {
+      "path": "pet-core-expected.json",
+      "bytes": 22911941,
+      "sha256": "39d94040479ab97bf648150b72d6351b037525142adb44aa20856d0036d69142"
+    },
+    {
+      "path": "pet-core-faults-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "2b6024d1b10fe98ce40d3b8f1a534727aa935f53c83aa0f2fda30f008486c90c"
+    },
+    {
+      "path": "pet-core-faults-rust.sqlite3",
+      "bytes": 446464,
+      "sha256": "0cfdff9c811c24e62556ca7555fe3b238569ff664fdf2ff147746c77f6e31105"
+    },
+    {
+      "path": "pet-core-interaction-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "2b6024d1b10fe98ce40d3b8f1a534727aa935f53c83aa0f2fda30f008486c90c"
+    },
+    {
+      "path": "pet-core-interaction-rust.sqlite3",
+      "bytes": 532480,
+      "sha256": "dcc23860a82150e1006df387f1b8a8ca13df5255550be2fb1008c9fc3f233529"
+    },
+    {
+      "path": "pet-core-profile-base.sqlite3",
+      "bytes": 516096,
+      "sha256": "a8c8439998e56c5d7ad46533f9efe4c036392072c59dd904bf8a519d37686a08"
+    },
+    {
+      "path": "pet-core-profile-rust.sqlite3",
+      "bytes": 516096,
+      "sha256": "9a0e8533901cce1683f148476ed1ebd7ec0ae740d9ded9b3f0fb047711338dbe"
+    },
+    {
+      "path": "pet-core-settings-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "2e8e06fe7982086373bda860f93d45188f9666067378ab1595554f96758b3f3d"
+    },
+    {
+      "path": "pet-core-settings-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "d668d76e132b843ec075abcc5fe34d050a943af7f6784c6f6089964b26102389"
+    },
+    {
+      "path": "pet-core-workflow-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "2b6024d1b10fe98ce40d3b8f1a534727aa935f53c83aa0f2fda30f008486c90c"
+    },
+    {
+      "path": "pet-core-workflow-rust.sqlite3",
+      "bytes": 499712,
+      "sha256": "9ad2d1db0164998468f9ba611264804a50aeb18b28d897f2e36c5dc6892099f0"
+    },
+    {
+      "path": "pet-redemption-compact-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "da374e7ec2f965ab84aadad89b6442c3aa41ebeb759553df03235428f6ea650f"
+    },
+    {
+      "path": "pet-redemption-compact-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "a47ed8064698c4c6a79f8ba56f0e8c22adc17d6547329a18b443c4d14800e9ac"
+    },
+    {
+      "path": "pet-redemption-expected.json",
+      "bytes": 39366136,
+      "sha256": "6b23f8614296055569ad6aa927f219a576fb660d1c23b6fbb63af4d93b400171"
+    },
+    {
+      "path": "pet-redemption-faults-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "da374e7ec2f965ab84aadad89b6442c3aa41ebeb759553df03235428f6ea650f"
+    },
+    {
+      "path": "pet-redemption-faults-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "a71d0ee6057751580bc6be5be20b95c2cc303881a3f524c65c51305dffb19f0f"
+    },
+    {
+      "path": "pet-redemption-history-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "da374e7ec2f965ab84aadad89b6442c3aa41ebeb759553df03235428f6ea650f"
+    },
+    {
+      "path": "pet-redemption-history-rust.sqlite3",
+      "bytes": 471040,
+      "sha256": "a82be7477d3c0df0fa0bbb3bba24c7cbf36dcf4d1ec5b2d83e7926956dbd1e65"
+    },
+    {
+      "path": "pet-redemption-identity-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "da374e7ec2f965ab84aadad89b6442c3aa41ebeb759553df03235428f6ea650f"
+    },
+    {
+      "path": "pet-redemption-identity-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "d7785ad989b7d47e27c225f5a5021b07e77f6cc8da7aee3e1887f87b88ca1c0a"
+    },
+    {
+      "path": "pet-redemption-legacy-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "1e8666206888917d50c0c6f0fab8603d35b27c5d32c3296d22d37ee068df734e"
+    },
+    {
+      "path": "pet-redemption-legacy-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "acf7c871222ac914dc9eee6ce0c60a8d074e01276f70e51bcdd5e8d1accdf597"
+    },
+    {
+      "path": "pet-redemption-legacy-unredeemed-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "da374e7ec2f965ab84aadad89b6442c3aa41ebeb759553df03235428f6ea650f"
+    },
+    {
+      "path": "pet-redemption-parser-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "da374e7ec2f965ab84aadad89b6442c3aa41ebeb759553df03235428f6ea650f"
+    },
+    {
+      "path": "pet-redemption-parser-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "9b38a073f14e7c51ceaf5ac92676ae981a5a0966c985580b48ace6e8c08e48a9"
+    },
+    {
+      "path": "pet-redemption-signed-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "da374e7ec2f965ab84aadad89b6442c3aa41ebeb759553df03235428f6ea650f"
+    },
+    {
+      "path": "pet-redemption-signed-rust.sqlite3",
+      "bytes": 446464,
+      "sha256": "fca7ef510cfdb86e7a5493588e66a7eb28ae5855c552f39f72318e378fe0cdc8"
+    },
+    {
+      "path": "pet-redemption-unicode-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "da374e7ec2f965ab84aadad89b6442c3aa41ebeb759553df03235428f6ea650f"
+    },
+    {
+      "path": "pet-redemption-unicode-rust.sqlite3",
+      "bytes": 479232,
+      "sha256": "9449abcf7467a30e5cd6cb0e4143cdefb9bc1f24ccf2d4e66eea300df36ec60e"
+    },
+    {
+      "path": "pet-store-exact-balance-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "0c777ce4f706c09304e4d3ba78f04fe0f1e5357c78502549ba153c8c935ee824"
+    },
+    {
+      "path": "pet-store-exact-balance-rust.sqlite3",
+      "bytes": 438272,
+      "sha256": "52ee7b7f7db1d3f097b756cd28e8289850b73fa322f856d77c096db1c42ff59a"
+    },
+    {
+      "path": "pet-store-expected.json",
+      "bytes": 14010641,
+      "sha256": "c7890edd008be70b571b37e9dbdd717c354a9592ac949eddd2e4f3106314e347"
+    },
+    {
+      "path": "pet-store-funded-base.sqlite3",
+      "bytes": 438272,
+      "sha256": "74e90dd4396e793886030139705b74d04310a40f52c5e7fa7a4d2daf6f734450"
+    },
+    {
+      "path": "pet-store-funded-rust.sqlite3",
+      "bytes": 446464,
+      "sha256": "0245c692f3ca806dd50d87c736274bfd8d5d0263a7f0be013b9835894596dbb6"
+    },
+    {
+      "path": "reads.sqlite3",
+      "bytes": 3014656,
+      "sha256": "fd8ac9a4eda925b0fb57aa871ae1d1dd3699ee89304dc3a7213cd57741879d18"
+    },
+    {
+      "path": "rust-escaped-members.xlsx",
+      "bytes": 5853,
+      "sha256": "f185cb32b98acdf99b9d0ba88151be554ce1962e35e51cd8e466d29308bd168a"
+    },
+    {
+      "path": "rust-members.xlsx",
+      "bytes": 5674,
+      "sha256": "cb7ad4aa867a67d5ad9640b1c0e78b4d5a3e2dc676ec8d409319fec7815d543d"
+    },
+    {
+      "path": "text-exports.json",
+      "bytes": 65581,
+      "sha256": "ff9165d484316d70632cf3939f334cb069a4fa49a7274b42c19bfa2eb8929174"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-use chrono::{Duration, NaiveDate};
+use jiff::civil::Date;
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde_json::json;
 
@@ -322,7 +322,8 @@ fn grant_growth_tx(
     }
     let mut next_profile = profile.clone();
     let previous_stage = next_profile.stage.clone();
-    next_profile.experience = (next_profile.experience + growth_value).max(0);
+    next_profile.experience =
+        pet_store::checked_pet_experience(next_profile.experience, growth_value)?;
     let snapshot = pet_leveling::level_snapshot_from_experience(next_profile.experience);
     next_profile.level = snapshot.level;
     next_profile.stage = snapshot.current_stage.clone();
@@ -484,7 +485,7 @@ fn makeup_window_from_history(
             ..MakeupWindow::default()
         };
     }
-    let days_since_previous = current_date.signed_duration_since(previous_date).num_days();
+    let days_since_previous = current_date.duration_since(previous_date).as_hours() / 24;
     let missed_days = days_since_previous.saturating_sub(1);
     if missed_days <= 0 {
         return MakeupWindow {
@@ -504,11 +505,7 @@ fn makeup_window_from_history(
     MakeupWindow {
         missed_days,
         makeup_available: true,
-        makeup_date: Some(
-            (previous_date + Duration::days(1))
-                .format("%Y-%m-%d")
-                .to_string(),
-        ),
+        makeup_date: previous_date.tomorrow().ok().map(|date| date.to_string()),
         previous_streak: previous.streak_count,
         blocked_reason: None,
     }
@@ -522,16 +519,17 @@ fn is_previous_local_date(previous: &str, current: &str) -> bool {
         return false;
     };
     previous_date
-        .succ_opt()
+        .tomorrow()
+        .ok()
         .is_some_and(|date| date == current_date)
 }
 
-fn parse_check_in_date(value: &str) -> Option<NaiveDate> {
-    NaiveDate::parse_from_str(value, "%Y-%m-%d").ok()
+fn parse_check_in_date(value: &str) -> Option<Date> {
+    Date::strptime("%Y-%m-%d", value).ok()
 }
 
 fn current_check_in_date() -> String {
-    chrono::Local::now().format("%Y-%m-%d").to_string()
+    crate::infrastructure::time::local_date_string()
 }
 
 fn insert_entry_tx(tx: &Transaction<'_>, entry: &PetDailyCheckInEntry) -> LocalResult<()> {
@@ -635,4 +633,108 @@ fn map_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<PetDailyCheckInEntry> 
         reward_items,
         created_at: row.get(8)?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn connection_with_experience(experience: i64) -> Connection {
+        let mut connection = Connection::open_in_memory().expect("in-memory sqlite");
+        crate::local_db::schema::apply_test_schema(&connection).expect("schema");
+        let transaction = connection.transaction().expect("setup transaction");
+        pet::ensure_default_exists_tx(&transaction).expect("default pet");
+        pet_store::ensure_store_defaults_tx(&transaction, "2026-11-20T12:00:00Z")
+            .expect("store defaults");
+        let mut profile = pet::load_profile_tx(&transaction).expect("profile");
+        profile.experience = experience;
+        pet::save_profile_tx(&transaction, &profile).expect("save experience");
+        transaction.commit().expect("setup commit");
+        connection
+    }
+
+    #[test]
+    fn handles_leap_day_in_streaks_and_makeup() {
+        let entry = PetDailyCheckInEntry {
+            check_in_date: "2024-02-28".into(),
+            streak_count: 2,
+            ..Default::default()
+        };
+        let window = makeup_window_from_history(&[entry], "2024-03-01", false);
+        assert_eq!(window.makeup_date.as_deref(), Some("2024-02-29"));
+        assert_eq!(window.missed_days, 1);
+        assert!(is_previous_local_date("2024-02-29", "2024-03-01"));
+        assert!(!is_previous_local_date("2023-02-29", "2023-03-01"));
+    }
+
+    #[test]
+    fn check_in_growth_accepts_exact_i64_max_boundary() {
+        let _clock = crate::infrastructure::time::freeze_test_clock("2026-11-20T12:00:00Z")
+            .expect("frozen clock");
+        let mut connection = connection_with_experience(i64::MAX - BASE_GROWTH_VALUE);
+        let transaction = connection.transaction().expect("transaction");
+        let profile = pet::load_profile_tx(&transaction).expect("profile");
+        let (entry, duplicate) =
+            claim_daily_check_in_tx(&transaction, &profile, "2026-11-20T12:00:00Z")
+                .expect("check-in at exact experience boundary");
+        assert!(!duplicate);
+        assert_eq!(entry.growth_value, BASE_GROWTH_VALUE);
+        transaction.commit().expect("commit");
+
+        assert_eq!(
+            pet::load_profile(&connection)
+                .expect("saved profile")
+                .experience,
+            i64::MAX
+        );
+        let check_ins: i64 = connection
+            .query_row("SELECT COUNT(*) FROM pet_daily_check_ins", [], |row| {
+                row.get(0)
+            })
+            .expect("check-in count");
+        assert_eq!(check_ins, 1);
+    }
+
+    #[test]
+    fn check_in_growth_overflow_rolls_back_reward_and_entry() {
+        let _clock = crate::infrastructure::time::freeze_test_clock("2026-11-20T12:00:00Z")
+            .expect("frozen clock");
+        let initial_experience = i64::MAX - BASE_GROWTH_VALUE + 1;
+        let mut connection = connection_with_experience(initial_experience);
+        let result = {
+            let transaction = connection.transaction().expect("transaction");
+            let profile = pet::load_profile_tx(&transaction).expect("profile");
+            let result = claim_daily_check_in_tx(&transaction, &profile, "2026-11-20T12:00:00Z");
+            drop(transaction);
+            result
+        };
+
+        assert_eq!(result.unwrap_err(), "宠物经验值超出 SQLite INTEGER 范围。");
+        assert_eq!(
+            pet::load_profile(&connection)
+                .expect("unchanged profile")
+                .experience,
+            initial_experience
+        );
+        for table in [
+            "pet_daily_check_ins",
+            "pet_event_ledger",
+            "pet_economy_ledger",
+        ] {
+            let count: i64 = connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .expect("table count");
+            assert_eq!(count, 0, "unexpected persisted rows in {table}");
+        }
+        let wallet_balance: i64 = connection
+            .query_row(
+                "SELECT balance FROM pet_wallets WHERE pet_id = 'default-pet' AND currency_key = 'lp'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("wallet");
+        assert_eq!(wallet_balance, 0);
+    }
 }

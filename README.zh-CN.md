@@ -4,214 +4,125 @@
 
 <h1 align="center">Liberty</h1>
 
-<p align="center">
-  面向桌面端的会议音视频处理工作台。
-</p>
-
-<p align="center">
-  本地转写 · 说话人分离 · AI 总结 · 结果整理
-</p>
-
-<p align="center">
-  <a href="apps/desktop/src-tauri/tauri.conf.json"><img src="https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white" alt="Tauri 2"></a>
-  <a href="apps/desktop/package.json"><img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111111" alt="React 19"></a>
-  <a href="apps/desktop/package.json"><img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript 5"></a>
-  <a href="apps/desktop/src-tauri/Cargo.toml"><img src="https://img.shields.io/badge/Rust-stable-000000?logo=rust&logoColor=white" alt="Rust stable"></a>
-  <a href="apps/desktop/src-tauri/resources/runtime-manifest.json"><img src="https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white" alt="Python 3.10"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
-</p>
+<p align="center">本地优先的会议音视频桌面工作台</p>
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-Liberty 是一款本地优先的桌面会议处理应用。当前前端使用 React，桌面壳基于 Tauri 2，原生能力由 Rust 提供，转写链路由托管 Python 3.10.17 运行时与 FunASR Runner 驱动。应用既可以使用本地 SQLite 和托管运行时独立完成会议处理，也保留了可选远端后端入口。
+Liberty 将本地转写、说话人分离、AI 总结、会议纪要和结果导出组织成完整桌面工作流，并提供独立的本地宠物与打工玩法。
 
-当前主流程是：在工作台查看聚合状态，创建或进入任务队列，再从已完成任务打开独立结果工作台进行查看、整理和导出。
+## 当前重构状态
 
-## 当前能力
+截至 2026-11-21，**新版实现位于 `apps/native`，采用 Go + MyGo，是日常开发、验证和启动入口；正式生产发布入口暂时仍为 `apps/desktop`。** `pnpm start` 启动已打包的原生候选，不编译源码。原生端仍是候选，完整 UI 验收与生产切换均未完成。旧 React/Tauri 只在迁移期间冻结为生产入口和对照实现；Native 门禁全部通过后，在一次可审查的切换变更中删除旧端及其发布链。启动、资料和恢复边界见[原生模块说明](apps/native/README.md)。
 
-- 通过工作台查看任务指标、处理趋势、结果完整度、最近任务、资源配置和桌宠状态。
-- 通过桌面文件选择器创建会议任务，支持本地音频和视频文件。
-- 本地模式下使用托管 Python 3.10.17 运行时、FunASR Runner 和 ffmpeg 处理单个本地文件。
-- 通过任务队列筛选和搜索任务，并按状态打开详情或独立结果工作台、重试及删除任务。
-- 转写状态与说话人分离状态独立记录；只有已验证结果进入说话人投影，不可用或失败时保留逐字稿且不伪造说话人标签。
-- 支持以卡片管理 OpenAI 兼容模型、总结模板和会议人员，并在独立编辑窗口维护配置。
-- 支持 AI 总结窗口、多次总结记录和当前总结切换。
-- 支持逐字稿查看、讲话人筛选、讲话人重命名、会议纪要窗口和结果工作台。
-- 支持导出逐字稿 TXT、纪要 Markdown、整包 Markdown 和正式会议纪要 DOCX。
-- 支持人员管理、Excel 导入导出、会议记录人和部门排序信息。
-- 系统设置按外观、主题、运行环境、处理默认值、远端兼容和诊断分类，并可分别管理 Python、ffmpeg 与模型资源。
-- 支持中英文界面、自动/亮色/暗色主题、透明/着色玻璃样式和主题色切换。
-- 支持系统诊断面板，展示平台矩阵、数据库版本、运行时状态、安全基线，并可导出桌宠诊断日志。
-- 支持桌面宠物、255 级成长、LP 钱包、宠物商店、个人仓库、每日免费盲盒、每日签到、补签、惊喜礼盒、兑换中心、商品详情窗口和原生桌宠渲染。
-
-## 运行模式
-
-### 本地模式
-
-当 `backendUrl` 为空时，应用使用本地 SQLite 和本地 Tauri 命令。若没有手动配置 Python 路径，应用会根据运行时状态自动安装或修复托管运行时。
-
-本地模式包含：
-
-- `runtime-manifest.json` 描述的 Python、ffmpeg、下载源和模型端点。
-- `python/funasr-runner/` 中的本地转写 Runner。
-- `apps/desktop/src-tauri/src/local_jobs.rs` 中的任务创建、执行、重试和日志同步。
-- `apps/desktop/src-tauri/src/local_runtime/` 中的运行时安装、下载源选择、校验、预热和日志。
-- SQLite 中的任务、转写分段、AI 总结、人员、设置和宠物数据。
-
-当前本地任务只处理一个带本地路径的文件。多文件输入在本地模式下会保留最后选择的文件。
-
-本地并发设置是上限而不是固定并发数。调度器会为系统与桌面端预留 2 GiB 内存、按每个 ASR Runner 4 GiB 估算可用并发，并按实际并发分配逻辑 CPU 线程；8 GiB 设备默认单任务运行。
-
-### 远端模式
-
-当 `backendUrl` 不为空时，前端会通过 `shared/services/remote/meetingApi.ts` 访问远端会议 API。远端模式保留任务创建、列表、详情和重试入口，但本地运行时安装不作为前置条件。
-
-### AI 总结链路
-
-AI 总结不随转写自动执行。用户在结果工作台打开 AI 总结窗口后，选择模型、模板、讲话人和时间戳参数，再生成并保存总结记录。
-
-AI 接口由 Rust 侧 `local_ai` 模块请求 OpenAI 兼容接口。模型 API Key 会走系统凭据存储：macOS Keychain 或 Windows Credential Manager。
-
-### 宠物链路
-
-宠物链路是主会议流程之外的本地陪伴系统。当前宠物规则统一收敛在宠物系统说明中：工作行为是主线成长来源，LP 是本地奖励点数，食物提供固定成长值，每日盲盒、每日签到、补签票券、惊喜礼盒和兑换 Key 都是本地福利/运营入口。应用启动会尝试同步桌宠状态，但宠物加载失败不会阻塞主窗口。
-
-完整说明见 [docs/pet-system.md](./docs/pet-system.md)。
-
-## 技术架构
-
-| 层级 | 当前实现 |
+| 实现 | 作用 |
 | --- | --- |
-| 桌面壳 | Tauri 2 |
-| 前端 | React 19 + TypeScript + Vite |
-| 路由 | 项目内轻量 RouterContext |
-| 原生能力 | Rust、Tauri commands、SQLite、系统凭据、DOCX/XLSX 处理 |
-| 本地转写 | Python 3.10.17 + FunASR Runner + ffmpeg |
-| 本地存储 | SQLite，`rusqlite` bundled |
-| AI 接口 | OpenAI 兼容 Chat Completions |
-| 桌宠渲染 | macOS AppKit 私有 API + Windows GDI/Win32 |
+| `apps/native` | Go/MyGo 原生候选；日常开发、验证、启动与候选打包入口 |
+| `apps/desktop` | 迁移期间冻结的 React/Tauri 对照端和生产入口；Native 门禁通过后随发布链一并删除 |
+| Python Runner / SQLite / 共享 schema | 两端沿用的转写协议、数据和资源事实来源 |
 
-## 项目结构
+全 UI、输入法/读屏、真实远端、Intel/Windows 实机、供应链、安装升级回退及签名公证仍需独立验收；状态以 [发布就绪检查](docs/architecture/release-readiness.md) 为准。
+
+## 主要能力
+
+- **会议流程**：工作台指标与趋势、新建单文件本地任务、队列搜索筛选、详情进度与日志、重试和删除。
+- **结果工作台**：独立窗口查看逐字稿、筛选/重命名已验证讲话人，打开 AI 总结和只读会议纪要。说话人不可用或失败时保留原始逐字稿，不生成虚假标签。
+- **AI 总结**：OpenAI 兼容接口、模型和模板选择、持久化运行与分块、失败重试、历史结果选择。总结由用户主动发起，不在转写结束后自动调用。
+- **导出与人员**：逐字稿 TXT、纪要 Markdown、完整 Markdown、正式 DOCX；人员 Excel 导入/导出、部门、排序和记录人管理。
+- **系统设置**：外观、中英文、主题、运行概览、处理默认值、Python/ffmpeg/模型组件、远端兼容和诊断。原生设置菜单与主菜单共用配色规则。
+- **资源管理**：模型、模板、人员卡片与独立编辑窗口；密钥和 Token 保存在系统凭据库。
+- **本地陪伴**：桌宠多窗口、255 级成长、LP、商店/仓库、签到/补签、每日免费盲盒、礼盒、签名兑换、农场及打工地图。工厂需照看岗位可选用装配练习完成照看，原有一键操作保留，成绩不影响奖励。
+
+宠物系统为尽力提供的陪伴能力，失败不阻塞会议主流程；LP、盲盒与兑换均不引入真钱、充值、交易或排行榜。规则见 [宠物系统](docs/pet-system.md)。
+
+## 运行方式与边界
+
+设置中的 `processingMode` 决定本地或远端模式。`backendUrl` 是远端连接配置，填写地址不会自动切换模式。
+
+本地模式使用 SQLite、托管或显式配置的 Python、ffmpeg 和模型。默认运行时固定 Python 3.11.18 和经过哈希校验的 FunASR 依赖修正版，具体版本、平台和下载资产以共享的 [runtime-manifest.json](packages/desktop-resources/runtime/runtime-manifest.json) 为准。`security-candidate` 仍是独立的显式试验配置；默认依赖升级不代表原生生产切换已完成。四个固定 FunASR 模型的支持范围和 Torch 剩余安全例外见[发布要求](docs/architecture/release-readiness.md)。并发设置是资源预算上限，8 GiB 设备默认单任务。
+
+远端通过 `liberty-meeting` v1 协商能力，分别启用列表、详情、结果、重试、删除和讲话人改名。当前客户端未开放远端上传创建和远端 AI 总结写入；不能因为协议枚举包含某项就宣称界面支持。
+
+AI 模型可连接 OpenAI 兼容服务；网络请求受目标地址、DNS、重定向和响应大小规则约束。API Key 与远端 Token 使用 macOS Keychain / Windows Credential Manager，SQLite 保存引用。
+
+## 技术与目录
+
+| 层 | 当前原生实现 |
+| --- | --- |
+| UI 与窗口 | MyGo，自绘原生窗口 |
+| 用例与业务 | Go application/domain/client |
+| SQLite | `modernc.org/sqlite`，typed repositories |
+| 平台能力 | Go profile/credentials/system 适配 |
+| 共同来源 | JSON Schema、Python Runner、运行时 manifest、DOCX 模板、消息与素材 |
 
 ```text
-.
-├─ apps/
-│  └─ desktop/
-│     ├─ src/
-│     │  ├─ app/                 React 应用壳、导航、轻量路由
-│     │  ├─ assets/              前端图片资源和商店素材
-│     │  ├─ features/            任务、AI、设置、人员、宠物、商店页面
-│     │  └─ shared/              i18n、组件、服务、类型和全局样式
-│     └─ src-tauri/
-│        ├─ capabilities/        Tauri 窗口权限边界
-│        ├─ resources/           运行时清单、DOCX 模板、桌宠资源
-│        ├─ src/                 Rust 命令、数据库、运行时、导出、桌宠
-│        └─ tauri.conf.json      Tauri 配置和打包资源
-├─ python/
-│  └─ funasr-runner/             本地转写 Runner 和 Python 依赖
-├─ scripts/                      启动、运行时准备、发布检查脚本
-├─ docs/
-│  ├─ architecture/              架构和发布检查文档
-│  ├─ images/                    README 截图
-│  ├─ ai/                        AI 过程文档和迁移后的历史记录
-│  └─ pet-system.md              当前宠物系统说明
-├─ Cargo.toml                    Rust workspace
-├─ package.json                  pnpm workspace 脚本
-└─ pnpm-workspace.yaml
+apps/native/                  Go + MyGo 原生候选
+  cmd/liberty-native/         启动参数与通道
+  internal/desktop/           窗口、布局与系统对话框
+  internal/client/            页面控制器与异步状态
+  internal/application/       用例、端口、调度与授权
+  internal/domain/            类型与业务策略
+  internal/infrastructure/    SQLite、运行时、网络、文件与平台
+  internal/host/              装配、启动恢复和退出
+apps/desktop/                 临时生产客户端与迁移对照端
+packages/desktop-resources/   共享来源、素材与冻结合成回归样本
+packages/shared-types/        版本化 JSON Schema 与生成类型
+python/funasr-runner/          转写 Runner、验证器与平台依赖锁
+scripts/                      开发、生成、验收、打包与发布检查
+benchmarks/asr/                ASR 样本和平台证据契约
+config/                       平台、安全和许可证策略
+docs/                         原生文档与过程记录
 ```
 
-## 主要页面
+数据库当前 schema v10。Native 从共享来源生成迁移定义，在 `packages/desktop-resources/fixtures/native-v10` 中重放历史 Rust 实现导出的合成库和期望输出，已不再构建或运行 Rust oracle。切换前必须从干净检出独立生成并通过检查，不能再读取 `apps/desktop` 作为事实源；原生分层与源文件映射见 [原生架构](docs/architecture/native-desktop-architecture.md)。
 
-- `工作台`：查看任务指标、处理趋势、结果完整度、最近任务、资源配置和桌宠状态。
-- `新建任务`：选择本地媒体文件、标题、语言、说话人分离和热词。
-- `任务队列`：筛选和搜索任务；已完成任务直接打开结果工作台，处理中或失败任务进入详情；支持重试和删除。
-- `任务详情`：查看输入、状态、进度、日志和失败原因，并可打开已完成任务的结果工作台。
-- `结果工作台`：在绑定单个任务的独立窗口中查看逐字稿、筛选或重命名讲话人、打开 AI 总结和会议纪要窗口并导出结果。旧 `/results` 入口会跳转到任务队列的已完成筛选。
-- `模型管理` / `模板管理` / `人员管理`：以卡片展示资源，并通过独立编辑窗口维护配置；人员支持 Excel 导入导出。
-- `系统设置`：按分类管理外观、多语言、运行时组件、ASR 参数、远端后端和诊断信息。
-- `宠物中心`：查看宠物等级、累计成长值、阶段、事件、桌面行为和互动入口。
-- `宠物商店`：查看 LP、商品目录、个人仓库、装备、使用食物/道具和商品详情。
-- `每日盲盒`：每天 10 次免费本地福利，奖池来自宠物商店但排除宠物本体。
-- `每日签到`：查看连续签到、奖励日历、历史记录，领取签到奖励或使用补签票券。
-- `兑换中心`：输入本地校验的兑换 Key，领取 LP、成长值或宠物道具，并查看本机兑换记录。
+## 开发与验证
 
-## 本地数据
+使用固定 `pnpm@10.30.3`、Go `1.27.4`、Rust `1.94.0`，完整环境说明见 [开发指南](docs/development.md)。
 
-SQLite 当前保存：
-
-- 应用设置和运行时安装状态。
-- 任务、输入文件、转写分段、任务事件和处理日志快照。
-- AI 模型、总结模板、总结运行记录和当前选中总结。
-- 会议人员、部门、排序和会议记录人。
-- 宠物档案、桌面行为设置、成长事件、阶段装扮和等级快照。
-- LP 钱包、商品仓库、经济流水、里程碑计数、每日盲盒历史、签到记录、每日免费领取状态和兑换记录。
-
-数据库 schema 由 `apps/desktop/src-tauri/src/local_db/schema.rs` 创建，迁移版本由 `infrastructure/migrations.rs` 维护。
-
-## 开发命令
-
-安装依赖：
-
-```bash
+```sh
 pnpm install --frozen-lockfile
+pnpm native:check
+pnpm native:package
+pnpm start
 ```
 
-启动前端：
+启动器的候选选择、单实例和平台行为，以及迁移期间旧端的显式诊断启动命令，详见[原生模块说明](apps/native/README.md)。macOS 候选未签名/未公证，Windows 为便携包；加载新构建前需正常退出当前窗口。
 
-```bash
-pnpm desktop:dev:web
+合成预览和兼容验证：
+
+```sh
+pnpm native:preview --writable --theme light
+pnpm native:compat
+pnpm native:build:matrix
 ```
 
-启动 Tauri 桌面端：
+`native:preview` 会先校验共享的冻结黄金样本并运行 Go 回归，再打开临时合成资料，退出后清理，不再执行旧客户端；这不等于全量 UI 或生产验收。`native:build:matrix` 只证明四目标编译，不代表其他平台实机通过。
 
-```bash
-pnpm desktop:tauri dev
-```
+跨层和共享来源的整仓检查：
 
-构建前端：
-
-```bash
-pnpm desktop:build:web
-```
-
-构建桌面应用：
-
-```bash
-pnpm desktop:tauri build
-```
-
-完整检查：
-
-```bash
+```sh
 pnpm check
 ```
 
-`pnpm check` 会执行契约漂移检查、前端类型检查与单元测试、Python Ruff/pytest、Rust fmt/test、前端生产构建、Clippy，以及版本、平台、安全基线、运行时锁、依赖治理和 ASR 阻断夹具检查。
+`pnpm check` 先运行原生完整入口 `native:verify`（Go、共享生成源、Python 与 Native 发布策略），再运行暂存旧生产端的 `legacy:check`。原生独立候选工作流 `build-native.yml` 覆盖四目标测试、打包和资产核验，真实供应链扫描失败仍会阻断整个工作流。完整兼容、race、实机交互和正式发布验收按[开发指南](docs/development.md)分别执行；旧端检查随退役变更一并删除。
 
-## 支持平台
+## 平台
 
-| 平台 | Rust target | 验证级别 | 运行时后端 |
+| 平台 | Go 目标 | 候选打包参数 | 运行时边界 |
 | --- | --- | --- | --- |
-| macOS Apple Silicon | `aarch64-apple-darwin` | Primary | FunASR |
-| macOS Intel | `x86_64-apple-darwin` | Primary | FunASR |
-| Windows x64 | `x86_64-pc-windows-msvc` | Primary | FunASR |
-| Windows x86 | `i686-pc-windows-msvc` | Extended | sherpa-onnx |
+| macOS Apple Silicon | `darwin/arm64` | `darwin-arm64` | FunASR；本机证据限具体测试范围 |
+| macOS Intel | `darwin/amd64` | `darwin-x64` | 需独立运行时和 UI 实机验收 |
+| Windows x64 | `windows/amd64` | `windows-x64` | 需独立运行时和 UI 实机验收 |
+| Windows x86 | `windows/386` | `windows-x86` | 客户端扩展目标；托管本地 ASR 安装不支持 |
 
 ## 文档
 
-- [宠物系统说明](./docs/pet-system.md)
-- [企业级桌面架构说明](./docs/architecture/enterprise-desktop-architecture.md)
-- [发布就绪检查](./docs/architecture/release-readiness.md)
-
-## 注意事项
-
-- 当前前端使用 React/TSX。
-- 本地模式默认使用客户端自助下载的托管运行时，也允许在设置中手动指定 Python 路径。
-- 本地任务执行依赖 ffmpeg、Python Runner 和模型资源，运行时不完整时会进入 `repair_required`。
-- 运行时下载源由 `runtime-manifest.json` 和系统设置中的「环境&模型」选择共同决定；下载源必须是真实可达地址，不能用占位源冒充可用资源。
-- 正式会议纪要 DOCX 使用 `apps/desktop/src-tauri/resources/templates/meeting-minutes.docx` 模板。
-- 宠物系统是本地奖励和陪伴系统，不包含真钱支付、充值、交易或排行榜；每日盲盒是免费福利，不消耗 LP、不出售次数、不关联付费概率掉落。
+- [文档总览](docs/README.md)：当前文档、模块说明和历史资料分类。
+- [开发指南](docs/development.md)：启动、检查、生成和验收入口。
+- [原生架构](docs/architecture/native-desktop-architecture.md)。
+- [原生候选操作说明](apps/native/README.md) / [发布就绪检查](docs/architecture/release-readiness.md)。
+- [宠物系统](docs/pet-system.md) / [过程文档索引](docs/ai/README.md)。
 
 ## 许可证
 
-本项目采用 MIT License，详见 [LICENSE](./LICENSE)。
+项目采用 [MIT License](LICENSE)。依赖和运行时资产各自的许可证、NOTICE 与发布责任仍需遵守供应链检查。

@@ -1,0 +1,50 @@
+[
+  {
+    "stage": "first_meet",
+    "labelZh": "小小初遇",
+    "labelEn": "First Encounter",
+    "level": 1
+  },
+  {
+    "stage": "familiar",
+    "labelZh": "轻轻熟悉",
+    "labelEn": "Getting Familiar",
+    "level": 11
+  },
+  {
+    "stage": "steady_companion",
+    "labelZh": "稳定陪伴",
+    "labelEn": "Steady Companion",
+    "level": 31
+  },
+  {
+    "stage": "grow_together",
+    "labelZh": "一起成长",
+    "labelEn": "Growing Together",
+    "level": 61
+  },
+  {
+    "stage": "tacit_bond",
+    "labelZh": "默契养成",
+    "labelEn": "Tacit Bond",
+    "level": 101
+  },
+  {
+    "stage": "deep_bond",
+    "labelZh": "深深羁绊",
+    "labelEn": "Deep Bond",
+    "level": 141
+  },
+  {
+    "stage": "long_company",
+    "labelZh": "长久相伴",
+    "labelEn": "Long Company",
+    "level": 181
+  },
+  {
+    "stage": "bond_forever",
+    "labelZh": "不离不弃",
+    "labelEn": "Never Apart",
+    "level": 221
+  }
+]

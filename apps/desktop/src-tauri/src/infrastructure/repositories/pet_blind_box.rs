@@ -413,8 +413,8 @@ fn dialogue_index(key: &str, salt: i64, len: usize) -> usize {
 }
 
 fn dialogue_index_with_time(key: &str, salt: i64, now: &str, len: usize) -> usize {
-    let time_salt = chrono::DateTime::parse_from_rfc3339(now)
-        .map(|value| value.timestamp_millis().max(0) / 1_000)
+    let time_salt = crate::infrastructure::time::parse_iso(now)
+        .map(|value| value.as_millisecond().max(0) / 1_000)
         .unwrap_or(0);
     dialogue_index(key, salt + time_salt, len)
 }
@@ -451,7 +451,7 @@ fn empty_prize_item() -> PetStoreCatalogItem {
 }
 
 fn current_draw_date() -> String {
-    chrono::Local::now().format("%Y-%m-%d").to_string()
+    crate::infrastructure::time::local_date_string()
 }
 
 fn count_draws_for_date(conn: &Connection, draw_date: &str) -> LocalResult<i64> {
@@ -504,7 +504,7 @@ fn list_history(conn: &Connection, limit: usize) -> LocalResult<Vec<PetBlindBoxD
                     duplicate_compensation_lp, created_at
              FROM pet_blind_box_draws
              WHERE pet_id = ?1
-             ORDER BY datetime(created_at) DESC, created_at DESC
+             ORDER BY datetime(created_at) DESC, created_at DESC, rowid DESC
              LIMIT ?2",
         )
         .map_err(|err| err.to_string())?;

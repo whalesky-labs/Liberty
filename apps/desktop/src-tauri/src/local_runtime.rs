@@ -3,6 +3,7 @@ mod logging;
 mod manifest;
 mod paths;
 mod process;
+mod vendor;
 
 use crate::{
     application::switch_runtime_source::{self, RuntimeSourcePort},
@@ -56,63 +57,31 @@ const SOURCE_MANAGED: &str = "managed";
 const SOURCE_SYSTEM: &str = "system";
 const MODELS_ACQUIRED_MARKER: &str = "models-acquired.json";
 const MODEL_DOWNLOAD_PROGRESS_BYTES: u64 = 64 * 1024 * 1024;
-const MODELSCOPE_CACHE_METADATA_SCRIPT: &str = r#"
-import json
-import os
-import pickle
-import sys
-import tempfile
+const MODELSCOPE_CACHE_METADATA_SCRIPT: &str =
+    include_str!("../../../../packages/desktop-resources/runtime/publish_model_cache.py");
+const FUNASR_MODELS_JSON: &str =
+    include_str!("../../../../packages/desktop-resources/runtime/models.json");
 
-marker_path, models_root = sys.argv[1:3]
-with open(marker_path, "r", encoding="utf-8") as stream:
-    marker = json.load(stream)
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ModelPin<'a> {
+    role: &'a str,
+    model_id: &'a str,
+    revision: &'a str,
+}
 
-def atomic_pickle(path, value):
-    fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(path))
-    try:
-        with os.fdopen(fd, "wb") as stream:
-            pickle.dump(value, stream)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temp_path, path)
-    except BaseException:
-        try:
-            os.unlink(temp_path)
-        except OSError:
-            pass
-        raise
-
-for model in marker["models"]:
-    model_root = os.path.join(models_root, *model["relativePath"].split("/"))
-    atomic_pickle(
-        os.path.join(model_root, ".msc"),
-        [{"Path": item["path"], "Revision": item["revision"]} for item in model["files"]],
-    )
-    atomic_pickle(os.path.join(model_root, ".mdl"), {"id": model["modelId"]})
-"#;
-
-const DEFAULT_FUNASR_MODELS: [(&str, &str, &str); 4] = [
-    (
-        "model",
-        "iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
-        "0141367fdc9b6ba58b0442ef34bceb56a6c1789c",
-    ),
-    (
-        "vad",
-        "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
-        "f9a8b8274674755d925277e27063869038d41515",
-    ),
-    (
-        "punc",
-        "iic/punc_ct-transformer_cn-en-common-vocab471067-large",
-        "45ab6961ad58a973ce7785401b4e93a0aab907a3",
-    ),
-    (
-        "spk",
-        "iic/speech_campplus_sv_zh-cn_16k-common",
-        "a045b2afcaa9c3049c98a9215a2bc274407ab237",
-    ),
-];
+fn default_funasr_models() -> LocalResult<[ModelPin<'static>; 4]> {
+    let models: [ModelPin<'_>; 4] =
+        serde_json::from_str(FUNASR_MODELS_JSON).map_err(|err| err.to_string())?;
+    for (pin, role) in models.iter().zip(["model", "vad", "punc", "spk"]) {
+        if pin.role != role {
+            return Err("默认 FunASR 模型角色或顺序无效。".into());
+        }
+        validate_model_id(pin.model_id)?;
+        validate_model_revision(pin.revision)?;
+    }
+    Ok(models)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ModelInstallAction {
@@ -500,7 +469,10 @@ fn migrate_legacy_component_state(
 ) -> LocalResult<()> {
     let platform_id = current_platform_id()?;
     let platform = current_platform_manifest(manifest)?;
-    if python.operation.generation == 0 && python.active_artifact.is_none() {
+    if python.operation.generation == 0
+        && python.operation.kind == "idle"
+        && python.active_artifact.is_none()
+    {
         let path = if settings.python_runtime_source == SOURCE_SYSTEM {
             PathBuf::from(settings.python_path.trim())
         } else {
@@ -517,7 +489,7 @@ fn migrate_legacy_component_state(
                 if settings.python_runtime_source == SOURCE_SYSTEM {
                     "system"
                 } else {
-                    &manifest.runtime_version
+                    &legacy.runtime_version
                 },
                 &path,
             );
@@ -803,7 +775,7 @@ fn perform_component_detection(
                     &log_path,
                     &format!("[runtime] validating system python={}", path.display()),
                 )?;
-                if validate_python_runtime(app, &path, backend, &log_path).is_ok() {
+                if validate_python_runtime(app, &path, backend, None, &log_path).is_ok() {
                     selected = Some(path);
                     break;
                 }
@@ -1250,6 +1222,7 @@ fn acquire_default_models(
     if !endpoint.to_ascii_lowercase().starts_with("https://") {
         return Err("ModelScope 地址必须使用 HTTPS。".into());
     }
+    let default_models = default_funasr_models()?;
     let acquired_marker = generation_root.join(MODELS_ACQUIRED_MARKER);
     if acquired_marker.exists() {
         fs::remove_file(&acquired_marker).map_err(|err| err.to_string())?;
@@ -1263,9 +1236,14 @@ fn acquire_default_models(
         .timeout(Duration::from_secs(60 * 30))
         .build()
         .map_err(|err| err.to_string())?;
-    let mut acquired_models = Vec::with_capacity(DEFAULT_FUNASR_MODELS.len());
+    let mut acquired_models = Vec::with_capacity(default_models.len());
 
-    for (role, model_id, revision) in DEFAULT_FUNASR_MODELS {
+    for ModelPin {
+        role,
+        model_id,
+        revision,
+    } in default_models
+    {
         let relative_path = model_cache_relative_path(model_id)?;
         let model_root = models_root.join(&relative_path);
         let files = fetch_modelscope_files(&client, endpoint, model_id, revision)?;
@@ -1509,15 +1487,15 @@ fn validate_acquired_models(
         .ok_or_else(|| "模型获取 marker 缺失或无效。".to_string())?;
     validate_acquired_model_set(generation_root, &manifest, &acquired_set, Some(log_path))?;
 
-    let model_paths = DEFAULT_FUNASR_MODELS
-        .iter()
-        .map(|(role, _, _)| {
+    let model_paths = default_funasr_models()?
+        .into_iter()
+        .map(|pin| {
             let model = acquired_set
                 .models
                 .iter()
-                .find(|model| model.role == *role)
-                .ok_or_else(|| format!("模型获取 marker 缺少角色：{role}"))?;
-            Ok((*role, models_root.join(&model.relative_path)))
+                .find(|model| model.role == pin.role)
+                .ok_or_else(|| format!("模型获取 marker 缺少角色：{}", pin.role))?;
+            Ok((pin.role, models_root.join(&model.relative_path)))
         })
         .collect::<LocalResult<Vec<_>>>()?;
     let warmup_path = resolve_script_resource_path(app, "runtime_warmup.py")?;
@@ -1602,7 +1580,8 @@ fn validate_acquired_model_metadata(
     {
         return Err("模型获取 marker 与当前 manifest 不匹配。".into());
     }
-    if acquired_set.models.len() != DEFAULT_FUNASR_MODELS.len() {
+    let default_models = default_funasr_models()?;
+    if acquired_set.models.len() != default_models.len() {
         return Err("模型获取 marker 未包含完整的默认模型集合。".into());
     }
 
@@ -1611,14 +1590,12 @@ fn validate_acquired_model_metadata(
         if !roles.insert(model.role.as_str()) {
             return Err(format!("模型获取 marker 包含重复角色：{}", model.role));
         }
-        let (expected_model_id, expected_revision) = DEFAULT_FUNASR_MODELS
+        let pin = default_models
             .iter()
-            .find_map(|(role, model_id, revision)| {
-                (*role == model.role).then_some((*model_id, *revision))
-            })
+            .find(|pin| pin.role == model.role)
             .ok_or_else(|| format!("模型获取 marker 包含未知角色：{}", model.role))?;
-        if model.model_id != expected_model_id
-            || model.revision != expected_revision
+        if model.model_id != pin.model_id
+            || model.revision != pin.revision
             || model.files.is_empty()
             || !model.files.iter().any(|file| file.size > 0)
         {
@@ -1943,23 +1920,43 @@ fn install_python_runtime(
                 python_executable.display()
             ),
         )?;
-        if validate_python_runtime(app, &python_executable, backend, log_path).is_ok() {
+        if validate_python_interpreter(app, &python_executable, backend, log_path).is_ok() {
+            if validate_python_runtime(
+                app,
+                &python_executable,
+                backend,
+                Some(platform_id),
+                log_path,
+            )
+            .is_ok()
+            {
+                return Ok(python_executable);
+            }
+            append_install_log_line(
+                log_path,
+                "[runtime] existing Python dependencies are incomplete, reinstalling dependencies",
+            )?;
+            install_python_dependencies(
+                app,
+                &python_executable,
+                download_source,
+                platform_id,
+                backend,
+                log_path,
+            )?;
+            validate_python_runtime(
+                app,
+                &python_executable,
+                backend,
+                Some(platform_id),
+                log_path,
+            )?;
             return Ok(python_executable);
         }
         append_install_log_line(
             log_path,
-            "[runtime] existing Python dependencies are incomplete, reinstalling dependencies",
+            "[runtime] existing Python interpreter does not match the pinned release, replacing archive",
         )?;
-        install_python_dependencies(
-            app,
-            &python_executable,
-            download_source,
-            platform_id,
-            backend,
-            log_path,
-        )?;
-        validate_python_runtime(app, &python_executable, backend, log_path)?;
-        return Ok(python_executable);
     }
 
     let python_bundle_path = downloads_root.join(&python_bundle.file_name);
@@ -1995,23 +1992,82 @@ fn install_python_runtime(
         backend,
         log_path,
     )?;
-    validate_python_runtime(app, &python_executable, backend, log_path)?;
+    validate_python_runtime(
+        app,
+        &python_executable,
+        backend,
+        Some(platform_id),
+        log_path,
+    )?;
 
     Ok(python_executable)
 }
 
-fn validate_python_runtime(
+fn python_validation_command(
+    python_executable: &Path,
+    validate_path: &Path,
+    backend: &str,
+    expected_version: Option<&str>,
+) -> Command {
+    let mut command = Command::new(python_executable);
+    command
+        .env("PYTHONUTF8", "1")
+        .env("LIBERTY_ASR_BACKEND", backend);
+    if expected_version.is_some() {
+        command.arg("-I");
+    }
+    command.arg(validate_path);
+    if let Some(version) = expected_version {
+        command.arg("--python-version").arg(version);
+    }
+    command
+}
+
+fn validate_python_interpreter(
     app: &AppHandle,
     python_executable: &Path,
     backend: &str,
     log_path: &Path,
 ) -> LocalResult<()> {
     let validate_path = resolve_script_resource_path(app, "runtime_validate.py")?;
+    let expected_version = load_manifest()?.python_version;
+    let mut command = python_validation_command(
+        python_executable,
+        &validate_path,
+        backend,
+        Some(&expected_version),
+    );
+    command.arg("--interpreter-only");
     run_command_with_log_timeout(
-        Command::new(python_executable)
-            .env("PYTHONUTF8", "1")
-            .env("LIBERTY_ASR_BACKEND", backend)
-            .arg(&validate_path),
+        &mut command,
+        log_path,
+        "Validating pinned Python interpreter",
+        Duration::from_secs(15),
+    )
+}
+
+fn validate_python_runtime(
+    app: &AppHandle,
+    python_executable: &Path,
+    backend: &str,
+    managed_platform: Option<&str>,
+    log_path: &Path,
+) -> LocalResult<()> {
+    let validate_path = resolve_script_resource_path(app, "runtime_validate.py")?;
+    let expected_version = managed_platform
+        .map(|_| load_manifest().map(|manifest| manifest.python_version))
+        .transpose()?;
+    let mut command = python_validation_command(
+        python_executable,
+        &validate_path,
+        backend,
+        expected_version.as_deref(),
+    );
+    if let Some(platform) = managed_platform {
+        command.arg("--lock").arg(python_lock_path(app, platform)?);
+    }
+    run_command_with_log_timeout(
+        &mut command,
         log_path,
         "Validating Python runtime",
         Duration::from_secs(90),
@@ -2140,14 +2196,7 @@ fn copy_dir_all(source: &Path, target: &Path) -> LocalResult<()> {
     Ok(())
 }
 
-fn install_python_dependencies(
-    app: &AppHandle,
-    python_executable: &Path,
-    download_source: &RuntimeDownloadSource,
-    platform_id: &str,
-    backend: &str,
-    log_path: &Path,
-) -> LocalResult<()> {
+fn python_lock_path(app: &AppHandle, platform_id: &str) -> LocalResult<PathBuf> {
     let lock_file = match platform_id {
         "darwin-aarch64" => "requirements-lock-darwin-aarch64.txt",
         "darwin-x64" => "requirements-lock-darwin-x64.txt",
@@ -2158,27 +2207,29 @@ fn install_python_dependencies(
             ))
         }
     };
-    let requirements_path = resolve_script_resource_path(app, lock_file)?;
-    let mut command = Command::new(python_executable);
-    command
-        .env("PYTHONUTF8", "1")
-        .env("LIBERTY_ASR_BACKEND", backend)
-        .arg("-m")
-        .arg("pip")
-        .arg("install")
-        .arg("--disable-pip-version-check")
-        .arg("--no-input")
-        .arg("--require-hashes")
-        .arg("--no-build-isolation");
-    if let Some(index_url) = download_source
+    let path = resolve_script_resource_path(app, lock_file)?;
+    vendor::verify_lock_file(&path, platform_id)?;
+    Ok(path)
+}
+
+fn install_python_dependencies(
+    app: &AppHandle,
+    python_executable: &Path,
+    download_source: &RuntimeDownloadSource,
+    platform_id: &str,
+    backend: &str,
+    log_path: &Path,
+) -> LocalResult<()> {
+    validate_python_interpreter(app, python_executable, backend, log_path)?;
+    let dependencies =
+        vendor::prepare_production_dependencies(python_executable, platform_id, log_path)?;
+    let index_url = download_source
         .pip_index_url
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
-    {
-        command.arg("-i").arg(index_url);
-    }
-    command.arg("-r").arg(requirements_path);
+        .ok_or_else(|| "生产依赖安装缺少固定索引地址。".to_string())?;
+    let mut command = dependencies.install_command(python_executable, index_url, backend);
     run_command_with_log(
         &mut command,
         log_path,
@@ -2226,21 +2277,88 @@ fn unsupported_runtime_state(
 #[cfg(test)]
 mod tests {
     use super::{
-        aggregate_runtime_status, load_manifest, model_cache_relative_path,
-        model_can_start_with_python, model_install_action, path_to_forward_slashes,
-        runtime_install_components, safe_model_relative_path, write_json_atomically, AcquiredModel,
-        AcquiredModelFile, AcquiredModelSet, ModelInstallAction, COMPONENT_FFMPEG, COMPONENT_MODEL,
-        COMPONENT_PYTHON, DEFAULT_FUNASR_MODELS, MODELS_ACQUIRED_MARKER,
+        aggregate_runtime_status, asset_download_url, default_funasr_models, load_manifest,
+        model_cache_relative_path, model_can_start_with_python, model_install_action,
+        path_to_forward_slashes, python_validation_command, runtime_install_components,
+        safe_model_relative_path, write_json_atomically, AcquiredModel, AcquiredModelFile,
+        AcquiredModelSet, ModelInstallAction, ModelPin, COMPONENT_FFMPEG, COMPONENT_MODEL,
+        COMPONENT_PYTHON, MODELS_ACQUIRED_MARKER,
     };
     use crate::local_db::{
         AppSettings, ManagedRuntimeState, RuntimeArtifactState, RuntimeComponentState,
         RuntimeOperationState,
     };
     use std::{
+        ffi::OsStr,
         fs,
         path::PathBuf,
         time::{SystemTime, UNIX_EPOCH},
     };
+
+    #[test]
+    fn managed_python_validation_binds_the_interpreter_before_dependencies() {
+        let python = PathBuf::from("synthetic-python");
+        let script = PathBuf::from("runtime_validate.py");
+        let mut command = python_validation_command(&python, &script, "funasr", Some("3.10.17"));
+        command.arg("--interpreter-only");
+        let arguments: Vec<_> = command.get_args().collect();
+        assert_eq!(
+            arguments,
+            [
+                "-I",
+                "runtime_validate.py",
+                "--python-version",
+                "3.10.17",
+                "--interpreter-only"
+            ]
+            .map(OsStr::new)
+        );
+        assert!(command.get_envs().any(|(key, value)| {
+            key == OsStr::new("LIBERTY_ASR_BACKEND") && value == Some(OsStr::new("funasr"))
+        }));
+    }
+
+    #[test]
+    fn package_mirror_source_falls_back_to_the_pinned_official_runtime_assets() {
+        let manifest = load_manifest().expect("runtime manifest should load");
+        let nju = manifest
+            .download_sources
+            .iter()
+            .find(|source| source.source_id == "nju")
+            .expect("NJU package mirror should remain selectable");
+        assert!(nju
+            .pip_index_url
+            .as_deref()
+            .is_some_and(|url| url.starts_with("https://")));
+        for platform in &manifest.platforms {
+            let Some(python) = platform.python_bundle.as_ref() else {
+                continue;
+            };
+            assert_eq!(
+                asset_download_url(nju, python).expect("official archive fallback should exist"),
+                *python
+                    .urls
+                    .get("official")
+                    .expect("official archive should be pinned"),
+                "{} must fall back to its checksum-pinned official Python archive",
+                platform.platform_id
+            );
+        }
+    }
+
+    #[test]
+    fn system_python_validation_keeps_its_unpinned_policy() {
+        let command = python_validation_command(
+            &PathBuf::from("synthetic-system-python"),
+            &PathBuf::from("runtime_validate.py"),
+            "funasr",
+            None,
+        );
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            [OsStr::new("runtime_validate.py")]
+        );
+    }
 
     fn acquired_models_fixture() -> (PathBuf, AcquiredModelSet) {
         let unique = SystemTime::now()
@@ -2253,7 +2371,12 @@ mod tests {
         ));
         let models_root = generation_root.join("models");
         let mut models = Vec::new();
-        for (role, model_id, revision) in DEFAULT_FUNASR_MODELS {
+        for ModelPin {
+            role,
+            model_id,
+            revision,
+        } in default_funasr_models().expect("model pins")
+        {
             let relative_path = model_cache_relative_path(model_id).expect("model path");
             let model_root = models_root.join(&relative_path);
             fs::create_dir_all(&model_root).expect("model root");

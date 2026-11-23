@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose, Engine as _};
-use chrono::{Duration, NaiveDate, Utc};
+use jiff::{civil::Date, tz::TimeZone, ToSpan};
 use ring::{
     hmac,
     signature::{UnparsedPublicKey, ED25519},
@@ -23,7 +23,8 @@ use crate::{
 const PET_ID: &str = "default-pet";
 const REDEEM_KEY_LEGACY_PREFIX: &str = "LIB1";
 const REDEEM_KEY_COMPACT_PREFIX: &str = "LIB2";
-const REDEEM_KEY_PUBLIC_KEY_B64: &str = "aYuETyU7133bXv+VZjyHPckq6nOhuWty1RZpibxFIiE=";
+const REDEEM_KEY_PUBLIC_KEY_B64: &str =
+    include_str!("../../../../../../packages/desktop-resources/redemption/public-key.b64");
 const SHORT_KEY_SECRET_B64: &str = "B+6+O1eix4RItBiakvkqdGDRWlVK8I1m0ABDHgmJCXE=";
 const SHORT_PAYLOAD_BYTES: usize = 20;
 const SHORT_MAC_BYTES: usize = 12;
@@ -68,8 +69,15 @@ pub fn redeem_key_tx(
 
     let payload = verify_redeem_key(&normalized_key)?;
     validate_payload(&payload)?;
-    validate_expiration(&payload)?;
     validate_rewards(&payload.rewards)?;
+    if let Some(existing) =
+        load_redemption_by_identity_tx(tx, &payload.campaign_id, &payload.nonce)?
+    {
+        let rewards =
+            serde_json::from_str::<PetRedeemKeyRewards>(&existing.reward_json).unwrap_or_default();
+        return Ok((existing, rewards, true));
+    }
+    validate_expiration(&payload)?;
 
     let reward_json = serde_json::to_string(&payload.rewards).map_err(|err| err.to_string())?;
     let metadata = redeem_metadata(&payload, &key_hash);
@@ -151,7 +159,7 @@ fn grant_redeem_rewards_tx(
     let growth_value = rewards.growth_value.max(0);
     if growth_value > 0 {
         let previous_stage = profile.stage.clone();
-        let next_experience = (profile.experience + growth_value).max(0);
+        let next_experience = pet_store::checked_pet_experience(profile.experience, growth_value)?;
         let level_snapshot = pet_leveling::level_snapshot_from_experience(next_experience);
         profile.experience = next_experience;
         profile.level = level_snapshot.level;
@@ -233,9 +241,7 @@ fn verify_short_redeem_key(key: &str) -> LocalResult<RedeemKeyPayload> {
 }
 
 fn verify_short_mac(display_prefix: &str, payload: &[u8], mac_bytes: &[u8]) -> LocalResult<()> {
-    let secret = general_purpose::STANDARD
-        .decode(SHORT_KEY_SECRET_B64)
-        .map_err(|_| "兑换 Key 密钥配置不正确。".to_string())?;
+    let secret = legacy_mac_key()?;
     let key = hmac::Key::new(hmac::HMAC_SHA256, &secret);
     let mut context = hmac::Context::with_key(&key);
     context.update(display_prefix.as_bytes());
@@ -249,9 +255,7 @@ fn verify_short_mac(display_prefix: &str, payload: &[u8], mac_bytes: &[u8]) -> L
 }
 
 fn verify_signature(payload: &[u8], signature_bytes: &[u8]) -> LocalResult<()> {
-    let public_key_bytes = general_purpose::STANDARD
-        .decode(REDEEM_KEY_PUBLIC_KEY_B64)
-        .map_err(|_| "兑换 Key 公钥配置不正确。".to_string())?;
+    let public_key_bytes = redemption_public_key()?;
     if public_key_bytes.len() != 32 {
         return Err("兑换 Key 公钥长度不正确。".into());
     }
@@ -259,6 +263,55 @@ fn verify_signature(payload: &[u8], signature_bytes: &[u8]) -> LocalResult<()> {
     verifying_key
         .verify(payload, signature_bytes)
         .map_err(|_| "兑换 Key 签名校验失败。".to_string())
+}
+
+fn redemption_public_key() -> LocalResult<Vec<u8>> {
+    #[cfg(test)]
+    if let Some((public, _)) = TEST_REDEMPTION_KEYS.with(std::cell::Cell::get) {
+        return Ok(public.to_vec());
+    }
+    general_purpose::STANDARD
+        .decode(REDEEM_KEY_PUBLIC_KEY_B64.trim())
+        .map_err(|_| "兑换 Key 公钥配置不正确。".to_string())
+}
+
+fn legacy_mac_key() -> LocalResult<Vec<u8>> {
+    #[cfg(test)]
+    if let Some((_, legacy)) = TEST_REDEMPTION_KEYS.with(std::cell::Cell::get) {
+        return Ok(legacy.to_vec());
+    }
+    general_purpose::STANDARD
+        .decode(SHORT_KEY_SECRET_B64)
+        .map_err(|_| "兑换 Key 密钥配置不正确。".to_string())
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_REDEMPTION_KEYS: std::cell::Cell<Option<([u8; 32], [u8; 32])>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) struct TestRedemptionKeysGuard {
+    previous: Option<([u8; 32], [u8; 32])>,
+    thread_bound: std::marker::PhantomData<std::rc::Rc<()>>,
+}
+
+#[cfg(test)]
+pub(crate) fn use_test_redemption_keys(
+    public: [u8; 32],
+    legacy: [u8; 32],
+) -> TestRedemptionKeysGuard {
+    TestRedemptionKeysGuard {
+        previous: TEST_REDEMPTION_KEYS.with(|keys| keys.replace(Some((public, legacy)))),
+        thread_bound: std::marker::PhantomData,
+    }
+}
+
+#[cfg(test)]
+impl Drop for TestRedemptionKeysGuard {
+    fn drop(&mut self) {
+        TEST_REDEMPTION_KEYS.with(|keys| keys.set(self.previous));
+    }
 }
 
 fn decode_short_payload(display_prefix: &str, bytes: &[u8]) -> LocalResult<RedeemKeyPayload> {
@@ -366,11 +419,11 @@ fn decode_compact_payload(bytes: &[u8]) -> LocalResult<RedeemKeyPayload> {
 }
 
 fn compact_date(days_since_base: u16) -> LocalResult<String> {
-    let base = NaiveDate::parse_from_str(COMPACT_BASE_DATE, "%Y-%m-%d")
+    let base = Date::strptime("%Y-%m-%d", COMPACT_BASE_DATE)
         .map_err(|_| "兑换 Key 日期配置不正确。".to_string())?;
-    base.checked_add_signed(Duration::days(days_since_base as i64))
-        .map(|date| date.format("%Y-%m-%d").to_string())
-        .ok_or_else(|| "兑换 Key 日期不正确。".to_string())
+    base.checked_add(i64::from(days_since_base).days())
+        .map(|date| date.to_string())
+        .map_err(|_| "兑换 Key 日期不正确。".to_string())
 }
 
 fn find_compact_catalog_item(item_code: u16) -> Option<crate::local_db::PetStoreCatalogItem> {
@@ -476,9 +529,10 @@ fn validate_expiration(payload: &RedeemKeyPayload) -> LocalResult<()> {
     let Some(expires_at) = payload.expires_at.as_deref() else {
         return Ok(());
     };
-    let expires_at = NaiveDate::parse_from_str(expires_at, "%Y-%m-%d")
+    let expires_at = Date::strptime("%Y-%m-%d", expires_at)
         .map_err(|_| "兑换 Key 过期时间格式不正确。".to_string())?;
-    if expires_at < Utc::now().date_naive() {
+    let now = crate::infrastructure::time::parse_iso(&crate::infrastructure::time::utc_now())?;
+    if expires_at < now.to_zoned(TimeZone::UTC).date() {
         return Err("兑换 Key 已过期。".into());
     }
     Ok(())
@@ -542,6 +596,42 @@ fn load_redemption_by_hash_tx(
     .map_err(|err| err.to_string())
 }
 
+fn load_redemption_by_identity_tx(
+    tx: &Transaction<'_>,
+    campaign_id: &str,
+    nonce: &str,
+) -> LocalResult<Option<PetRedeemKeyRedemption>> {
+    let mut statement = tx
+        .prepare(
+            "SELECT id, pet_id, key_hash, code_prefix, campaign_id, reward_json, status, redeemed_at, metadata
+         FROM pet_redeem_key_redemptions
+         WHERE pet_id = ?1 AND campaign_id = ?2 AND metadata LIKE ?3
+         ORDER BY datetime(redeemed_at) DESC, redeemed_at DESC",
+        )
+        .map_err(|err| err.to_string())?;
+    let mut rows = statement
+        .query(params![PET_ID, campaign_id, "%\"nonce\":\"%"])
+        .map_err(|err| err.to_string())?;
+    while let Some(row) = rows.next().map_err(|err| err.to_string())? {
+        let existing = map_redemption(row).map_err(|err| err.to_string())?;
+        let matches_nonce = existing
+            .metadata
+            .as_deref()
+            .and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok())
+            .and_then(|value| {
+                value
+                    .get("nonce")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            })
+            .is_some_and(|value| value == nonce);
+        if matches_nonce {
+            return Ok(Some(existing));
+        }
+    }
+    Ok(None)
+}
+
 fn map_redemption(row: &rusqlite::Row<'_>) -> rusqlite::Result<PetRedeemKeyRedemption> {
     Ok(PetRedeemKeyRedemption {
         id: row.get(0)?,
@@ -595,6 +685,119 @@ fn redeem_metadata(payload: &RedeemKeyPayload, key_hash: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::Connection;
+
+    #[test]
+    fn synthetic_signing_keys_are_scoped_nested_and_thread_local() {
+        use ring::signature::KeyPair;
+        let random = ring::rand::SystemRandom::new();
+        let document = ring::signature::Ed25519KeyPair::generate_pkcs8(&random).unwrap();
+        let pair = ring::signature::Ed25519KeyPair::from_pkcs8(document.as_ref()).unwrap();
+        let public: [u8; 32] = pair.public_key().as_ref().try_into().unwrap();
+        let signature = pair.sign(b"synthetic-redemption-message");
+        assert!(verify_signature(b"synthetic-redemption-message", signature.as_ref()).is_err());
+        {
+            let _guard = use_test_redemption_keys(public, [7; 32]);
+            assert!(verify_signature(b"synthetic-redemption-message", signature.as_ref()).is_ok());
+            std::thread::scope(|scope| {
+                scope
+                    .spawn(|| {
+                        assert!(verify_signature(
+                            b"synthetic-redemption-message",
+                            signature.as_ref()
+                        )
+                        .is_err())
+                    })
+                    .join()
+                    .unwrap();
+            });
+            let restored = std::panic::catch_unwind(|| {
+                let _nested = use_test_redemption_keys([0; 32], [8; 32]);
+                assert!(
+                    verify_signature(b"synthetic-redemption-message", signature.as_ref()).is_err()
+                );
+                panic!("synthetic guard unwind");
+            });
+            assert!(restored.is_err());
+            assert!(verify_signature(b"synthetic-redemption-message", signature.as_ref()).is_ok());
+        }
+        assert!(verify_signature(b"synthetic-redemption-message", signature.as_ref()).is_err());
+    }
+
+    #[test]
+    fn signed_unicode_parsing_distinguishes_known_strings_from_ignored_values() {
+        use ring::signature::KeyPair;
+        let random = ring::rand::SystemRandom::new();
+        let document = ring::signature::Ed25519KeyPair::generate_pkcs8(&random).unwrap();
+        let signer = ring::signature::Ed25519KeyPair::from_pkcs8(document.as_ref()).unwrap();
+        let public: [u8; 32] = signer.public_key().as_ref().try_into().unwrap();
+        let _keys = use_test_redemption_keys(public, [0; 32]);
+        for payload in [
+            r#"{"version":1,"campaignId":"\ud800","nonce":"a","rewards":{"lp":1}}"#,
+            r#"{"version":1,"campaignId":"synthetic","nonce":"\udc00","rewards":{"lp":1}}"#,
+            r#"{"version":1,"campaignId":"synthetic","nonce":"a","issuedAt":"\ud800","rewards":{"lp":1}}"#,
+            r#"{"version":1,"campaignId":"synthetic","nonce":"a","expiresAt":"\udc00","rewards":{"lp":1}}"#,
+            r#"{"version":1,"campaignId":"synthetic","nonce":"a","rewards":{"items":[{"itemKey":"\ud800"}]}}"#,
+            r#"{"version":1,"campaignId":"synthetic","nonce":"a","rewards":{"lp":1},"\ud800":1}"#,
+            r#"{"version":1,"campaignId":"synthetic","nonce":"a","rewards":{"lp":1,"\udc00":1}}"#,
+            r#"{"version":1,"campaignId":"synthetic","nonce":"a","rewards":{"items":[{"itemKey":"wheat-seed","\ud800":1}]}}"#,
+        ] {
+            let encoded = general_purpose::URL_SAFE_NO_PAD.encode(payload);
+            let code = format!(
+                "LIB1.{encoded}.{}",
+                general_purpose::URL_SAFE_NO_PAD.encode(signer.sign(encoded.as_bytes()))
+            );
+            assert_eq!(
+                verify_redeem_key(&code).unwrap_err(),
+                "兑换 Key 内容无法解析。"
+            );
+        }
+        for (extra, expected) in [
+            (r#""campaignId":"\ud83d\ude00""#, "😀"),
+            (r#""campaignId":"�""#, "�"),
+            (r#""campaignId":"\\ud800""#, r"\ud800"),
+            (
+                r#""campaignId":"synthetic","unknown":{"\ud800":["\udc00"]}"#,
+                "synthetic",
+            ),
+        ] {
+            let payload = format!(r#"{{"version":1,{extra},"nonce":"a","rewards":{{"lp":1}}}}"#);
+            let encoded = general_purpose::URL_SAFE_NO_PAD.encode(payload);
+            let code = format!(
+                "LIB1.{encoded}.{}",
+                general_purpose::URL_SAFE_NO_PAD.encode(signer.sign(encoded.as_bytes()))
+            );
+            let payload = verify_redeem_key(&code).unwrap();
+            validate_payload(&payload).unwrap();
+            validate_rewards(&payload.rewards).unwrap();
+            assert_eq!(payload.campaign_id, expected);
+        }
+    }
+
+    #[test]
+    fn expiration_uses_scoped_utc_clock_and_includes_expiration_day() {
+        let payload = RedeemKeyPayload {
+            version: 1,
+            campaign_id: "synthetic".into(),
+            nonce: "synthetic".into(),
+            issued_at: None,
+            expires_at: Some("2026-11-18".into()),
+            rewards: PetRedeemKeyRewards::default(),
+        };
+        for (now, expired) in [
+            ("2026-11-18T23:59:59Z", false),
+            ("2026-11-19T00:00:00Z", true),
+            ("2026-11-18T23:30:00-08:00", true),
+            ("2026-11-19T00:30:00+08:00", false),
+        ] {
+            let _clock = crate::infrastructure::time::freeze_test_clock(now).unwrap();
+            let result = validate_expiration(&payload);
+            assert_eq!(result.is_err(), expired);
+            if expired {
+                assert_eq!(result.unwrap_err(), "兑换 Key 已过期。");
+            }
+        }
+    }
 
     #[test]
     fn normalize_redeem_key_removes_whitespace_only() {
@@ -608,5 +811,102 @@ mod tests {
             redeem_key_hash("LIB1.test.sig"),
             redeem_key_hash("LIB1.test.sig")
         );
+    }
+
+    #[test]
+    fn reissued_key_identity_matches_original_short_key_record() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE pet_redeem_key_redemptions (
+                    id TEXT, pet_id TEXT, key_hash TEXT, code_prefix TEXT,
+                    campaign_id TEXT, reward_json TEXT, status TEXT,
+                    redeemed_at TEXT, metadata TEXT
+                );",
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO pet_redeem_key_redemptions VALUES
+                 ('id', ?1, 'hash', 'campaign-hash', ?2, '{}', 'redeemed', '2026-11-19T00:00:00Z', ?3)",
+                params![PET_ID, "campaign", r#"{"version":3,"campaignId":"campaign","nonce":"a1b2c3d4e5f6"}"#],
+            )
+            .unwrap();
+        let tx = connection.transaction().unwrap();
+        let found = load_redemption_by_identity_tx(&tx, "campaign", "a1b2c3d4e5f6")
+            .unwrap()
+            .expect("reissued signed key should match legacy redemption identity");
+        assert_eq!(found.id, "id");
+        assert!(load_redemption_by_identity_tx(&tx, "campaign", "different")
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn experience_overflow_rolls_back_all_redemption_rewards() {
+        use ring::signature::KeyPair;
+
+        let random = ring::rand::SystemRandom::new();
+        let document = ring::signature::Ed25519KeyPair::generate_pkcs8(&random).unwrap();
+        let signer = ring::signature::Ed25519KeyPair::from_pkcs8(document.as_ref()).unwrap();
+        let public: [u8; 32] = signer.public_key().as_ref().try_into().unwrap();
+        let _keys = use_test_redemption_keys(public, [7; 32]);
+
+        let payload = serde_json::json!({
+            "version": 1,
+            "campaignId": "synthetic-overflow",
+            "nonce": "synthetic-overflow-nonce",
+            "rewards": { "lp": 25, "growthValue": 2 }
+        })
+        .to_string();
+        let encoded = general_purpose::URL_SAFE_NO_PAD.encode(payload);
+        let key = format!(
+            "LIB1.{encoded}.{}",
+            general_purpose::URL_SAFE_NO_PAD.encode(signer.sign(encoded.as_bytes()))
+        );
+
+        let mut connection = Connection::open_in_memory().unwrap();
+        crate::local_db::schema::apply_test_schema(&connection).unwrap();
+        let transaction = connection.transaction().unwrap();
+        pet::ensure_default_exists_tx(&transaction).unwrap();
+        pet_store::ensure_store_defaults_tx(&transaction, "2026-11-20T12:00:00Z").unwrap();
+        let mut profile = pet::load_profile_tx(&transaction).unwrap();
+        profile.experience = i64::MAX - 1;
+        pet::save_profile_tx(&transaction, &profile).unwrap();
+        transaction.commit().unwrap();
+
+        let result = {
+            let transaction = connection.transaction().unwrap();
+            let profile = pet::load_profile_tx(&transaction).unwrap();
+            let result = redeem_key_tx(&transaction, profile, &key, "2026-11-20T12:00:00Z");
+            drop(transaction);
+            result
+        };
+
+        assert_eq!(result.unwrap_err(), "宠物经验值超出 SQLite INTEGER 范围。");
+        assert_eq!(
+            pet::load_profile(&connection).unwrap().experience,
+            i64::MAX - 1
+        );
+        let wallet_balance: i64 = connection
+            .query_row(
+                "SELECT balance FROM pet_wallets WHERE pet_id = ?1 AND currency_key = 'lp'",
+                [PET_ID],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(wallet_balance, 0);
+        for table in [
+            "pet_redeem_key_redemptions",
+            "pet_economy_ledger",
+            "pet_event_ledger",
+        ] {
+            let count: i64 = connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(count, 0, "unexpected persisted rows in {table}");
+        }
     }
 }

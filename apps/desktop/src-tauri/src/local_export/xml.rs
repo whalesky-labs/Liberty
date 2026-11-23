@@ -1,5 +1,64 @@
 use crate::local_db::LocalResult;
+use xml::reader::{EventReader, ParserConfig, XmlEvent};
 use xmltree::{Element, XMLNode};
+
+pub fn parse_document_xml(source: &str) -> Result<Element, xmltree::ParseError> {
+    let reader = EventReader::new_with_config(
+        source.as_bytes(),
+        ParserConfig::new().ignore_comments(false),
+    );
+    let mut stack: Vec<Element> = Vec::new();
+    let mut root = None;
+
+    for event in reader {
+        let node = match event.map_err(xmltree::ParseError::MalformedXml)? {
+            XmlEvent::StartElement {
+                name,
+                attributes,
+                namespace,
+            } => {
+                stack.push(Element {
+                    prefix: name.prefix,
+                    namespace: name.namespace,
+                    namespaces: Some(namespace),
+                    name: name.local_name,
+                    attributes: attributes
+                        .into_iter()
+                        .map(|attribute| (attribute.name.borrow().to_repr(), attribute.value))
+                        .collect(),
+                    children: Vec::new(),
+                });
+                continue;
+            }
+            XmlEvent::EndElement { .. } => {
+                let element = stack.pop().ok_or(xmltree::ParseError::CannotParse)?;
+                if stack.is_empty() {
+                    root = Some(element);
+                    continue;
+                }
+                XMLNode::Element(element)
+            }
+            XmlEvent::Characters(value) => XMLNode::Text(value),
+            XmlEvent::Whitespace(value)
+                if stack.last().is_some_and(|element| element.name == "t") =>
+            {
+                XMLNode::Text(value)
+            }
+            XmlEvent::CData(value) => XMLNode::CData(value),
+            XmlEvent::Comment(value) => XMLNode::Comment(value),
+            XmlEvent::ProcessingInstruction { name, data } => {
+                XMLNode::ProcessingInstruction(name, data)
+            }
+            XmlEvent::StartDocument { .. } | XmlEvent::Whitespace(_) => continue,
+            XmlEvent::EndDocument => break,
+        };
+        if let Some(parent) = stack.last_mut() {
+            parent.children.push(node);
+        }
+    }
+
+    root.ok_or(xmltree::ParseError::CannotParse)
+}
 
 pub fn set_cell_value(row: &mut Element, index: usize, value: &str) -> LocalResult<()> {
     let mut cells = child_elements_mut(row, "tc");
@@ -109,4 +168,39 @@ fn replace_first_text(element: &mut Element, value: &str) -> bool {
     }
 
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preserves_word_text_whitespace_and_escaped_mixed_content_without_indentation() {
+        let source = r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p>
+    <w:r>
+      <w:t xml:space="preserve">   </w:t>
+      <w:t> </w:t>
+      <w:t xml:space="preserve"> 混合 &amp; &lt;文本&gt; <![CDATA[<原样&>]]> 尾部 </w:t>
+    </w:r>
+  </w:p>
+</w:document>"#;
+        let parsed = parse_document_xml(source).unwrap();
+        assert_eq!(parsed.children.len(), 1);
+        let paragraph = child_elements(&parsed, "p")[0];
+        assert_eq!(paragraph.children.len(), 1);
+        let run = child_elements(paragraph, "r")[0];
+        assert_eq!(run.children.len(), 3);
+        let text = child_elements(run, "t");
+        let actual: Vec<_> = text
+            .iter()
+            .map(|element| element.get_text().unwrap_or_default().into_owned())
+            .collect();
+        assert_eq!(actual, ["   ", " ", " 混合 & <文本> <原样&> 尾部 "]);
+
+        let mut output = Vec::new();
+        parsed.write(&mut output).unwrap();
+        let round_trip = parse_document_xml(std::str::from_utf8(&output).unwrap()).unwrap();
+        assert_eq!(round_trip, parsed);
+    }
 }

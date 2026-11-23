@@ -1,8 +1,9 @@
 import { Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { shellIconPaths } from "@liberty-resources/presentation/icons";
+import sidebarMascotUrl from "@liberty-resources/presentation/sidebar-mascot.webp";
 import { Link, RouterProvider, useRouter } from "@/app/router/RouterContext";
-import sidebarMascotUrl from "@/assets/sidebar-mascot.webp";
 import { useMeetingStore } from "@/features/meeting/stores/useMeetingStore";
 import {
   getActiveSettingsSection,
@@ -158,7 +159,7 @@ function AppContent() {
       label: messages.shell.graphics,
       value: `${Math.max(0, graphicsMemoryMb)}M`,
     },
-  ];
+  ] as const;
   const activeJobCount = store.jobs.filter((job) =>
     ["queued", "transcribing", "speaker_processing", "summarizing"].includes(job.overallStatus),
   ).length;
@@ -490,25 +491,15 @@ function AppContent() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isSettingsRoute ? " app-shell-settings" : ""}`}>
       <div className={`window-titlebar ${isWindowsTitlebar ? "windows-titlebar" : ""}`}>
         <div className="window-titlebar-metrics">
           {toolbarMetrics.map((metric) => (
             <div key={metric.key} className="toolbar-metric titlebar-metric">
               <span className="toolbar-metric-icon" aria-hidden="true">
-                {metric.key === "cpu" ? (
-                  <svg viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M9 2h6v2h2.5A2.5 2.5 0 0 1 20 6.5V9h2v6h-2v2.5A2.5 2.5 0 0 1 17.5 20H15v2H9v-2H6.5A2.5 2.5 0 0 1 4 17.5V15H2V9h2V6.5A2.5 2.5 0 0 1 6.5 4H9V2Zm-2.5 4a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-11a.5.5 0 0 0-.5-.5h-11ZM8 8h8v8H8V8Zm2 2v4h4v-4h-4Z" />
-                  </svg>
-                ) : metric.key === "memory" ? (
-                  <svg viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7Zm3-1a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1v-2h2v2h4v-2h2v2h1a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1v2h-2V6h-4v2H8V6H7Zm1 4h8v4H8v-4Z" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M3 5h18a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-7v2h3v2H7v-2h3v-2H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1 2v7h16V7H4Z" />
-                  </svg>
-                )}
+                <svg viewBox="0 0 24 24">
+                  <path fill="currentColor" d={shellIconPaths[metric.key]} />
+                </svg>
               </span>
               <span className="toolbar-metric-label">{metric.label}</span>
               <strong className="toolbar-metric-value">{metric.value}</strong>
@@ -539,10 +530,7 @@ function AppContent() {
             onClick={openProjectGithub}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M12 2C6.48 2 2 6.59 2 12.25c0 4.53 2.87 8.37 6.84 9.72.5.1.68-.22.68-.49 0-.24-.01-1.04-.01-1.88-2.78.62-3.37-1.22-3.37-1.22-.45-1.19-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .07 1.53 1.06 1.53 1.06.9 1.57 2.35 1.12 2.92.86.09-.67.35-1.12.63-1.38-2.22-.26-4.55-1.15-4.55-5.14 0-1.14.39-2.08 1.03-2.82-.1-.26-.45-1.3.1-2.72 0 0 .84-.28 2.75 1.08A9.3 9.3 0 0 1 12 6.84c.85 0 1.71.12 2.51.37 1.91-1.36 2.75-1.08 2.75-1.08.55 1.42.2 2.46.1 2.72.64.74 1.03 1.68 1.03 2.82 0 4-2.33 4.87-4.56 5.13.36.32.68.95.68 1.92 0 1.39-.01 2.5-.01 2.84 0 .27.18.6.69.49A10.25 10.25 0 0 0 22 12.25C22 6.59 17.52 2 12 2Z"
-              />
+              <path fill="currentColor" d={shellIconPaths.github} />
             </svg>
           </button>
         </div>
@@ -573,6 +561,7 @@ function AppContent() {
                 />
                 <span>{messages.settings.backToApp}</span>
               </Link>
+              <h2 className="settings-sidebar-title">{messages.settings.pageTitle}</h2>
               <div className="settings-sidebar-search">
                 <span
                   className="settings-sidebar-search-icon"

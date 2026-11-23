@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use crate::domain::platform;
 use crate::local_db::LocalResult;
 
-const RUNTIME_MANIFEST_JSON: &str = include_str!("../../resources/runtime-manifest.json");
+const RUNTIME_MANIFEST_JSON: &str =
+    include_str!("../../../../../packages/desktop-resources/runtime/runtime-manifest.json");
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,6 +17,23 @@ pub struct RuntimeManifest {
     #[serde(default)]
     pub download_sources: Vec<RuntimeDownloadSource>,
     pub platforms: Vec<PlatformRuntime>,
+    pub production_inputs: Option<ProductionRuntimeInputs>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProductionRuntimeInputs {
+    pub builder: RuntimeInputFile,
+    pub files: Vec<RuntimeInputFile>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeInputFile {
+    pub file_name: String,
+    pub bytes: u64,
+    #[serde(deserialize_with = "deserialize_sha256")]
+    pub sha256: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -59,7 +77,7 @@ pub fn load_manifest() -> LocalResult<RuntimeManifest> {
 
 pub fn expected_asset_sha256(file_name: &str, download_url: &str) -> LocalResult<String> {
     let manifest = load_manifest()?;
-    let expected = manifest
+    if let Some(expected) = manifest
         .platforms
         .iter()
         .flat_map(|platform| [&platform.python_bundle, &platform.ffmpeg_bundle])
@@ -68,10 +86,16 @@ pub fn expected_asset_sha256(file_name: &str, download_url: &str) -> LocalResult
             asset.file_name == file_name && asset.urls.values().any(|url| url == download_url)
         })
         .map(|asset| asset.sha256.clone())
-        .ok_or_else(|| {
-            format!("运行时资源未在受信任 manifest 中登记：{file_name} ({download_url})")
-        });
-    expected
+    {
+        return Ok(expected);
+    }
+    let upstream = super::vendor::production_recipe(&manifest)?.upstream;
+    if upstream.filename == file_name && upstream.url == download_url {
+        return Ok(upstream.sha256);
+    }
+    Err(format!(
+        "运行时资源未在受信任 manifest 中登记：{file_name} ({download_url})"
+    ))
 }
 
 fn parse_manifest(source: &str) -> LocalResult<RuntimeManifest> {
@@ -183,6 +207,38 @@ mod tests {
                 .expect("supported Darwin platform should provide managed FFmpeg");
             assert!(asset.file_name.ends_with(".zip"));
             assert!(asset.urls.contains_key("official"));
+        }
+    }
+
+    #[test]
+    fn windows_ffmpeg_archives_match_reviewed_pins() {
+        let manifest = load_manifest().expect("runtime manifest should load");
+        for (platform_id, file_name, url, sha256) in [
+            (
+                "windows-x64",
+                "ffmpeg-n8.1.3-27-g8dca1586f4-win64-gpl-8.1.zip",
+                "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n8.1.3-27-g8dca1586f4-win64-gpl-8.1.zip",
+                "401dffcf14c301082e1fc03b0bc876b92ea676bfc521fc56e80a1537d137034f",
+            ),
+            (
+                "windows-x86",
+                "ffmpeg-n8.1.3-27-g8dca1586f4-win32-gpl-8.1.zip",
+                "https://github.com/defisym/FFmpeg-Builds-Win32/releases/download/autobuild-2026-10-31-16-58/ffmpeg-n8.1.3-27-g8dca1586f4-win32-gpl-8.1.zip",
+                "480a387ac116f25dc60bff063d67033c49e363284e2fd84022d1937084f7721c",
+            ),
+        ] {
+            let platform = manifest
+                .platforms
+                .iter()
+                .find(|platform| platform.platform_id == platform_id)
+                .expect("Windows platform should be present");
+            let asset = platform
+                .ffmpeg_bundle
+                .as_ref()
+                .expect("Windows platform should provide FFmpeg");
+            assert_eq!(asset.file_name, file_name);
+            assert_eq!(asset.urls.get("official").map(String::as_str), Some(url));
+            assert_eq!(asset.sha256, sha256);
         }
     }
 

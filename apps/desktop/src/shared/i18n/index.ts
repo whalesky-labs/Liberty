@@ -1,7 +1,7 @@
 import type { LocaleCode } from "@/shared/types/meeting";
-import { enUSMessages } from "./messages/en-US";
-import { zhCNMessages } from "./messages/zh-CN";
-import type { MessageTree } from "./messages/types";
+import { enUSMessages } from "@liberty-resources/i18n/messages/en-US";
+import { zhCNMessages } from "@liberty-resources/i18n/messages/zh-CN";
+import type { MessageTree } from "@liberty-resources/i18n/messages/types";
 
 export type { MessageTree };
 

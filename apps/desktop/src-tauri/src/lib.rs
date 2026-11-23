@@ -20,9 +20,12 @@ mod system;
 mod webview_policy;
 mod window_scope;
 
+pub mod minutes_document {
+    pub use crate::local_export::{export_summary_docx, ExportDocData, SpeechBlock};
+}
+
 #[cfg(target_os = "macos")]
 use tauri::menu::{AboutMetadata, Menu, PredefinedMenuItem, Submenu, WINDOW_SUBMENU_ID};
-#[cfg(windows)]
 use tauri::Manager;
 
 #[cfg(target_os = "macos")]
@@ -98,6 +101,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
+            // Acquire before any database, runtime recovery, or pet startup.
+            let profile = app.path().app_local_data_dir()?;
+            std::fs::create_dir_all(&profile)?;
+            app.manage(
+                infrastructure::profile_lock::ProfileLock::acquire(&profile)
+                    .map_err(std::io::Error::other)?,
+            );
             #[cfg(target_os = "macos")]
             set_macos_menu(app)?;
 

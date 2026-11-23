@@ -1,14 +1,19 @@
 import { readFileSync } from "node:fs";
+import { parseRuntimeModelPins, runtimeModelPinsPath } from "./lib/runtime-model-pins.mjs";
 
 const requirementsPath = "python/funasr-runner/requirements.txt";
-const lockFiles = [
-  "python/funasr-runner/requirements-lock-darwin-aarch64.txt",
-  "python/funasr-runner/requirements-lock-darwin-x64.txt",
-  "python/funasr-runner/requirements-lock-windows-x64.txt",
-];
-const runtimeSource = readFileSync("apps/desktop/src-tauri/src/local_runtime.rs", "utf8");
+const runtimeManifest = JSON.parse(readFileSync("packages/desktop-resources/runtime/runtime-manifest.json", "utf8"));
+const lockFiles = runtimeManifest.platforms
+  .filter((platform) => platform.asrBackend === "funasr" && !platform.unsupportedReason)
+  .map((platform) => `python/funasr-runner/requirements-lock-${platform.platformId}.txt`)
+  .sort();
+const installerSource = readFileSync("apps/native/internal/infrastructure/managed/installer.go", "utf8");
 const errors = [];
 const directPins = parseDirectPins(readFileSync(requirementsPath, "utf8"), errors);
+
+if (lockFiles.length === 0 || new Set(lockFiles).size !== lockFiles.length) {
+  errors.push("The shared runtime manifest must identify supported FunASR lock platforms exactly once");
+}
 
 for (const lockFile of lockFiles) {
   const locked = parseHashLock(lockFile, readFileSync(lockFile, "utf8"), errors);
@@ -19,25 +24,18 @@ for (const lockFile of lockFiles) {
   }
 }
 
-for (const lockFile of lockFiles) {
-  const fileName = lockFile.split("/").at(-1);
-  if (!runtimeSource.includes(`"${fileName}"`)) {
-    errors.push(`local_runtime.rs does not select ${fileName}`);
-  }
+if (!installerSource.includes('"requirements-lock-" + i.Platform.ID + ".txt"')) {
+  errors.push("Native runtime installer must select the lock matching the shared platform ID");
 }
 for (const requiredFlag of ["--require-hashes", "--no-build-isolation"]) {
-  if (!runtimeSource.includes(`.arg("${requiredFlag}")`)) {
-    errors.push(`Python dependency installation must use ${requiredFlag}`);
+  if (!installerSource.includes(`"${requiredFlag}"`)) {
+    errors.push(`Native Python dependency installation must use ${requiredFlag}`);
   }
 }
-if (/MODELSCOPE_MODEL_REVISION|"master"/.test(runtimeSource)) {
-  errors.push("ModelScope revisions must be immutable commit hashes, not movable branches");
-}
-const pinnedModelCommits = new Set(
-  [...runtimeSource.matchAll(/"([a-f0-9]{40})"/g)].map((match) => match[1]),
-);
-if (pinnedModelCommits.size < 4) {
-  errors.push("Every bundled ModelScope model must pin an immutable 40-character commit hash");
+try {
+  parseRuntimeModelPins(readFileSync(runtimeModelPinsPath, "utf8"));
+} catch {
+  errors.push("The shared model registry must list four ordered FunASR roles with distinct immutable 40-character commit hashes and valid model IDs");
 }
 
 if (errors.length > 0) {
@@ -45,7 +43,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`Runtime dependencies are hash-locked for ${lockFiles.length} supported platforms.`);
+console.log(`Native runtime dependencies are hash-locked for ${lockFiles.length} manifest-supported FunASR platforms.`);
 
 function parseDirectPins(contents, errors) {
   const pins = new Map();

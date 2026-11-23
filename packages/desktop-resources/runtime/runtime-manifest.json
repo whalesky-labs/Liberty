@@ -1,0 +1,274 @@
+{
+  "runtimeVersion": "2026.11.22-python311-security.1",
+  "pythonVersion": "3.11.18",
+  "modelSetVersion": "paraformer-zh-2026.07.15.2",
+  "modelProfile": "paraformer",
+  "downloadSources": [
+    {
+      "sourceId": "official",
+      "nameZh": "官方源",
+      "pipIndexUrl": "https://pypi.org/simple",
+      "modelEndpoint": "https://www.modelscope.cn"
+    },
+    {
+      "sourceId": "nju",
+      "nameZh": "南京大学开源镜像站",
+      "pipIndexUrl": "https://mirror.nju.edu.cn/pypi/web/simple",
+      "modelEndpoint": "https://www.modelscope.cn"
+    },
+    {
+      "sourceId": "tsinghua",
+      "nameZh": "清华大学开源软件镜像站",
+      "pipIndexUrl": "https://pypi.tuna.tsinghua.edu.cn/simple",
+      "modelEndpoint": "https://www.modelscope.cn"
+    },
+    {
+      "sourceId": "aliyun",
+      "nameZh": "阿里云开源镜像站",
+      "pipIndexUrl": "https://mirrors.aliyun.com/pypi/simple",
+      "modelEndpoint": "https://www.modelscope.cn"
+    }
+  ],
+  "platforms": [
+    {
+      "platformId": "darwin-aarch64",
+      "asrBackend": "funasr",
+      "pythonBundle": {
+        "fileName": "cpython-3.11.18+20261110-aarch64-apple-darwin-install_only_stripped.tar.gz",
+        "urls": {
+          "official": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.11.18%2B20261110-aarch64-apple-darwin-install_only_stripped.tar.gz"
+        },
+        "sha256": "3afb0567b2a2b30b3a7341bd143cb4e8a69f3d8e95d4641218eaa45f0fabbd07"
+      },
+      "pythonExecutableCandidates": [
+        "python/install/bin/python3",
+        "python/install/bin/python",
+        "python/bin/python3",
+        "python/bin/python"
+      ],
+      "ffmpegBundle": {
+        "fileName": "ffmpeg-8.1.2-macos-arm64.zip",
+        "urls": {
+          "official": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1783011502_8.1.2/ffmpeg.zip"
+        },
+        "sha256": "ef1aa60006c7b77ce170c1608c08d8e4ba1c30c5746f2ac986ded932d0ac2c3c"
+      },
+      "ffmpegExecutableCandidates": [
+        "ffmpeg/ffmpeg"
+      ]
+    },
+    {
+      "platformId": "darwin-x64",
+      "asrBackend": "funasr",
+      "pythonBundle": {
+        "fileName": "cpython-3.11.18+20261110-x86_64-apple-darwin-install_only_stripped.tar.gz",
+        "urls": {
+          "official": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.11.18%2B20261110-x86_64-apple-darwin-install_only_stripped.tar.gz"
+        },
+        "sha256": "c2e4b51e535ead2e526b8974909a1b1e00fbc2ebe2281087b9b8b14dad0cad5d"
+      },
+      "pythonExecutableCandidates": [
+        "python/install/bin/python3",
+        "python/install/bin/python",
+        "python/bin/python3",
+        "python/bin/python"
+      ],
+      "ffmpegBundle": {
+        "fileName": "ffmpeg-8.1.2-macos-x86_64.zip",
+        "urls": {
+          "official": "https://ffmpeg.martin-riedl.de/download/macos/amd64/1783018342_8.1.2/ffmpeg.zip"
+        },
+        "sha256": "a52ef43883f44c219766d4b3bdde4e635b35465d0b704c01c3a0566b59775df9"
+      },
+      "ffmpegExecutableCandidates": [
+        "ffmpeg/ffmpeg"
+      ]
+    },
+    {
+      "platformId": "windows-x64",
+      "asrBackend": "funasr",
+      "pythonBundle": {
+        "fileName": "cpython-3.11.18+20261110-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+        "urls": {
+          "official": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.11.18%2B20261110-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+        },
+        "sha256": "f31751f4a8483f5ac7cd77ad83f8dfb80d9f2a7245bff1585e27516c777fb46f"
+      },
+      "pythonExecutableCandidates": [
+        "python/install/python.exe",
+        "python/install/python3.exe",
+        "python/python.exe",
+        "python/python3.exe"
+      ],
+      "ffmpegBundle": {
+        "fileName": "ffmpeg-n8.1.3-27-g8dca1586f4-win64-gpl-8.1.zip",
+        "urls": {
+          "official": "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n8.1.3-27-g8dca1586f4-win64-gpl-8.1.zip"
+        },
+        "sha256": "401dffcf14c301082e1fc03b0bc876b92ea676bfc521fc56e80a1537d137034f"
+      },
+      "ffmpegExecutableCandidates": [
+        "ffmpeg/bin/ffmpeg.exe",
+        "ffmpeg/ffmpeg.exe"
+      ]
+    },
+    {
+      "platformId": "windows-x86",
+      "asrBackend": "sherpa-onnx",
+      "unsupportedReason": "Windows x86 暂不支持客户端自助下载本地 ASR 环境，请使用 Windows x64 版本。",
+      "pythonBundle": {
+        "fileName": "cpython-3.10.17+20250529-i686-pc-windows-msvc-install_only_stripped.tar.gz",
+        "urls": {
+          "official": "https://github.com/astral-sh/python-build-standalone/releases/download/20250529/cpython-3.10.17%2B20250529-i686-pc-windows-msvc-install_only_stripped.tar.gz"
+        },
+        "sha256": "f411aa385e5034c1eb07e0c038296725a3cc357d9b5942cc7d350ac916a77b77"
+      },
+      "pythonExecutableCandidates": [
+        "python/install/python.exe",
+        "python/install/python3.exe",
+        "python/python.exe",
+        "python/python3.exe"
+      ],
+      "ffmpegBundle": {
+        "fileName": "ffmpeg-n8.1.3-27-g8dca1586f4-win32-gpl-8.1.zip",
+        "urls": {
+          "official": "https://github.com/defisym/FFmpeg-Builds-Win32/releases/download/autobuild-2026-10-31-16-58/ffmpeg-n8.1.3-27-g8dca1586f4-win32-gpl-8.1.zip"
+        },
+        "sha256": "480a387ac116f25dc60bff063d67033c49e363284e2fd84022d1937084f7721c"
+      },
+      "ffmpegExecutableCandidates": [
+        "ffmpeg/bin/ffmpeg.exe",
+        "ffmpeg/ffmpeg.exe"
+      ]
+    }
+  ],
+  "candidateProfiles": {
+    "security-candidate": {
+      "runtimeVersion": "2026.11.20-security-candidate.2",
+      "pythonVersion": "3.11.18",
+      "platforms": [
+        {
+          "platformId": "darwin-aarch64",
+          "pythonBundle": {
+            "fileName": "cpython-3.11.18+20261110-aarch64-apple-darwin-install_only_stripped.tar.gz",
+            "urls": {
+              "official": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.11.18%2B20261110-aarch64-apple-darwin-install_only_stripped.tar.gz"
+            },
+            "sha256": "3afb0567b2a2b30b3a7341bd143cb4e8a69f3d8e95d4641218eaa45f0fabbd07"
+          }
+        },
+        {
+          "platformId": "darwin-x64",
+          "pythonBundle": {
+            "fileName": "cpython-3.11.18+20261110-x86_64-apple-darwin-install_only_stripped.tar.gz",
+            "urls": {
+              "official": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.11.18%2B20261110-x86_64-apple-darwin-install_only_stripped.tar.gz"
+            },
+            "sha256": "c2e4b51e535ead2e526b8974909a1b1e00fbc2ebe2281087b9b8b14dad0cad5d"
+          }
+        },
+        {
+          "platformId": "windows-x64",
+          "pythonBundle": {
+            "fileName": "cpython-3.11.18+20261110-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+            "urls": {
+              "official": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.11.18%2B20261110-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+            },
+            "sha256": "f31751f4a8483f5ac7cd77ad83f8dfb80d9f2a7245bff1585e27516c777fb46f"
+          }
+        }
+      ],
+      "files": [
+        {
+          "fileName": "requirements-lock-darwin-aarch64.txt",
+          "bytes": 135956,
+          "sha256": "3345d563ee35a7a74c45d13b3c029d7a9c4975cdc73f48287a34d4d678aec2f4"
+        },
+        {
+          "fileName": "requirements-lock-darwin-x64.txt",
+          "bytes": 135956,
+          "sha256": "3345d563ee35a7a74c45d13b3c029d7a9c4975cdc73f48287a34d4d678aec2f4"
+        },
+        {
+          "fileName": "requirements-lock-windows-x64.txt",
+          "bytes": 136142,
+          "sha256": "9b42cd4d0b3b3a4b0cd29a18acaac237f8c39b0054548bb0739f122cbb7cc969"
+        },
+        {
+          "fileName": "METADATA.patch",
+          "bytes": 655,
+          "sha256": "a1f8a70c0b5a3646facb98d41e37ec4b98f2f76be56a9e04a823680763cdb2ec"
+        },
+        {
+          "fileName": "funasr-1.3.9+liberty.local2-py3-none-any.whl",
+          "bytes": 915876,
+          "sha256": "38919720a30ab86428e2aded9a9e12cd9800cc36ebebc17f5b6b33182364f78e"
+        },
+        {
+          "fileName": "provenance.json",
+          "bytes": 50620,
+          "sha256": "08c106ea2d8785206918afd1db6bbb396368a6aefe4296da55f3e4247a2b4d39"
+        },
+        {
+          "fileName": "recipe.json",
+          "bytes": 2934,
+          "sha256": "bc45ea15270090754e3082390969779054ff275a33d477784fa117b49890633c"
+        },
+        {
+          "fileName": "source.cdx.json",
+          "bytes": 1918,
+          "sha256": "879737fe0464727dbe321d87a4f59fa56ab01148775fa99df85c8d2aeb05ebad"
+        }
+      ]
+    }
+  },
+  "productionInputs": {
+    "builder": {
+      "fileName": "build_vendor_wheel.py",
+      "bytes": 17382,
+      "sha256": "2da062f02b104bfb4ceca75e528bdb312177811c3e202695620b33ccc9779ca8"
+    },
+    "files": [
+      {
+        "fileName": "requirements-lock-darwin-aarch64.txt",
+        "bytes": 135956,
+        "sha256": "3345d563ee35a7a74c45d13b3c029d7a9c4975cdc73f48287a34d4d678aec2f4"
+      },
+      {
+        "fileName": "requirements-lock-darwin-x64.txt",
+        "bytes": 135956,
+        "sha256": "3345d563ee35a7a74c45d13b3c029d7a9c4975cdc73f48287a34d4d678aec2f4"
+      },
+      {
+        "fileName": "requirements-lock-windows-x64.txt",
+        "bytes": 136142,
+        "sha256": "9b42cd4d0b3b3a4b0cd29a18acaac237f8c39b0054548bb0739f122cbb7cc969"
+      },
+      {
+        "fileName": "METADATA.patch",
+        "bytes": 655,
+        "sha256": "a1f8a70c0b5a3646facb98d41e37ec4b98f2f76be56a9e04a823680763cdb2ec"
+      },
+      {
+        "fileName": "funasr-1.3.9+liberty.local2-py3-none-any.whl",
+        "bytes": 915876,
+        "sha256": "38919720a30ab86428e2aded9a9e12cd9800cc36ebebc17f5b6b33182364f78e"
+      },
+      {
+        "fileName": "provenance.json",
+        "bytes": 50620,
+        "sha256": "08c106ea2d8785206918afd1db6bbb396368a6aefe4296da55f3e4247a2b4d39"
+      },
+      {
+        "fileName": "recipe.json",
+        "bytes": 2934,
+        "sha256": "bc45ea15270090754e3082390969779054ff275a33d477784fa117b49890633c"
+      },
+      {
+        "fileName": "source.cdx.json",
+        "bytes": 1918,
+        "sha256": "879737fe0464727dbe321d87a4f59fa56ab01148775fa99df85c8d2aeb05ebad"
+      }
+    ]
+  }
+}

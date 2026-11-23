@@ -2,6 +2,8 @@
 
 本目录只提交验证契约，不提交会议媒体、人工标注或设备证据。默认 ASR 保持 FunASR；基准结果只能作为后续引擎决策的输入，不能自动修改产品默认值。
 
+Go/MyGo 重构改变客户端与调度实现，不自动改变 ASR 引擎或本目录验收标准。`native:runtime:acceptance` 的固定合成音频、`native:meeting:acceptance` 的窗口链路和 `native:build:matrix` 的编译结果均不能替代这里的真实媒体质量与 8 GiB 设备证据。当前命令分工见[开发指南](../../docs/development.md)。
+
 ## 本地准备
 
 1. 将脱敏媒体和人工标注放在受控目录。标注 JSON 使用 `schemaVersion=1`、`transcript` 和可选的 `speakerTurns: [{ startMs, endMs, speaker }]`。

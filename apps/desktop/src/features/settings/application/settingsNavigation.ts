@@ -1,4 +1,4 @@
-import type { MessageTree } from "@/shared/i18n/messages/types";
+import type { MessageTree } from "@liberty-resources/i18n/messages/types";
 import type { NavIconKey } from "@/shared/services/ui/navIcons";
 
 export type SettingsSectionId =

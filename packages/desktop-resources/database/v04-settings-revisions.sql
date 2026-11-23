@@ -1,0 +1,1 @@
+ALTER TABLE app_settings ADD COLUMN settings_revision INTEGER NOT NULL DEFAULT 0

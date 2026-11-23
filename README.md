@@ -4,214 +4,125 @@
 
 <h1 align="center">Liberty</h1>
 
-<p align="center">
-  A desktop workspace for meeting media processing.
-</p>
-
-<p align="center">
-  Local transcription · Speaker diarization · AI summarization · Result organization
-</p>
-
-<p align="center">
-  <a href="apps/desktop/src-tauri/tauri.conf.json"><img src="https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white" alt="Tauri 2"></a>
-  <a href="apps/desktop/package.json"><img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111111" alt="React 19"></a>
-  <a href="apps/desktop/package.json"><img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript 5"></a>
-  <a href="apps/desktop/src-tauri/Cargo.toml"><img src="https://img.shields.io/badge/Rust-stable-000000?logo=rust&logoColor=white" alt="Rust stable"></a>
-  <a href="apps/desktop/src-tauri/resources/runtime-manifest.json"><img src="https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white" alt="Python 3.10"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
-</p>
+<p align="center">A local-first desktop workspace for meeting media processing</p>
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-Liberty is a local-first desktop application for meeting media processing. The current frontend uses React, the desktop shell uses Tauri 2, native services are implemented in Rust, and local transcription runs through a managed Python 3.10.17 runtime with a FunASR runner. It can process meetings fully through local SQLite and the managed runtime, while still keeping an optional remote backend mode.
+Liberty brings local transcription, speaker diarization, AI summaries, meeting minutes and exports into one desktop workflow, with a separate local companion and work-game system.
 
-The current workflow starts on the dashboard, continues through job creation or the job queue, and opens completed work in a dedicated result workbench for review, cleanup, and export.
+## Refactor Status
 
-## Current Capabilities
+As of 2026-11-21, **the new implementation is Go + MyGo under `apps/native`; `pnpm start` (equivalent to `pnpm native:launch`) starts an already packaged native candidate without compiling source.** The table below describes the current migration roles; the native client remains a candidate, and neither full UI acceptance nor production cutover is complete. The React/Tauri client is frozen only as a temporary production and migration reference. Once the Native gates close, one reviewed cutover retires and deletes that client and its release chain.
 
-- Review job metrics, processing trends, result completeness, recent jobs, resources, and companion state on the dashboard.
-- Create meeting jobs through the desktop file picker with local audio and video files.
-- In local mode, process one local file with the managed Python 3.10.17 runtime, FunASR runner, and ffmpeg.
-- Filter and search the job queue, then open details or a dedicated result workbench, retry jobs, and delete jobs according to their state.
-- Track ASR and diarization separately. Only verified results enter the speaker projection; unavailable or failed diarization preserves the transcript without inventing speaker labels.
-- Manage OpenAI-compatible models, summary templates, and meeting members as cards with dedicated editor windows.
-- Use AI summary windows, repeated summary runs, and active summary selection.
-- Review transcripts, filter by speaker, rename speakers, open meeting notes, and work from a dedicated result workspace.
-- Export transcript TXT, notes Markdown, bundled Markdown, and formal DOCX meeting minutes.
-- Manage meeting members with Excel import/export, department, sort order, and recorder metadata.
-- Navigate Settings by appearance, theme, runtime, processing defaults, remote compatibility, and diagnostics, with separate controls for Python, ffmpeg, and model resources.
-- Switch Chinese/English UI, automatic/light/dark theme, transparent/tinted glass style, and accent color.
-- View diagnostics for platform matrix, database schema version, runtime status, security baseline, and exported desktop-pet diagnostic logs.
-- Use the desktop companion, 255-level growth, LP wallet, Pet Store, inventory, daily free blind box, daily check-in, make-up check-in, gift boxes, redeem center, item detail window, and native desktop pet rendering.
-
-## Runtime Modes
-
-### Local Mode
-
-When `backendUrl` is empty, the app uses local SQLite and local Tauri commands. If the user has not manually configured a Python path, the app automatically installs or repairs the managed runtime based on runtime status.
-
-Local mode includes:
-
-- Python, ffmpeg, download sources, and model endpoints described by `runtime-manifest.json`.
-- The local transcription runner under `python/funasr-runner/`.
-- Job creation, execution, retry, and log synchronization in `apps/desktop/src-tauri/src/local_jobs.rs`.
-- Runtime installation, download-source selection, validation, warmup, and logs in `apps/desktop/src-tauri/src/local_runtime/`.
-- SQLite storage for jobs, transcripts, AI summaries, members, settings, and pet data.
-
-Current local job execution processes one file with a local path. In local mode, selecting multiple files keeps the last selected file.
-
-The local concurrency setting is an upper bound, not a fixed worker count. The scheduler reserves 2 GiB for the operating system and desktop app, budgets 4 GiB per ASR runner, and divides logical CPU threads across the effective concurrency; an 8 GiB device runs one local job by default.
-
-### Remote Mode
-
-When `backendUrl` is set, the frontend uses `shared/services/remote/meetingApi.ts` to call the remote meeting API. Remote mode keeps job creation, listing, detail, and retry entry points, but the managed local runtime is not required before use.
-
-### AI Summary Pipeline
-
-AI summarization is not automatic after transcription. From the workbench, the user opens the AI summary window, chooses the model, template, speaker/timestamp options, generates a summary, and saves a summary run.
-
-AI requests are sent by the Rust `local_ai` module to an OpenAI-compatible endpoint. Model API keys are stored through the system credential store: macOS Keychain or Windows Credential Manager.
-
-### Pet Pipeline
-
-The pet pipeline is a local companion system outside the core meeting flow. Current pet rules are centralized in the pet system notes: real work is the main growth source, LP is a local reward point, food grants fixed growth, and daily blind boxes, daily check-ins, make-up tickets, gift boxes, and redeem keys are local benefit or operations entry points. App startup tries to sync desktop pet state, but pet loading failure must not block the main window.
-
-See [docs/pet-system.md](./docs/pet-system.md) for the current implementation notes.
-
-## Technical Architecture
-
-| Layer | Current implementation |
+| Implementation | Role |
 | --- | --- |
-| Desktop shell | Tauri 2 |
-| Frontend | React 19 + TypeScript + Vite |
-| Routing | In-repo lightweight RouterContext |
-| Native services | Rust, Tauri commands, SQLite, system credentials, DOCX/XLSX processing |
-| Local transcription | Python 3.10.17 + FunASR runner + ffmpeg |
-| Local storage | SQLite through bundled `rusqlite` |
-| AI interface | OpenAI-compatible Chat Completions |
-| Desktop pet rendering | macOS AppKit private API + Windows GDI/Win32 |
+| `apps/native` | Go/MyGo native client; only daily development, verification and candidate packaging entry |
+| `apps/desktop` | Frozen React/Tauri migration reference and current production entry until Native cutover; scheduled for deletion with its release chain after all gates pass |
+| Python Runner / SQLite / shared schemas | Shared transcription, data and resource sources |
 
-## Project Structure
+See the [native module guide](apps/native/README.md) for profiles, backup and restore. Full UI, IME/accessibility, external-service, Intel/Windows device, supply-chain, installer/rollback and signing/notarization acceptance remain separate requirements in [release readiness](docs/architecture/release-readiness.md).
+
+## Capabilities
+
+- **Meeting workflow:** dashboard metrics and trends, single-file local jobs, queue search/filtering, progress and logs, retry and deletion.
+- **Result workbench:** dedicated windows for transcripts, verified-speaker filtering/renaming, AI summaries and read-only minutes. Missing diarization preserves the transcript without inventing speaker labels.
+- **AI summaries:** OpenAI-compatible models, templates, durable runs and chunks, explicit retry and historical result selection. Users initiate summarization; transcription does not trigger it automatically.
+- **Exports and members:** transcript TXT, notes Markdown, bundled Markdown and formal DOCX; Excel member import/export, departments, ordering and recorder metadata.
+- **Settings:** appearance, Chinese/English, themes, runtime overview, processing defaults, Python/ffmpeg/models, remote compatibility and diagnostics. Native Settings and main navigation share color styling.
+- **Resources:** model, template and member cards with dedicated editors; keys and tokens remain in the system credential store.
+- **Local companion:** multiple pet windows, 255-level growth, LP, store/inventory, check-in/makeup, free daily blind boxes, gift boxes, signed redemption, farm and work maps. Factory care can optionally use assembly practice; the original one-click action remains and scores never affect rewards.
+
+Companion features are best-effort and must not block meeting work. LP, boxes and redemption do not introduce payments, top-ups, trading or leaderboards. See the [pet system](docs/pet-system.md).
+
+## Modes and Boundaries
+
+The `processingMode` setting selects local or remote operation. `backendUrl` configures a remote connection; a nonempty address does not switch modes automatically.
+
+Local mode uses SQLite, managed or explicitly configured Python, ffmpeg and model assets. The default runtime pins Python 3.11.18 and a hash-verified FunASR dependency patch; the shared [runtime-manifest.json](packages/desktop-resources/runtime/runtime-manifest.json) defines exact versions, platforms and downloads. The explicit `security-candidate` profile remains isolated. Updating default dependencies does not establish Native production cutover. The four pinned FunASR models and remaining Torch security exceptions are described in [release readiness](docs/architecture/release-readiness.md). Configured concurrency is a resource upper bound; 8 GiB devices default to one local job.
+
+Remote mode negotiates `liberty-meeting` v1 operations for listing, details, results, retry, deletion and speaker renaming. Remote upload/creation and AI-summary writes are not exposed by the current client. An operation appearing in a protocol enum does not establish UI support.
+
+AI models use OpenAI-compatible services under trusted-address, DNS, redirect and response-size constraints. API keys and remote tokens use macOS Keychain / Windows Credential Manager; SQLite stores references.
+
+## Architecture and Layout
+
+| Layer | Native implementation |
+| --- | --- |
+| UI and windows | MyGo native rendering |
+| Application and domain | Go application/domain/client |
+| SQLite | `modernc.org/sqlite`, typed repositories |
+| Platform services | Go profile/credentials/system adapters |
+| Shared sources | JSON Schema, Python Runner, runtime manifest, DOCX template, messages and assets |
 
 ```text
-.
-├─ apps/
-│  └─ desktop/
-│     ├─ src/
-│     │  ├─ app/                 React shell, navigation, lightweight routing
-│     │  ├─ assets/              Frontend images and store assets
-│     │  ├─ features/            Jobs, AI, settings, members, pet, store pages
-│     │  └─ shared/              i18n, components, services, types, global styles
-│     └─ src-tauri/
-│        ├─ capabilities/        Tauri window permission boundaries
-│        ├─ resources/           Runtime manifest, DOCX template, pet resources
-│        ├─ src/                 Rust commands, database, runtime, exports, pet
-│        └─ tauri.conf.json      Tauri config and bundled resources
-├─ python/
-│  └─ funasr-runner/             Local transcription runner and Python deps
-├─ scripts/                      Startup, runtime preparation, release checks
-├─ docs/
-│  ├─ architecture/              Architecture and release readiness docs
-│  ├─ images/                    README screenshots
-│  ├─ ai/                        AI process docs and migrated historical records
-│  └─ pet-system.md              Current pet system notes
-├─ Cargo.toml                    Rust workspace
-├─ package.json                  pnpm workspace scripts
-└─ pnpm-workspace.yaml
+apps/native/                  Go + MyGo candidate
+  cmd/liberty-native/         Launch options and channel
+  internal/desktop/           Windows, layouts and native dialogs
+  internal/client/            UI controllers and asynchronous state
+  internal/application/       Use cases, ports, scheduling and scopes
+  internal/domain/            Types and business policies
+  internal/infrastructure/    SQLite, runtime, HTTP, files and platform adapters
+  internal/host/              Composition, startup recovery and shutdown
+apps/desktop/                 Temporary production client and migration reference
+packages/desktop-resources/   Shared sources, artwork and frozen synthetic regression fixtures
+packages/shared-types/        Versioned JSON Schema and generated types
+python/funasr-runner/          Runner, validators and platform dependency locks
+scripts/                      Development, generation, acceptance and packaging
+benchmarks/asr/                ASR fixture and platform-evidence contracts
+config/                       Platform, security and license policies
+docs/                         Maintained guides and historical process records
 ```
 
-## Main Screens
+The database is schema v10. Native generates migration definitions from shared sources and replays the historical Rust implementation's frozen synthetic databases and expected outputs in `packages/desktop-resources/fixtures/native-v10`; it no longer builds or runs the Rust oracle. Before cutover, a clean checkout must regenerate and test without reading `apps/desktop`. See [native architecture](docs/architecture/native-desktop-architecture.md) for module boundaries and source mappings.
 
-- `Dashboard`: review job metrics, processing trends, result completeness, recent jobs, resources, and companion state.
-- `New Job`: choose local media, title, language, speaker diarization, and hotwords.
-- `Job Queue`: filter and search jobs; completed jobs open the result workbench directly, while active or failed jobs open details; retry and delete actions remain available by state.
-- `Job Detail`: inspect input, status, progress, logs, and failure reason, then open the result workbench for a completed job.
-- `Result Workbench`: use a dedicated window scoped to one job to review transcripts, filter or rename speakers, open AI summary and notes windows, and export results. The legacy `/results` route redirects to the completed-job queue.
-- `Models` / `Templates` / `Members`: manage resources as cards and edit them in dedicated windows; member management includes Excel import/export.
-- `Settings`: navigate categorized appearance, locale, runtime-component, ASR, remote-backend, and diagnostics controls.
-- `Pet Center`: view pet level, cumulative growth, stage, events, desktop behavior, and interactions.
-- `Pet Store`: view LP, catalog, inventory, equipment, food/tool usage, and item details.
-- `Daily Blind Box`: open up to 10 free local boxes per day; rewards come from the Pet Store, excluding pets.
-- `Daily Check-In`: view streaks, reward calendar, history, claim rewards, or use a make-up ticket.
-- `Redeem Center`: enter locally verified redeem keys for LP, growth value, or pet items, and view device-local redemption history.
+## Development and Verification
 
-## Local Data
+Use pinned `pnpm@10.30.3`, Go `1.27.4` and Rust `1.94.0`. Environment and command details are in the [development guide](docs/development.md).
 
-SQLite currently stores:
-
-- App settings and managed runtime state.
-- Jobs, input files, transcript segments, job events, and process-log snapshots.
-- AI models, summary templates, summary runs, and active summary selection.
-- Meeting members, departments, sort order, and recorder flag.
-- Pet profile, desktop behavior settings, growth events, stage cosmetics, and level snapshots.
-- LP wallet, inventory, economy ledger, milestone counters, daily blind box history, check-in records, daily free-claim state, and redemption history.
-
-The schema is created in `apps/desktop/src-tauri/src/local_db/schema.rs`; migration versioning is maintained in `infrastructure/migrations.rs`.
-
-## Development Commands
-
-Install dependencies:
-
-```bash
+```sh
 pnpm install --frozen-lockfile
+pnpm native:check
+pnpm native:package
+pnpm start
 ```
 
-Start the frontend:
+`start` and `native:launch` verify packaged files and select the highest SemVer for the current platform, using package-directory modification time to break ties. They do not rebuild source, stop running processes or launch the old React/Tauri client; a different running native executable path blocks launch. On macOS they use the exact `.app` path and activate an existing instance of that build. The Windows launcher does not implement existing-window activation; bring a running candidate to the foreground instead of launching again. Root aliases that could start the old UI are removed; explicit old-client maintenance uses its directory scripts, as described in the [development guide](docs/development.md). Candidates use a separate profile by default. macOS candidates are unsigned/unnotarized; Windows packages are portable directories. Exit normally before loading a new build; running windows do not reload automatically.
 
-```bash
-pnpm desktop:dev:web
+Synthetic preview and compatibility checks:
+
+```sh
+pnpm native:preview --writable --theme light
+pnpm native:compat
+pnpm native:build:matrix
 ```
 
-Start the Tauri desktop app:
+`native:preview` first verifies and replays the shared frozen golden fixtures through Go, then opens temporary synthetic data and cleans it on exit. It does not run the old client. This is not full UI or production acceptance. `native:build:matrix` establishes four-target compilation, not execution on other platforms.
 
-```bash
-pnpm desktop:tauri dev
-```
+For cross-layer changes and shared-source checks:
 
-Build the frontend:
-
-```bash
-pnpm desktop:build:web
-```
-
-Build the desktop app:
-
-```bash
-pnpm desktop:tauri build
-```
-
-Run the full check:
-
-```bash
+```sh
 pnpm check
 ```
 
-`pnpm check` runs contract-drift checks, frontend type checking and unit tests, Python Ruff/pytest, Rust fmt/tests, the frontend production build, Clippy, and version, platform, security-baseline, runtime-lock, dependency-governance, and ASR blocking-fixture checks.
+`pnpm check` runs `native:verify` first (Go, shared generators, Python and Native release policy), then `legacy:check` for the temporary production client. The independent `build-native.yml` candidate workflow covers four-target tests, packaging and artifact verification; a failed real supply-chain scan fails the workflow. Full compatibility, race, device interactions and production release acceptance are described separately in the [development guide](docs/development.md). Legacy checks are removed with the old client in the retirement change.
 
-## Supported Platforms
+## Platforms
 
-| Platform | Rust target | Validation level | Runtime backend |
+| Platform | Go target | Candidate package argument | Runtime boundary |
 | --- | --- | --- | --- |
-| macOS Apple Silicon | `aarch64-apple-darwin` | Primary | FunASR |
-| macOS Intel | `x86_64-apple-darwin` | Primary | FunASR |
-| Windows x64 | `x86_64-pc-windows-msvc` | Primary | FunASR |
-| Windows x86 | `i686-pc-windows-msvc` | Extended | sherpa-onnx |
+| macOS Apple Silicon | `darwin/arm64` | `darwin-arm64` | FunASR; local evidence is limited to tested scenarios |
+| macOS Intel | `darwin/amd64` | `darwin-x64` | Independent runtime and UI device acceptance required |
+| Windows x64 | `windows/amd64` | `windows-x64` | Independent runtime and UI device acceptance required |
+| Windows x86 | `windows/386` | `windows-x86` | Extended client target; managed local ASR installation unsupported |
 
 ## Documentation
 
-- [Pet system notes](./docs/pet-system.md)
-- [Enterprise desktop architecture](./docs/architecture/enterprise-desktop-architecture.md)
-- [Release readiness](./docs/architecture/release-readiness.md)
-
-## Notes
-
-- The frontend uses React/TSX.
-- Local mode uses the client-downloaded managed runtime by default, with manual Python override available in Settings.
-- Local execution depends on ffmpeg, the Python runner, and model resources; incomplete runtime state is marked `repair_required`.
-- Runtime download sources are controlled by `runtime-manifest.json` and the Environment & Models selection in Settings; sources must be real reachable URLs, not placeholder assets.
-- Formal DOCX meeting minutes use `apps/desktop/src-tauri/resources/templates/meeting-minutes.docx`.
-- The pet system is a local reward and companion system. It does not include real-money payments, top-ups, trading, or leaderboards; the daily blind box is a free benefit that does not consume LP, sell attempts, or use paid probability drops.
+- [Documentation index](docs/README.md): maintained guides, module references and archives.
+- [Development guide](docs/development.md): launch, checks, generation and acceptance.
+- [Native architecture](docs/architecture/native-desktop-architecture.md).
+- [Native candidate guide](apps/native/README.md) / [release readiness](docs/architecture/release-readiness.md).
+- [Pet system](docs/pet-system.md) / [process-document index](docs/ai/README.md).
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](./LICENSE) for details.
+Liberty is licensed under the [MIT License](LICENSE). Dependencies and runtime assets retain their own licenses, notices and distribution requirements.

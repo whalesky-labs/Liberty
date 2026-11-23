@@ -168,7 +168,7 @@ def fill_block(row: ET.Element, block: dict) -> None:
 
 
 def main() -> None:
-    template = Path("apps/desktop/src-tauri/resources/templates/meeting-minutes.docx")
+    template = Path("packages/desktop-resources/templates/meeting-minutes.docx")
     output = Path("/tmp/liberty-meeting-minutes-filled.docx")
 
     with zipfile.ZipFile(template, "r") as zin:

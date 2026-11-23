@@ -1,6 +1,6 @@
 # Liberty 宠物系统
 
-本文是 Liberty 宠物系统的当前权威说明。旧设计文档和实现计划只保留为历史记录；如果旧文档与本文冲突，以本文为准。
+本文维护 Go 原生客户端的宠物、福利、农场与打工业务规则；涉及历史资料迁移和兼容差异时单独说明。2026-11-20 核实模块映射与原生入口，历史差分测试计数保留其原验收范围，不代表本轮重新执行。当前行为以代码、测试与本文共同核对；旧客户端专属设计和计划已移除。原生发布状态见[发布就绪检查](architecture/release-readiness.md)。
 
 ## 定位
 
@@ -27,7 +27,7 @@
 
 ## 成长和经济
 
-当前成长系统采用 255 级累计成长曲线。`experience` 表示累计成长值，不是本级内经验。等级快照由 Rust 后端统一计算，前端只消费后端返回的 `PetLevelSnapshot`。
+当前成长系统采用 255 级累计成长曲线。`experience` 表示累计成长值，不是本级内经验。等级快照由 Go domain/repository 计算；UI 只消费 `PetLevelSnapshot`，不独立维护奖励或等级规则。
 
 关键字段：
 
@@ -94,11 +94,14 @@
 
 ## 商店、盲盒、签到和兑换
 
-商品目录当前写在 Rust 代码中：
+商品目录和成长阶段的生成源维护在共享资源中：
 
 ```text
-apps/desktop/src-tauri/src/infrastructure/repositories/pet_store.rs
+packages/desktop-resources/pet/catalog.json
+packages/desktop-resources/pet/stages.json
 ```
+
+Go 通过 `pnpm native:pet:generate` 同步到 `internal/domain/pet_generated.go`，图片通过 `native:pet-art:generate` 嵌入。修改来源后需检查两端，不能分别手改两套目录或奖励常量。
 
 商品类型：
 
@@ -123,6 +126,15 @@ coming_soon
 → available
 ```
 
+商店事务规则：
+
+- 普通购买和道具使用的数量沿用原端边界，先限制为 1–99；非消耗品只能购买 1 件且不能重复购买。免费礼盒的数量进一步限制为 1–3，再与当天剩余次数比较；调整后的数量仍超过剩余次数时整次拒绝，不静默扣成剩余数量。
+- 扣减 LP、购买流水、库存变更与每日领取状态在同一事务提交。完全相同的商品、数量与请求时刻产生相同购买流水键，重复写入拒绝且回滚本次扣款和库存；新时刻的合法购买仍可继续。
+- 商店的经济流水投影只展示 LP，不混入用于内部幂等的 `event_key` 记录。普通购买不额外产生宠物对话事件；装备和食物使用按原端写入对应事件及完整双语元数据。
+- 食物只增加目录定义的固定成长值，普通商店读取和食物使用不额外执行其他工作流的徽章授予。现有成就条件与授予入口保持各自的业务规则。
+- 原生迁移的确定性购买、使用、装备和卸下重放历史 Rust repository 导出的[冻结黄金样本](../packages/desktop-resources/fixtures/native-v10/README.md)，逐步对照 API、十张持久表及重开结果；礼盒和盲盒重放固定毫秒时钟的历史动作，对照完整 API、十一张持久表及重开结果。当前检查不执行 Rust。测试固定时钟只用于复现奖池加权区间边界，不改变生产抽取规则，也不代表动画与系统窗口验收。
+- 商店经济流水和盲盒历史各显示最近 20 条，先按记录时间从新到旧排列；时间完全相同时按后插入的记录优先。Go 与本分支 Rust 使用相同规则，不依赖随机 ID 或 SQLite 未指定的并列顺序，也不改变余额、奖励和持久记录。
+
 盲盒规则：
 
 - 每天最多开启 10 次，按本地自然日重置。
@@ -131,28 +143,31 @@ coming_soon
 - 消耗品重复获得时叠加数量。
 - 已拥有的非消耗品重复获得时转为少量 LP 补偿。
 - 每次开启写入本地盲盒历史，并写入宠物事件流水。
+- 库存或重复补偿、钱包与经济流水、双语事件、心情和抽取历史在同一事务提交；任一写入失败整次回滚，不消耗当天次数。当天次数耗尽后拒绝开启，次日本地自然日重新计数。
 
 惊喜礼盒规则：
 
 - 商品编码为 `gift-box-tool`，归类为 `tool`。
 - 在宠物商店每天最多免费领取 3 个，领取状态写入 `pet_store_daily_limits`。
 - 使用礼盒会消耗库存中的 1 个礼盒。
-- 礼盒奖池来自商店目录，但排除宠物本体、徽章和礼盒自身。
+- 礼盒奖池只包含已启用且满足等级、成就解锁条件的商店商品，排除宠物本体、徽章、种子和礼盒自身；按商品类型与稀有度加权选择。
 - 重复获得已拥有的非消耗品时转为 LP 补偿；消耗品按数量叠加。
+- 发奖或补偿、扣减一件礼盒和双语结果事件在同一事务提交。礼盒不存在与库存为零分别按原业务错误拒绝，失败不扣库存；相同毫秒的两次合法开启仍各自消耗一件礼盒并记录各自结果。
 
 每日签到规则：
 
 - 签到按本地自然日记录，不能重复领取当天奖励。
-- 连续签到奖励按 14 天周期展示，基础奖励为 LP +20、成长值 +5。
+- 连续签到奖励展示前 14 天的里程碑轨道，基础奖励为 LP +20、成长值 +5；连续天数不会在第 15 天归零，第 15 天起仍领取基础奖励，不循环重发前 14 天的里程碑物品。
 - 第 3 天和第 10 天奖励惊喜礼盒，第 5 天奖励纸杯蛋糕，第 7 天奖励四叶草徽章，第 12 天奖励冰淇淋，第 14 天奖励嫩芽徽章。
-- 断签后若补签窗口可用，可以消耗 1 张 `gem-ticket-tool` 补签票券补回缺失日期。
-- 签到和补签都会写入签到表、成长/经济流水和宠物事件流水。
+- 尚未领取今天奖励且漏签 1–6 天时，可消耗 1 张 `gem-ticket-tool` 补回最早缺失日期；每次只补一天。今日已经签到、没有历史、没有缺口、连续漏签达到 7 天或票券不足时拒绝，失败不会消耗票券或发奖。
+- 签到和补签都会写入签到表、成长/经济流水和宠物事件流水；事件值为成长值，LP 和双语结果说明保存在对应元数据中。操作返回更新后的资料和库存，重复领取返回原签到记录，不重复发奖。
 
 兑换 Key 规则：
 
-- 兑换中心支持本地校验的短码/紧凑/旧版 Key 格式，当前发放脚本为 `scripts/redeem-key.mjs`。
+- 当前 Rust 客户端支持本地校验的短码、LIB2 紧凑签名码与 LIB1 签名码；原生 Go 客户端只接受 LIB1/LIB2，不在客户端保存旧短码的共享 MAC 密钥。`scripts/redeem-key.mjs generate` 默认签发 LIB1，可用 `--format compact` 签发 LIB2。过渡期剩余短码由发行方保管签名私钥后，使用 `reissue --input <私有短码 CSV>` 本地验证并换发签名码；该命令仅处理未过期密钥并拒绝覆盖输出，发行记录应按私密文件保管。POSIX 文件设置为 `0600`；Windows 上发行方须在已限制为本人访问的 ACL 目录中操作。新旧码保留相同活动标识、nonce 与奖励，新版 Rust/Go 客户端按活动和 nonce 返回已有兑换记录，避免同一资料库重复发奖。旧版已发布客户端没有此跨格式去重逻辑：所有可访问该资料库的程序升级后才能开始换发；仅退出旧进程不够，换发后也不能再让旧版打开同一资料库。
 - Key 可发放 LP、成长值和最多两个道具奖励类型；道具必须存在于当前商店目录。
-- 同一宠物对同一 Key 只能兑换一次，重复兑换由 `pet_id + key_hash` 唯一约束阻止。
+- 同一宠物对同一兑换身份（活动标识与 nonce）只能兑换一次；原始短码及其签名换发码返回同一兑换记录。其他 Key 仍以 `pet_id + key_hash` 作精确去重。
+- 精确 hash 已有记录时直接返回该记录；其他码先验证签名、内容和奖励，再查活动/nonce 身份，只有尚未兑换的身份才判断 UTC 到期日。同身份的有效签名换发即使已经过期，也返回原记录，不再次发奖。Go 的 LIB1 JSON 已知字段按大小写精确匹配，重复已知字段、非可空字段的 `null`、类型错误和已知字符串/当前对象 key 中的未配对 Unicode surrogate 依照 Rust Serde 拒绝；可选日期仍允许 `null`，未知字段值保留忽略策略。
 - 兑换记录只保存 Key 哈希、前缀、活动标识、奖励 JSON、状态、兑换时间和元数据，不保存明文 Key。
 - 私密运营文档、私钥和生成 CSV 应放在 `.liberty-secrets/`，该目录不进入仓库。
 
@@ -171,12 +186,12 @@ coming_soon
 
 牛马市场是小游戏地图大厅。当前开放 `农场种菜`、`矿场挖矿`、`工厂打螺丝` 和 `便利店值班`。地图状态按 `可收获/可领取 > 需要照看 > 进行中 > 空闲 > 未开放` 汇总。
 
-农场种菜第一期规则：
+农场种菜当前规则：
 
 | 规则 | 内容 |
 | --- | --- |
 | 地块 | 初始 3 块 |
-| 作物 | 小麦、胡萝卜、番茄、南瓜 |
+| 作物 | 小麦、胡萝卜、番茄、南瓜、玉米、草莓、蓝莓、土豆 |
 | 成长 | 按本地真实时间推进，读取农场状态时补算 |
 | 操作 | 播种、浇水、收获 |
 | 惩罚 | 不枯萎、不失败、不扣奖励 |
@@ -190,6 +205,10 @@ coming_soon
 | 胡萝卜 | 15 分钟 | 2 次 | 食物、低概率额外食物 |
 | 番茄 | 30 分钟 | 2 次 | 食物、低概率工具 |
 | 南瓜 | 60 分钟 | 3 次 | 高级食物、低概率惊喜礼盒 |
+| 玉米 | 20 分钟 | 2 次 | 食物、低概率能量饮料 |
+| 草莓 | 25 分钟 | 2 次 | 食物、低概率甜甜圈 |
+| 蓝莓 | 35 分钟 | 3 次 | 食物、低概率彩虹水晶 |
+| 土豆 | 12 分钟 | 1 次 | 食物、低概率三明治 |
 
 农场只维护地块、作物阶段和收获记录。奖励发放复用宠物商品目录、`pet_inventory`、`pet_wallets` 和 `pet_economy_ledger`，不新增农场货币，不新增农作物库存。
 
@@ -211,6 +230,14 @@ coming_soon
 | 便利店值班 | 白班 / 晚班 / 夜班 | 12 / 24 / 40 分钟 | 1 / 2 / 3 次 | 食物、礼盒概率、日常工具、LP |
 
 三款小游戏只维护岗位任务和奖励记录。奖励发放同样复用宠物商品目录、`pet_inventory`、`pet_wallets` 和 `pet_economy_ledger`，不新增矿石、零件、便利店商品库存或新的打工货币。
+
+原生迁移的农场和打工兼容验证重放历史 Rust repository 导出的冻结黄金样本：八种作物和三张地图全部九个岗位分别覆盖播种/开始、每次照看、成熟/可领取、重复与过早操作、时钟回退、奖励上下界及额外奖励分支，并核对完整 API、十四张持久表和多次重开。动作集为 834 步，含 394 次拒绝和 42 次 SQLite 写入故障；原 72 步回归继续保留。当前检查不执行 Rust。领取不补写无关设置或规范化已有宠物档案，收获列表保留调用方的条数限制，零条返回空列表。上述持久化兼容不代替主动小游戏体验、动画或窗口实机验收。
+
+## 原生工厂装配练习
+
+工厂页面另有原生专属短局练习，与上面的持久化岗位任务分开。稳妥单为 6 个配件、60 秒、错配扣 3 秒；急单为 10 个配件、45 秒、错配扣 5 秒。数字键 `1/2/3` 或点击选择配件，Tab 切换、空格/回车激活，Esc 暂停；失焦、隐藏或最小化暂停后须主动继续。岗位到达“需照看”时，可选择“用装配练习完成照看”，完整装配成功后才调用原岗位 `Care` 用例；超时、暂停或离开练习不改岗位状态。
+
+仍可直接使用原有一键“照看岗位”操作，不要求游玩小游戏；小游戏成绩不改变周期、照看次数、LP 或物品，不增加数据库/ledger 写入。独立练习及未完成局离开后仍只存在于当前窗口会话。玩法校准与其他小游戏体验扩展仍按[独立设计](ai/designs/2026-11-19-native-gameplay-experience-design.md)验收，不能把它当成整体 P5 完成。
 
 ## 本地数据
 
@@ -237,148 +264,55 @@ coming_soon
 
 ## 模块边界
 
-前端模块：
+### Go 原生候选
 
-```text
-apps/desktop/src/features/pet/
-apps/desktop/src/features/pet-store/
-apps/desktop/src/features/pet-blind-box/
-apps/desktop/src/features/pet-check-in/
-apps/desktop/src/features/pet-redeem-key/
-apps/desktop/src/features/work-market/
-apps/desktop/src/features/farm-work/
-apps/desktop/src/features/work-game/
-apps/desktop/src/shared/services/tauri/pet.ts
-apps/desktop/src/shared/services/tauri/farm.ts
-apps/desktop/src/shared/services/tauri/workGame.ts
-apps/desktop/src/shared/types/meeting.ts
-```
+以下路径相对 `apps/native/internal/`：
 
-Rust 模块：
+| 模块 | 职责 |
+| --- | --- |
+| `desktop/pet.go`、`desktop/companion.go` | 宠物页面与独立桌宠窗口、多开和交互 |
+| `desktop/work.go`、`desktop/work_scene.go`、`desktop/assembly_game.go` | 地图、热区与临时装配练习 |
+| `client/pet.go`、`client/work.go` | 异步界面状态与操作反馈 |
+| `application/pet.go`、`application/work.go`、`application/pet_workflow.go` | 业务用例和会议奖励接入 |
+| `domain/pet_rules.go`、`domain/pet_generated.go`、`domain/pet_redemption.go`、`domain/work_config.go` | 等级策略、同源目录、签名兑换和工作配置 |
+| `infrastructure/repositories/jobdb/pet_*.go`、`work.go` | SQLite 事务、事件、库存、签到及岗位结算 |
+| `desktop/presentation/` | 同源素材与消息，不定义另一套经济规则 |
 
-```text
-apps/desktop/src-tauri/src/local_pet.rs
-apps/desktop/src-tauri/src/local_db/pet_leveling.rs
-apps/desktop/src-tauri/src/local_db/pet_growth.rs
-apps/desktop/src-tauri/src/infrastructure/repositories/pet.rs
-apps/desktop/src-tauri/src/infrastructure/repositories/pet_store.rs
-apps/desktop/src-tauri/src/infrastructure/repositories/pet_blind_box.rs
-apps/desktop/src-tauri/src/infrastructure/repositories/pet_check_in.rs
-apps/desktop/src-tauri/src/infrastructure/repositories/pet_redeem_key.rs
-apps/desktop/src-tauri/src/local_farm.rs
-apps/desktop/src-tauri/src/local_work_game.rs
-apps/desktop/src-tauri/src/infrastructure/repositories/farm.rs
-apps/desktop/src-tauri/src/infrastructure/repositories/work_game.rs
-apps/desktop/src-tauri/src/desktop_pet.rs
-apps/desktop/src-tauri/src/desktop_pet/
-```
-
-职责：
-
-- `local_pet.rs`：Tauri 命令入口和参数转换。
-- `pet_leveling.rs`：255 级曲线、8 阶段映射、等级快照、奖励系数。
-- `pet_growth.rs`：成长事件、LP 奖励、幂等键、里程碑计数。
-- `repositories/pet.rs`：宠物档案、设置、事件、阶段装扮。
-- `repositories/pet_store.rs`：商品目录、钱包、购买、每日免费领取、装备、使用、礼盒、成就自动解锁。
-- `repositories/pet_blind_box.rs`：每日盲盒状态、开启、奖池、历史、重复补偿、空奖记录。
-- `repositories/pet_check_in.rs`：签到状态、14 天奖励规则、补签窗口、补签票券消耗和签到记录。
-- `repositories/pet_redeem_key.rs`：兑换 Key 格式校验、签名/HMAC 校验、奖励发放和兑换记录。
-- `local_farm.rs`：牛马市场和农场种菜小游戏的 Tauri 命令入口。
-- `local_work_game.rs`：矿场、工厂、便利店通用打工小游戏的 Tauri 命令入口。
-- `repositories/farm.rs`：农场地块状态、作物配置、读取时补算、播种、浇水、收获和奖励结算。
-- `repositories/work_game.rs`：岗位配置、任务状态、读取时补算、开始任务、照看、领奖和奖励结算。
-- `desktop_pet.rs`：桌宠窗口生命周期、多开、拖拽、状态管理。
-- `desktop_pet/*renderer.rs`：macOS / Windows 原生渲染。
-
-## Tauri 命令
-
-宠物相关命令注册在 `apps/desktop/src-tauri/src/lib.rs`：
-
-- `get_pet_profile`
-- `save_pet_profile`
-- `get_pet_settings`
-- `save_pet_settings`
-- `list_pet_event_ledger`
-- `list_pet_cosmetic_unlocks`
-- `apply_pet_interaction`
-- `apply_pet_workflow_event`
-- `get_pet_store_state`
-- `purchase_pet_store_item`
-- `equip_pet_inventory_item`
-- `unequip_pet_inventory_slot`
-- `use_pet_inventory_item`
-- `open_pet_gift_box`
-- `get_pet_blind_box_state`
-- `draw_pet_blind_box`
-- `get_pet_daily_check_in_state`
-- `claim_pet_daily_check_in`
-- `repair_pet_daily_check_in`
-- `redeem_pet_key`
-- `list_pet_redeem_key_redemptions`
-- `get_work_market_state`
-- `get_farm_state`
-- `plant_farm_crop`
-- `water_farm_plot`
-- `harvest_farm_plot`
-- `list_farm_harvest_ledger`
-- `get_work_game_state`
-- `start_work_game_task`
-- `care_work_game_task`
-- `claim_work_game_task`
-- `show_desktop_pet`
-- `hide_desktop_pet`
-- `open_extra_desktop_pet`
-- `get_desktop_pet_status`
-- `start_desktop_pet_drag`
-- `prompt_pet_name`
-
-诊断相关命令不属于宠物业务命令，但会参与桌宠排障：
-
-- `get_diagnostics`
-- `export_desktop_pet_diagnostic_log`
+工作流奖励在主业务成功后尽力记账；任务按事件类型与任务 ID 去重，总结按运行 ID 去重。文本/Word 导出先发布文件再记奖励，取消和写出失败不发奖；两次写入之间进程退出不保证补发。
 
 ## 资源
 
-桌宠动作资源：
+当前素材来源：
 
 ```text
-apps/desktop/src-tauri/resources/pet/
-apps/desktop/src/assets/images/action/
+packages/desktop-resources/images/pet/action/
+packages/desktop-resources/images/pet/shop/
+packages/desktop-resources/images/farm-layers/
+packages/desktop-resources/images/work-maps/
 ```
 
-当前前端动作资源按 `动作名/动作名_01.png` 到 `动作名/动作名_09.png` 命名，包含 `crush`、`defecate`、`drive`、`eat`、`gaming`、`pants`、`reading`、`rope`、`run`、`slack`、`sleep`、`snow`、`studying`、`toy`、`work` 共 15 组。前端预览和 Tauri 桌宠都会按数字序号排序播放，原生桌宠帧间隔为 300ms。
+动作来源按 `动作名/动作名_01.png` 到 `动作名/动作名_09.png` 命名，包含 `crush`、`defecate`、`drive`、`eat`、`gaming`、`pants`、`reading`、`rope`、`run`、`slack`、`sleep`、`snow`、`studying`、`toy`、`work` 共 15 组。
 
-商店素材：
-
-```text
-apps/desktop/src/assets/images/shop/
-```
-
-`tauri.conf.json` 会把 `apps/desktop/src/assets/images/action/` 打包为 `pet` 资源，供原生桌宠窗口读取。开发模式下原生桌宠优先从前端动作资源目录加载，方便直接预览新帧；打包后从应用资源目录读取。
+Go 通过 `scripts/generate-native-pet-art.mjs` 和 `scripts/generate-native-work-art.mjs` 从共享目录生成嵌入资源，不读取旧应用安装目录。共享来源文件保留为生成器输入，不能随旧文档一起删除。素材来源与再生成入口见[素材说明](images/README.md)。
 
 ## 验收命令
 
-宠物系统变更至少跑：
+按实际修改范围执行；两端共用规则或数据变化同时检查两端：
 
 ```bash
+pnpm native:check
+pnpm native:compat
 pnpm check
 ```
 
+Go 并发与生命周期变化补相关 `go test -race`；跨平台和真实桌宠窗口另行验收。`native:compat` 校验并重放历史 Rust repository 导出的合成黄金样本，逐步对照 Go API、持久表和重开结果，不执行 Rust，也不替代窗口交互验收。具体环境见[开发指南](development.md)。
+
 重点覆盖：
 
-- 前端 typecheck 和生产构建。
-- Rust fmt/test/clippy。
+- Go domain/application/repository 和桌面组件测试。
+- 共享来源与跨语言兼容检查。
 - release 版本、平台矩阵和安全基线检查。
-- `pet_leveling` 等级边界、阶段阈值、满级处理、奖励倍率测试。
+- `pet_rules` 等级边界、阶段阈值、满级处理、奖励倍率测试。
 - `pet_store` 食物固定成长值、商品状态优先级测试。
-- `pet_check_in` 签到周期、补签窗口、补签票券消耗和奖励发放测试。
-- `pet_redeem_key` Key 规范化、哈希、签名/HMAC 校验和重复兑换测试。
-
-## 历史记录
-
-以下文件只保留设计背景和决策来源，不再作为当前规则来源：
-
-- [桌面宠物设计记录](./ai/designs/2026-05-06-desktop-pet-design.md)
-- [桌面宠物实现计划记录](./ai/plans/2026-05-06-desktop-pet-implementation-plan.md)
-- [宠物商店玩法设计记录](./ai/designs/2026-05-21-pet-store-gameplay-design.md)
-- [255 级成长策略记录](./ai/designs/2026-05-21-宠物255级成长生态策略.md)
+- 签到绝对连续天数、补签窗口、票券消耗和奖励发放测试。
+- `pet_redemption` Key 规范化、哈希、签名校验和重复兑换测试。
