@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { candidateIdentity, candidateName, candidatePlist, fileDigest, nativeTargets } from './lib/native-package.mjs';
-import { assembleRelease, assertCandidateRun, assertFreshSourceValidation, assertMainPublication, assertPrereleaseVersion, assertWorkflowArtifacts, checksums, describe, jsonBytes, latestAttemptJobs, positiveId, publishRelease, releaseAssetNames, releaseMarkers, releaseTargets, resolveTag, verifyReleaseBundle } from './lib/native-release.mjs';
+import { assembleRelease, assertCandidateRun, assertFreshSourceValidation, assertMainPublication, assertPrereleaseVersion, assertWorkflowArtifacts, checksums, describe, jsonBytes, latestAttemptJobs, positiveId, publishRelease, releaseAssetNames, releaseMarkers, releaseNotes, releaseTargets, resolveTag, verifyReleaseBundle } from './lib/native-release.mjs';
 import { extractWorkflowZip, GitHubReleaseClient } from './publish-native-release.mjs';
 import { fullSuites } from './ci/plan.mjs';
 
@@ -201,6 +201,44 @@ test('three independent archives assemble into thirteen portable verified assets
   assert.equal(manifest.releaseId, undefined);
   assert.equal(manifest.createdAt, undefined);
   assert.ok(assembleRelease(f.payload, { ...f.context, publicationRunId: 999 }).get('release-manifest.json').equals(f.files.get('release-manifest.json')));
+});
+
+test('real repository changelog generates complete bilingual notes and publishes the bound release', async () => {
+  const f = fixture();
+  const changelog = await readFile(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
+  f.notes = releaseNotes(changelog, f.context, f.files);
+  assert.match(f.notes, /^## 2\.0\.0-alpha\.1 - 2026-11-24\r?$/m);
+  assert.ok(f.notes.includes('### 中文') && f.notes.includes('### English'));
+  assert.ok(!f.notes.includes('## Unreleased') && !f.notes.includes('## 1.1.24'));
+  assert.ok(releaseMarkers(f.context, f.files).every(marker => f.notes.includes(marker)));
+  assert.ok(f.notes.includes(`https://github.com/${repository}/blob/${sourceCommit}/docs/architecture/release-readiness.md`));
+  const api = new FakeGitHub(f);
+  const result = await publish(f, api);
+  assert.equal(result.publisher, 'github-actions[bot]');
+  assert.ok(api.releases[0].body.includes(f.notes));
+});
+
+test('release notes accept plain and bracketed exact version headings and stop at the next release', () => {
+  const f = fixture();
+  for (const heading of [`## ${version} - 2026-11-24`, `## [${version}] - 2026-11-24`, `## v${version} - 2026-11-24`, `## ${version}`]) {
+    for (const newline of ['\n', '\r\n']) {
+      const changelog = ['# Synthetic changelog', '## Unreleased', 'Excluded future changes', heading, '### 中文', '合成变更。', '### English', 'Synthetic changes.', '## 1.2.3 - 2026-01-01', 'Excluded previous release'].join(newline);
+      const notes = releaseNotes(changelog, f.context, f.files);
+      assert.ok(notes.includes(heading) && notes.includes('Synthetic changes.'));
+      assert.ok(!notes.includes('Excluded future changes') && !notes.includes('Excluded previous release'));
+    }
+  }
+});
+
+test('release notes reject a missing exact version or bilingual content outside its section', () => {
+  const f = fixture();
+  for (const changelog of [
+    `## ${version}0 - 2026-11-24\n中文 English`,
+    `### ${version} - 2026-11-24\n中文 English`,
+    `## Unreleased\n中文 English\n## ${version} - 2026-11-24\nOnly English content`,
+    `## ${version} - 2026-11-24\n中文内容\n## 1.2.3\nEnglish`,
+    `## ${version} - 2026-11-24\n\n## 1.2.3\n中文 English`,
+  ]) assert.throws(() => releaseNotes(changelog, f.context, f.files), /changelog lacks|both languages/);
 });
 
 for (const [name, mutate] of [

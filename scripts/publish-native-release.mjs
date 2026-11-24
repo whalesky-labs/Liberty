@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fileDigest } from './lib/native-package.mjs';
 import { assertOsvExceptionsAreGoverned, OSV_EXCEPTION_CONFIG } from './lib/dependency-governance.mjs';
-import { assembleRelease, assertAsset, assertCandidateRun, assertFreshSourceValidation, assertMainPublication, assertPrereleaseVersion, assertWorkflowArtifacts, describe, findRelease, jsonBytes, latestAttemptJobs, positiveId, publishRelease, releaseAssetNames, releaseMarkers, releaseTargets, resolveTag, verifyPreviousRelease, verifyReleaseBundle } from './lib/native-release.mjs';
+import { assembleRelease, assertAsset, assertCandidateRun, assertFreshSourceValidation, assertMainPublication, assertPrereleaseVersion, assertWorkflowArtifacts, describe, findRelease, jsonBytes, latestAttemptJobs, positiveId, publishRelease, releaseAssetNames, releaseMarkers, releaseNotes, releaseTargets, resolveTag, verifyPreviousRelease, verifyReleaseBundle } from './lib/native-release.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const bundleDirectory = path.join(root, 'artifacts/native-release');
@@ -139,24 +139,6 @@ async function prepare(api, environment) {
   return { repository: environment.GITHUB_REPOSITORY, sourceCommit, version, tag, candidateRunId: runId, candidateRunAttempt: run.run_attempt, workflowSourceCommit: environment.GITHUB_SHA, publicationRunId: positiveId(environment.GITHUB_RUN_ID), artifacts, replaceReleaseId, stableLatest: latest ? { id: latest.id, tag: latest.tag_name } : null };
 }
 
-function releaseNotes(context, files) {
-  const changelog = sourceText(context.sourceCommit, 'CHANGELOG.md');
-  const offset = changelog.indexOf(`## [${context.version}]`);
-  assert.ok(offset >= 0, 'Source changelog lacks the release version');
-  const next = changelog.indexOf('\n## ', offset + 4);
-  const section = changelog.slice(offset, next < 0 ? undefined : next).trim();
-  assert.ok(section.includes('中文') && section.includes('English'), 'Release changelog must contain both languages');
-  return `${releaseMarkers(context, files).join('\n')}\n\n# Liberty ${context.tag}\n\n` +
-    'Go + MyGo 原生候选，支持 macOS Apple Silicon、macOS Intel 与 Windows x64。三个平台归档均使用独立候选资料目录；首次转写需要安装固定运行时和模型。\n\n' +
-    'Go + MyGo Native candidate for Apple Silicon Macs, Intel Macs and Windows x64. Each archive uses an isolated candidate profile; initial transcription requires the pinned runtime and models.\n\n' +
-    'macOS 解压后打开 `Liberty Native Candidate.app`，Windows 解压后运行 `Liberty Native Candidate.exe`。请依据 `SHA256SUMS` 校验下载。\n\n' +
-    'On macOS, extract and open `Liberty Native Candidate.app`. On Windows, extract and run `Liberty Native Candidate.exe`. Verify downloads against `SHA256SUMS`.\n\n' +
-    '本次为未签名、未公证的预发行候选，不替换稳定版 latest。GUI、输入法、无障碍、跨设备 ASR 与安装升级回退仍需独立验收；安全扫描使用现行例外策略，不能解释为零漏洞或生产切换。\n\n' +
-    'This unsigned, unnotarized prerelease retains stable latest. GUI, IME, accessibility, cross-device ASR and installation upgrade/rollback still require separate acceptance. Security scans use the current exception policy and do not establish zero vulnerabilities or production cutover.\n\n' +
-    `[候选构建 / Candidate build](https://github.com/${context.repository}/actions/runs/${context.candidateRunId}) · [源码 / Source](https://github.com/${context.repository}/commit/${context.sourceCommit})\n\n` +
-    section.replaceAll('](docs/architecture/', `](https://github.com/${context.repository}/blob/${context.sourceCommit}/docs/architecture/`) + '\n';
-}
-
 async function stage(api, context) {
   assert.equal(await resolveTag(api, context.tag) ?? context.sourceCommit, context.sourceCommit, 'Existing tag points elsewhere');
   const payload = new Map();
@@ -209,7 +191,7 @@ async function stage(api, context) {
     for (const name of ['release-manifest.json', 'SHA256SUMS']) await writeFile(path.join(bundleDirectory, 'previous', name), previousFiles.get(name), { flag: 'wx', mode: 0o600 });
   }
   await writeFile(path.join(bundleDirectory, 'plan.json'), jsonBytes({ ...context, assets: verifyReleaseBundle(files, verificationContext), hasPreviousRelease: Boolean(previousRelease) }), { flag: 'wx', mode: 0o600 });
-  await writeFile(path.join(bundleDirectory, 'notes.md'), releaseNotes(context, files), { flag: 'wx', mode: 0o600 });
+  await writeFile(path.join(bundleDirectory, 'notes.md'), releaseNotes(sourceText(context.sourceCommit, 'CHANGELOG.md'), context, files), { flag: 'wx', mode: 0o600 });
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `bundle_attempt=${positiveId(process.env.GITHUB_RUN_ATTEMPT)}\n`);
   console.log(`Staged 13 verified prerelease assets for ${context.sourceCommit}; no Release or tag has been changed.`);
 }
