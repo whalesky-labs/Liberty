@@ -12,6 +12,7 @@
 | 候选包、资料目录、显式接管与恢复 | [原生模块说明](../apps/native/README.md) |
 | 平台、安全、安装器与正式发布门槛 | [发布就绪检查](architecture/release-readiness.md) |
 | 按改动范围执行 CI、手动全量与候选构建 | [CI/CD 操作规则](architecture/ci-cd.md) |
+| v2.0.0-alpha.1 范围、资产与已知限制 | [原生 alpha 发布说明](releases/2.0.0-alpha.1.md) |
 | 宠物、LP、商店、福利、农场和打工 | [宠物系统](pet-system.md) |
 | 图片来源、生成与原生同步 | [素材说明](images/README.md) |
 | 变更记录 | [CHANGELOG](../CHANGELOG.md)，未发布工作只写 Unreleased |

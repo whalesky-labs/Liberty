@@ -11,7 +11,7 @@
 | 手动 Quality Gate，mode 为 full | 对所选 ref 在触发时解析出的确切 SHA 执行完整验证 |
 | 手动 Quality Gate，mode 为 security | 仅执行真实安全、许可证和 SBOM；结果为 `security-gate`，不能替代 `ci-gate` |
 | 手动 Build Native Candidates | 完整门禁通过后，按选择的一个平台或全部三平台构建并核验候选 |
-| 发行标签或显式生产发布 | 完整门禁后执行现有发布事务，核对版本、提交、Release ID 与资产 |
+| 稳定 1.x 发行标签或显式旧端生产发布 | 完整门禁后执行现有发布事务，核对版本、提交、Release ID 与资产；2.x/预发布在旧入口拒绝 |
 
 没有 `schedule` 定时任务。工作分支的普通 push 不另跑一次 PR 检查。main 更新不自动发布 Release。
 
@@ -68,6 +68,8 @@ gh workflow run build-native.yml --ref main -f target=windows-x64
 ```
 
 运行均 checkout 触发时的 `github.sha`。执行后核对 run 的 head SHA；不能把另一个提交的成功结论移给当前源码。真实模型下载、受控媒体性能、GUI/IME/读屏、外部服务以及证书与安装事务继续按[开发指南](../development.md)和发布要求单独验收。
+
+2.x Native alpha 通过手动候选构建入口准备三平台资产，后续 GitHub Release 必须明确设为 prerelease 且不替换 stable latest。旧 Tauri 的标签触发器排除预发布和 build metadata，手动发布另以源码版本拒绝非稳定 1.x，避免将 Native 版本名用于旧端安装包。
 
 ## 资源、权限和合并
 

@@ -54,6 +54,8 @@ test('signed/public release entry requires complete validation and remains uncan
   assert.match(source, /cancel-in-progress: false/);
   assert.match(source, /if: needs.prepare.outputs.should_publish == 'true'/);
   assert.doesNotMatch(source, /^\s*(schedule|pull_request_target):/m);
+  assert.match(source, /tags:\s*\n\s+- "v1\.\*"\s*\n\s+- "!v\*-\*"\s*\n\s+- "!v\*\\\\\+\*"/);
+  assert.match(source, /--legacy-publication/);
 });
 
 const mutations = [

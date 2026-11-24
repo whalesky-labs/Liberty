@@ -10,6 +10,14 @@ approve cutover; subsequent scan runs are dated below.
 
 ## Native Migration Candidate
 
+The `2.0.0-alpha.1` preparation targets Native candidate archives and a GitHub
+prerelease with `make_latest=false`. It retains candidate identity and does not
+declare production cutover. The old Tauri publishing workflow accepts only stable
+1.x tags and rejects any 2.x/prerelease manual publication before reserving a
+Release. Alpha notes and asset expectations are in the
+[version notes](../releases/2.0.0-alpha.1.md). Preparation does not itself create a
+tag or publish a Release.
+
 The production entry remains `apps/desktop`. `pnpm native:package` creates an
 unsigned, unnotarized, isolated Go + MyGo candidate for the local host or an
 explicit target. Candidate startup defaults to a separate profile identity;
