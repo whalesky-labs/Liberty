@@ -57,6 +57,20 @@ test('signed/public release entry requires complete validation and remains uncan
   assert.match(source, /tags:\s*\n\s+- "v1\.\*"\s*\n\s+- "!v\*-\*"\s*\n\s+- "!v\*\\\\\+\*"/);
   assert.match(source, /--legacy-publication/);
 });
+test('Native publication validates authorized source and preserves inputs before granting bot writes', () => {
+  const release = workflows['release-native.yml'];
+  assert.deepEqual(Object.keys(release.on), ['workflow_dispatch']);
+  assert.equal(release.concurrency['cancel-in-progress'], false);
+  assert.equal(release.jobs.quality.needs, 'prepare');
+  assert.equal(release.jobs.quality.uses, './.github/workflows/ci-full.yml');
+  assert.equal(release.jobs.quality.with.source_commit, '${{ needs.prepare.outputs.source_commit }}');
+  assert.deepEqual(release.jobs.stage.needs, ['prepare', 'quality']);
+  assert.deepEqual(release.jobs.publish.needs, ['prepare', 'quality', 'stage']);
+  for (const [name, job] of Object.entries(release.jobs)) assert.equal(job.permissions.contents, name === 'publish' ? 'write' : 'read');
+  const publication = release.jobs.publish.steps.find(step => step.run?.endsWith(' publish'));
+  assert.equal(publication.env.GH_TOKEN, '${{ github.token }}');
+  assert.ok(release.jobs.publish.steps.find(step => step.name.startsWith('Download immutable')).with.name.includes('needs.stage.outputs.bundle_attempt'), 'Failed-job retries must download the completed stage attempt');
+});
 
 const mutations = [
   ['quality.yml', 'scheduled full runs', value => { value.on.schedule = [{ cron: '0 0 * * *' }]; }],
@@ -85,6 +99,15 @@ const mutations = [
   ['build-native.yml', 'selected gate used for delivery', value => { value.jobs.quality.uses = './.github/workflows/quality.yml'; }],
   ['build-native.yml', 'build without full gate', value => { value.jobs.build.needs = ['select']; }],
   ['build-native.yml', 'unreviewed publication job', value => { value.jobs.publish = { 'runs-on': 'ubuntu-latest', steps: [{ run: 'gh release create v1.2.3' }] }; }],
+  ['ci-suite.yml', 'mutable publication source accepted', value => { value.jobs.run.steps.find(step => step.name === 'Require immutable validation source').run = 'true'; }],
+  ['release-native.yml', 'automatic Native publication', value => { value.on.push = { branches: ['main'] }; }],
+  ['release-native.yml', 'publication token on read-only stage', value => { value.jobs.stage.permissions.contents = 'write'; }],
+  ['release-native.yml', 'publication without backup stage', value => { value.jobs.publish.needs = ['prepare', 'quality']; }],
+  ['release-native.yml', 'publication without fresh source validation', value => { value.jobs.stage.needs = ['prepare']; }],
+  ['release-native.yml', 'publication of a different validated source', value => { value.jobs.quality.with.source_commit = '${{ github.sha }}'; }],
+  ['release-native.yml', 'publication through a personal token', value => { value.jobs.publish.steps.find(step => step.run?.endsWith(' publish')).env.GH_TOKEN = '${{ secrets.PAT }}'; }],
+  ['release-native.yml', 'interrupted publication cancelled', value => { value.concurrency['cancel-in-progress'] = true; }],
+  ['release-native.yml', 'failed-job retry loses its preserved bundle', value => { value.jobs.publish.steps.find(step => step.name.startsWith('Download immutable')).with.name = 'native-release-bundle-${{ github.run_id }}-${{ github.run_attempt }}'; }],
 ];
 for (const [name, label, change] of mutations) test(`rejects ${label}`, () => {
   const value = structuredClone(workflows[name]); change(value);

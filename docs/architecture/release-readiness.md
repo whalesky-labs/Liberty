@@ -1,6 +1,6 @@
 # Release Readiness
 
-Last verified: 2026-11-23 against the current checkout, root `package.json` scripts and pinned dependency scanners. Security-scan findings below retain their stated scan dates.
+Last verified: 2026-11-24 against the current checkout, root `package.json` scripts and pinned dependency scanners. Security-scan findings below retain their stated scan dates.
 
 Use the [documentation index](../README.md), [development guide](../development.md)
 and [native architecture](native-desktop-architecture.md) for navigation and
@@ -10,13 +10,14 @@ approve cutover; subsequent scan runs are dated below.
 
 ## Native Migration Candidate
 
-The `2.0.0-alpha.1` preparation targets Native candidate archives and a GitHub
+The `2.0.0-alpha.1` release uses Native candidate archives and a GitHub
 prerelease with `make_latest=false`. It retains candidate identity and does not
 declare production cutover. The old Tauri publishing workflow accepts only stable
 1.x tags and rejects any 2.x/prerelease manual publication before reserving a
 Release. Alpha notes and asset expectations are in the
-[version notes](../releases/2.0.0-alpha.1.md). Preparation does not itself create a
-tag or publish a Release.
+[version notes](../releases/2.0.0-alpha.1.md). Building candidates does not itself
+create a tag or publish a Release. The separate `release-native.yml` workflow
+is explicitly dispatched from main and publishes through the Actions bot.
 
 The production entry remains `apps/desktop`. `pnpm native:package` creates an
 unsigned, unnotarized, isolated Go + MyGo candidate for the local host or an
@@ -91,6 +92,17 @@ version check and verifies exact archive contents, manifest, architecture and
 SHA-256 before upload. Ordinary commits do not build candidate archives. Candidate
 jobs have read-only repository permissions; there is no Release publication,
 Git-ref mutation, signing or notarization step.
+The separate `.github/workflows/release-native.yml` checks a successful
+three-platform candidate run and requires its exact source commit to belong
+to main history. It revalidates that source with the complete gate, verifies
+the original artifact ZIP digests and all 13 assembled assets, and preserves
+the bundle before giving only its publish job write permission. The job uses
+`GITHUB_TOKEN`, binds the returned draft ID, rejects asset overwrites, and
+checks all public downloads, the bot author, immutable tag and stable latest.
+The optional exact `replace_release_id` is a deliberate migration of a
+verified manual prerelease to the bot, with original bytes preserved before
+deletion and a new Release ID. It cannot replace a stable release or move a
+tag. See the [transaction and recovery rules](ci-cd.md#native-bot-发布事务).
 `native:security:check`, `native:licenses:check` and `native:sbom:generate` use
 the explicit Native governance mode without Cargo. Complete CI combines shared
 dependency scans while retaining Cargo coverage until the old client's retirement.

@@ -1,6 +1,6 @@
 # CI/CD 操作与检查规则
 
-最后核实：2026-11-23。执行来源为 `.github/workflows/`、`scripts/ci/` 和根 `package.json`。支持 macOS Apple Silicon、macOS Intel、Windows x64；当前 Native 仍为隔离候选，生产切换按[发布要求](release-readiness.md)验收。
+最后核实：2026-11-24。执行来源为 `.github/workflows/`、`scripts/ci/` 和根 `package.json`。支持 macOS Apple Silicon、macOS Intel、Windows x64；当前 Native 仍为隔离候选，生产切换按[发布要求](release-readiness.md)验收。
 
 ## 何时执行
 
@@ -11,6 +11,7 @@
 | 手动 Quality Gate，mode 为 full | 对所选 ref 在触发时解析出的确切 SHA 执行完整验证 |
 | 手动 Quality Gate，mode 为 security | 仅执行真实安全、许可证和 SBOM；结果为 `security-gate`，不能替代 `ci-gate` |
 | 手动 Build Native Candidates | 完整门禁通过后，按选择的一个平台或全部三平台构建并核验候选 |
+| 从 main 手动 Publish Native Prerelease | 选定已成功的三平台候选运行；核实源提交属于 main 历史，重新执行该确切源码的完整门禁，再由 Actions bot 公开预发行 |
 | 稳定 1.x 发行标签或显式旧端生产发布 | 完整门禁后执行现有发布事务，核对版本、提交、Release ID 与资产；2.x/预发布在旧入口拒绝 |
 
 没有 `schedule` 定时任务。工作分支的普通 push 不另跑一次 PR 检查。main 更新不自动发布 Release。
@@ -51,8 +52,9 @@ main 的差异基准为 Quality Gate 最近一次成功 push 的祖先提交，�
 | `ci-suite.yml` | 封闭检查单元的工具链、缓存、执行环境 |
 | `ci-full.yml` | 文档、Go、Python、前端、Rust、策略、兼容、race、矩阵、三平台执行、Windows 专项及供应链完整集合 |
 | `build-native.yml` | 按需完整门禁和候选打包，无签名或公开发布权限 |
+| `release-native.yml` | main 授权、确切源提交全量复核、候选 ZIP 与资产校验、备份、bot 草稿事务和公开下载验证 |
 | `build-desktop.yml` | 临时生产发布事务，强制调用完整门禁；随旧端退役删除 |
-| `pnpm ci:generate` | 从 `scripts/ci/workflows.mjs` 生成四个受控工作流 |
+| `pnpm ci:generate` | 从 `scripts/ci/workflows.mjs` 生成五个受控工作流 |
 | `pnpm ci:check` | 校验封闭工作流契约、分类器与失败阻断回归 |
 | `pnpm ci:docs` | 只检查受 Git 跟踪文档的相对链接与围栏 |
 | `pnpm check` | 开发者主动执行的完整本地质量入口，包含共享 Python 一次、Native、临时旧端、发布和 CI 策略 |
@@ -67,9 +69,26 @@ gh workflow run quality.yml --ref main -f mode=security
 gh workflow run build-native.yml --ref main -f target=windows-x64
 ```
 
-运行均 checkout 触发时的 `github.sha`。执行后核对 run 的 head SHA；不能把另一个提交的成功结论移给当前源码。真实模型下载、受控媒体性能、GUI/IME/读屏、外部服务以及证书与安装事务继续按[开发指南](../development.md)和发布要求单独验收。
+普通检查和候选构建 checkout 触发时的 `github.sha`。Native 发布的授权与事务代码 checkout main 的触发 SHA，完整复核则通过可复用工作流的 `source_commit` 参数 checkout 已授权的 40 位候选源码 SHA；参数为空时仍使用 `github.sha`，非空且不是确切 SHA 时拒绝。因此发布 run 的 head SHA 表示事务代码，不能代替发行源码 SHA；二者分别写入发布结果。真实模型下载、受控媒体性能、GUI/IME/读屏、外部服务以及证书与安装事务继续按[开发指南](../development.md)和发布要求单独验收。
 
-2.x Native alpha 通过手动候选构建入口准备三平台资产，后续 GitHub Release 必须明确设为 prerelease 且不替换 stable latest。旧 Tauri 的标签触发器排除预发布和 build metadata，手动发布另以源码版本拒绝非稳定 1.x，避免将 Native 版本名用于旧端安装包。
+2.x Native 预发行通过手动候选构建入口准备三平台资产，再从 main 手动调用独立发布入口。发布只接受没有 build metadata 的 2.x 预发行源码版本，所有版本文件必须一致；GitHub Release 强制 `prerelease:true` 和 `make_latest:false`。旧 Tauri 的标签触发器排除预发布和 build metadata，手动发布另以源码版本拒绝非稳定 1.x，避免将 Native 版本名用于旧端安装包。
+
+### Native bot 发布事务
+
+先运行三平台候选构建，取得其成功 run ID，再显式发布：
+
+```sh
+gh workflow run build-native.yml --ref main -f target=all
+gh workflow run release-native.yml --ref main -f candidate_run_id=<successful-candidate-run-id>
+```
+
+发布入口检查候选运行的仓库、原工作流、确切源码、全部 15 项检查、`full-gate` 和三个主机候选任务。源码必须在本地和远端 main 历史中。下载原运行的四个 artifact 时核对 GitHub ZIP 大小及 SHA-256，再检查 ZIP 路径、精确文件集合、tar payload、三目标二进制架构、内嵌与外置 manifest、项目许可证和 Go notices。随后组装 13 份资产。格式 2 的统一清单不内嵌 Release ID 或发布尝试时间，便于断点恢复；发布结果和 Release 正文绑定最终 ID。
+
+授权、完整源码复核和准备阶段均只读。准备阶段将所有资产、来源、摘要、发布计划和必要的原发行备份上传为不可变 artifact 后，发布 job 才获得 `contents: write`，并使用 `${{ github.token }}` 创建草稿。API 创建响应中的 ID用于后续全部操作；已有 bot 草稿只复用同提交、同构建和同清单的资产，拒绝覆盖、未知资产或不完整上传。全部上传后的真实字节通过验证后才公开，随后逐一核验无需登录的下载、标签、bot 作者、ID、预发行状态和 stable latest。
+
+已有人工预发行交接给 bot 时，必须显式传入 `replace_release_id=<exact-manual-release-id>`。这会更换 Release ID。只有该 ID 对应的已公开、非 immutable、2.x 预发行及其 13 份公开下载全部匹配候选源码和构建，且原正文与全部旧字节已备份，才删除这个旧 Release；标签不删除或移动。11 份候选归档、平台 manifest、SBOM 和 notices 保持原字节，统一清单与 `SHA256SUMS` 更新为格式 2。普通发布拒绝替换人工 Release，稳定版不能通过该参数交接。
+
+中断后优先对原发布 run 执行 `gh run rerun <publication-run-id> --failed`。publish job 使用已成功 stage 的输出 attempt 获取原 artifact，保留旧备份并只上传缺失资产；即使旧 Release 已删除但创建请求中断，也可从这个原始 bundle 恢复。写入前还会验证全部源码复核任务在 24 小时内成功，且源码的安全例外尚未过期；超过这个时间不能只复用旧门禁，必须先重新完成源码验证。不要用新 dispatch 代替缺失原发行备份的恢复。备份和结果 artifact 保留 14 天，过期后不能声称仍有可用恢复证据。已公开且字节一致的 bot Release 可重复核验，重复运行不覆盖资产。
 
 ## 资源、权限和合并
 
@@ -79,6 +98,6 @@ gh workflow run build-native.yml --ref main -f target=windows-x64
 
 Go race 与跨目标编译使用各自的构建缓存，按工具链、系统、架构、锁和提交区分，并从相同模式恢复。普通 Go 检查先写入依赖缓存时，不会让 race 和跨平台编译一直重复冷构建。
 
-默认权限是 `contents: read`，只有 main 分类的基准查询增加 `actions: read`。Action 使用固定 SHA；安装使用固定工具链和锁文件；生产凭据与数据库不入缓存。候选归档上传前重新验证文件集合、架构、manifest 和 SHA-256，保留 14 天。正式发布的写权限只用于既有发布事务。
+默认权限是 `contents: read`。main 分类的基准查询和 Native 发布的跨运行 artifact 读取增加 `actions: read`；Native 发布只有最后的 publish job 增加 `contents: write`。Action 使用固定 SHA；安装使用固定工具链和锁文件；生产凭据与数据库不入缓存。候选归档上传前重新验证文件集合、架构、manifest 和 SHA-256，保留 14 天。正式发布的写权限限定在受控发布事务。
 
 main 的合并门槛应使用 GitHub Actions 的 `ci-gate`，禁止强推和删除，不用 `security-gate` 或条件性单项检查替代。仓库保护是 GitHub 服务端设置，须单独核实；工作流文件本身不证明保护已经生效。当前规则与实际运行证据记录在[实施记录](../ai/designs/2026-11-23-layered-ci-cd.md#实施与验证记录)。
