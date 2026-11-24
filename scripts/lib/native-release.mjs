@@ -210,6 +210,27 @@ export function releaseMarkers(context, files) {
   return [`<!-- liberty-release-commit:${context.sourceCommit} -->`, `<!-- liberty-native-build-run:${context.candidateRunId} -->`, `<!-- liberty-native-bundle:${fileDigest(files.get('release-manifest.json'))} -->`, ...(context.replaceReleaseId ? [`<!-- liberty-native-replaced-release:${context.replaceReleaseId} -->`] : [])];
 }
 
+export function releaseNotes(changelog, context, files) {
+  assertPrereleaseVersion(context.version);
+  const version = context.version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const heading = new RegExp(`^##[ \\t]+(?:\\[v?${version}\\]|v?${version})(?:[ \\t]+-[ \\t]+[^\\r\\n]*)?[ \\t]*\\r?$`, 'm');
+  const match = changelog.match(heading);
+  assert.ok(match && match.index !== undefined, 'Source changelog lacks the release version');
+  const afterHeading = match.index + match[0].length;
+  const next = changelog.slice(afterHeading).search(/^##[ \t]+/m);
+  const section = changelog.slice(match.index, next < 0 ? undefined : afterHeading + next).trim();
+  assert.ok(section.includes('中文') && section.includes('English'), 'Release changelog must contain both languages');
+  return `${releaseMarkers(context, files).join('\n')}\n\n# Liberty ${context.tag}\n\n` +
+    'Go + MyGo 原生候选，支持 macOS Apple Silicon、macOS Intel 与 Windows x64。三个平台归档均使用独立候选资料目录；首次转写需要安装固定运行时和模型。\n\n' +
+    'Go + MyGo Native candidate for Apple Silicon Macs, Intel Macs and Windows x64. Each archive uses an isolated candidate profile; initial transcription requires the pinned runtime and models.\n\n' +
+    'macOS 解压后打开 `Liberty Native Candidate.app`，Windows 解压后运行 `Liberty Native Candidate.exe`。请依据 `SHA256SUMS` 校验下载。\n\n' +
+    'On macOS, extract and open `Liberty Native Candidate.app`. On Windows, extract and run `Liberty Native Candidate.exe`. Verify downloads against `SHA256SUMS`.\n\n' +
+    '本次为未签名、未公证的预发行候选，不替换稳定版 latest。GUI、输入法、无障碍、跨设备 ASR 与安装升级回退仍需独立验收；安全扫描使用现行例外策略，不能解释为零漏洞或生产切换。\n\n' +
+    'This unsigned, unnotarized prerelease retains stable latest. GUI, IME, accessibility, cross-device ASR and installation upgrade/rollback still require separate acceptance. Security scans use the current exception policy and do not establish zero vulnerabilities or production cutover.\n\n' +
+    `[候选构建 / Candidate build](https://github.com/${context.repository}/actions/runs/${context.candidateRunId}) · [源码 / Source](https://github.com/${context.repository}/commit/${context.sourceCommit})\n\n` +
+    section.replaceAll('](docs/architecture/', `](https://github.com/${context.repository}/blob/${context.sourceCommit}/docs/architecture/`) + '\n';
+}
+
 function assertBotRelease(release, context, files) {
   assert.equal(release.tag_name, context.tag);
   assert.equal(release.target_commitish, context.sourceCommit);
