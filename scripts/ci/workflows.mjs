@@ -39,6 +39,7 @@ export const actions = Object.freeze({
   rustCache: 'swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae',
   cache: 'actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830',
   upload: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+  download: 'actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131',
 });
 const checkout = (deep = false) => ({ name: 'Checkout exact source', uses: actions.checkout, with: { ref: '${{ github.sha }}', 'persist-credentials': false, ...(deep ? { 'fetch-depth': 0 } : {}) } });
 const node = () => ({ name: 'Setup Node', uses: actions.node, with: { 'node-version': 24 } });
@@ -89,21 +90,22 @@ export const workflows = {
     },
   },
   'ci-full.yml': {
-    name: 'Complete Validation', on: { workflow_call: null, workflow_dispatch: null }, permissions: readonly,
+    name: 'Complete Validation', on: { workflow_call: { inputs: { source_commit: { description: 'Optional exact source SHA for main-authorized publication', type: 'string', required: false, default: '' } } }, workflow_dispatch: null }, permissions: readonly,
     jobs: {
-      checks: { name: 'Full (${{ matrix.suite }})', strategy: { 'fail-fast': false, matrix: { suite: [...fullSuites] } }, uses: './.github/workflows/ci-suite.yml', with: { suite: '${{ matrix.suite }}' }, permissions: readonly },
+      checks: { name: 'Full (${{ matrix.suite }})', strategy: { 'fail-fast': false, matrix: { suite: [...fullSuites] } }, uses: './.github/workflows/ci-suite.yml', with: { suite: '${{ matrix.suite }}', source_commit: '${{ inputs.source_commit }}' }, permissions: readonly },
       gate: { name: 'full-gate', if: '${{ always() }}', needs: 'checks', 'runs-on': 'ubuntu-22.04', 'timeout-minutes': 5,
         steps: [{ name: 'Require all tests and security', shell: 'bash', env: { CHECKS_RESULT: '${{ needs.checks.result }}' }, run: 'test "$CHECKS_RESULT" = success' }] },
     },
   },
   'ci-suite.yml': {
-    name: 'Validation Suite', on: { workflow_call: { inputs: { suite: { description: 'Closed validation suite identifier', required: true, type: 'string' } } } }, permissions: readonly, env: environment,
+    name: 'Validation Suite', on: { workflow_call: { inputs: { suite: { description: 'Closed validation suite identifier', required: true, type: 'string' }, source_commit: { description: 'Optional exact source SHA', required: false, type: 'string', default: '' } } } }, permissions: readonly, env: environment,
     jobs: {
       run: {
         name: '${{ inputs.suite }}',
         'runs-on': "${{ inputs.suite == 'target-arm' && 'macos-latest' || inputs.suite == 'target-intel' && 'macos-15-intel' || startsWith(inputs.suite, 'windows-') && 'windows-2022' || inputs.suite == 'target-windows' && 'windows-2022' || 'ubuntu-22.04' }}",
         'timeout-minutes': 60,
-        steps: [checkout(), node(),
+        steps: [{ ...checkout(), with: { ref: '${{ inputs.source_commit || github.sha }}', 'persist-credentials': false } },
+          { name: 'Require immutable validation source', shell: 'bash', env: { LIBERTY_SOURCE_COMMIT: '${{ inputs.source_commit }}' }, run: 'test -z "$LIBERTY_SOURCE_COMMIT" || [[ "$LIBERTY_SOURCE_COMMIT" =~ ^[a-f0-9]{40}$ ]]' }, node(),
           { ...go(), if: only(['native', 'policy', 'compat', 'race', 'matrix', 'target-arm', 'target-intel', 'target-windows', 'security']) },
           { name: 'Locate specialized Go build cache', id: 'go-build-cache', if: only(['race', 'matrix']), shell: 'bash', run: `node --input-type=module <<'JS'
 import { execFileSync } from 'node:child_process';
@@ -154,6 +156,46 @@ JS` }] },
           { name: 'Package and execute extracted candidate', shell: 'bash', env: { NATIVE_TARGET: '${{ matrix.target }}' }, run: 'node scripts/package-native.mjs --target "$NATIVE_TARGET" --verify-host' },
           { name: 'Verify exact archive, manifest and checksums', shell: 'bash', env: { NATIVE_TARGET: '${{ matrix.target }}', NATIVE_COMMIT: '${{ github.sha }}' }, run: 'node scripts/check-native-release-policy.mjs verify-artifacts --target "$NATIVE_TARGET" --commit "$NATIVE_COMMIT" --output "artifacts/native/$NATIVE_TARGET"' },
           { name: 'Upload verified unsigned candidate', uses: actions.upload, with: { name: 'liberty-native-candidate-${{ matrix.target }}-${{ github.sha }}', path: 'artifacts/native/${{ matrix.target }}/', 'if-no-files-found': 'error', 'retention-days': 14 } },
+        ],
+      },
+    },
+  },
+  'release-native.yml': {
+    name: 'Publish Native Prerelease',
+    on: { workflow_dispatch: { inputs: {
+      candidate_run_id: { description: 'Successful three-platform Build Native Candidates run ID', type: 'string', required: true },
+      replace_release_id: { description: 'Optional exact manual prerelease ID to migrate to the bot; changes Release ID', type: 'string', required: false, default: '' },
+    } } },
+    permissions: readonly,
+    env: { FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true },
+    concurrency: { group: 'native-release', 'cancel-in-progress': false },
+    jobs: {
+      prepare: {
+        name: 'Authorize exact main source', 'runs-on': 'ubuntu-22.04', 'timeout-minutes': 5,
+        permissions: { contents: 'read', actions: 'read' },
+        outputs: { source_commit: '${{ steps.source.outputs.source_commit }}' },
+        steps: [checkout(true), node(), { name: 'Validate source, version and successful candidate run', id: 'source', env: { GH_TOKEN: '${{ github.token }}', NATIVE_CANDIDATE_RUN_ID: '${{ inputs.candidate_run_id }}', NATIVE_REPLACE_RELEASE_ID: '${{ inputs.replace_release_id }}' }, run: 'node scripts/publish-native-release.mjs prepare' }],
+      },
+      quality: {
+        name: 'Required source validation', needs: 'prepare', uses: './.github/workflows/ci-full.yml',
+        with: { source_commit: '${{ needs.prepare.outputs.source_commit }}' }, permissions: readonly,
+      },
+      stage: {
+        name: 'Verify and preserve release inputs', needs: ['prepare', 'quality'], 'runs-on': 'ubuntu-22.04', 'timeout-minutes': 30,
+        permissions: { contents: 'read', actions: 'read' },
+        outputs: { bundle_attempt: '${{ steps.bundle.outputs.bundle_attempt }}' },
+        steps: [checkout(true), node(),
+          { name: 'Authenticate artifacts and stage complete release', id: 'bundle', env: { GH_TOKEN: '${{ github.token }}', NATIVE_CANDIDATE_RUN_ID: '${{ inputs.candidate_run_id }}', NATIVE_REPLACE_RELEASE_ID: '${{ inputs.replace_release_id }}', NATIVE_EXPECTED_SOURCE_COMMIT: '${{ needs.prepare.outputs.source_commit }}' }, run: 'node scripts/publish-native-release.mjs stage' },
+          { name: 'Preserve verified bundle and any previous release before writes', uses: actions.upload, with: { name: 'native-release-bundle-${{ github.run_id }}-${{ github.run_attempt }}', path: 'artifacts/native-release/', 'if-no-files-found': 'error', 'retention-days': 14 } },
+        ],
+      },
+      publish: {
+        name: 'Publish verified prerelease as bot', needs: ['prepare', 'quality', 'stage'], 'runs-on': 'ubuntu-22.04', 'timeout-minutes': 30,
+        permissions: { contents: 'write', actions: 'read' },
+        steps: [checkout(true), node(),
+          { name: 'Download immutable verified release bundle', uses: actions.download, with: { name: 'native-release-bundle-${{ github.run_id }}-${{ needs.stage.outputs.bundle_attempt }}', path: 'artifacts/native-release/' } },
+          { name: 'Create or resume exact bot draft, verify downloads and publish', env: { GH_TOKEN: '${{ github.token }}', NATIVE_CANDIDATE_RUN_ID: '${{ inputs.candidate_run_id }}', NATIVE_REPLACE_RELEASE_ID: '${{ inputs.replace_release_id }}', NATIVE_EXPECTED_SOURCE_COMMIT: '${{ needs.prepare.outputs.source_commit }}' }, run: 'node scripts/publish-native-release.mjs publish' },
+          { name: 'Archive exact publication result', if: '${{ always() }}', uses: actions.upload, with: { name: 'native-publication-${{ github.run_id }}-${{ github.run_attempt }}', path: 'artifacts/native-publication.json', 'if-no-files-found': 'error', 'retention-days': 14 } },
         ],
       },
     },

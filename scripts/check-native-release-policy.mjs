@@ -14,6 +14,30 @@ export function assertNativeWorkflow(source) {
   return assertWorkflow('build-native.yml', source);
 }
 
+// Shared by local packaging and the independent Release assembler. All callers
+// verify source provenance separately; this check authenticates payload bytes.
+export function assertNativeCandidatePayload({ files, version, target }) {
+  const manifest = JSON.parse(files.get('candidate-manifest.json')?.toString() ?? 'null');
+  assertCandidateManifest(manifest);
+  assertNativeVersion(version, [manifest.version]);
+  if (manifest.target !== target || manifest.defaultRuntimeProfile !== 'production' || JSON.stringify(manifest.availableRuntimeProfiles) !== '["production"]') throw new Error('Candidate target or runtime profile differs');
+  sameSet(Object.keys(manifest), ['format', 'channel', 'identity', 'version', 'target', 'productionReady', 'signed', 'notarized', 'defaultRuntimeProfile', 'availableRuntimeProfiles', 'files']);
+  const mac = nativeTargets[target].os === 'darwin';
+  const resources = mac ? `${candidateName}.app/Contents/Resources/` : '';
+  const binary = mac ? `${candidateName}.app/Contents/MacOS/liberty-native` : `${candidateName}.exe`;
+  const required = [binary, 'README.txt', `${resources}LICENSE`, `${resources}THIRD_PARTY_NOTICES.txt`, `${resources}${mac ? 'icon.icns' : 'icon.ico'}`, ...(mac ? [`${candidateName}.app/Contents/Info.plist`] : [])];
+  sameSet(manifest.files.map(file => file.path), required);
+  sameSet(files.keys(), [...required, 'candidate-manifest.json']);
+  for (const file of manifest.files) {
+    sameSet(Object.keys(file), ['path', 'bytes', 'sha256']);
+    const bytes = files.get(file.path);
+    if (bytes.length !== file.bytes || fileDigest(bytes) !== file.sha256) throw new Error('Candidate payload integrity failed');
+  }
+  assertNativeBinary(files.get(binary), target);
+  if (mac && files.get(`${candidateName}.app/Contents/Info.plist`).toString() !== candidatePlist(version)) throw new Error('Candidate bundle identity differs');
+  return { manifest, resources };
+}
+
 const safePath = name => typeof name === 'string' && name && !/[\\:\x00]/.test(name) && !name.startsWith('/') && name.split('/').every(part => part && part !== '.' && part !== '..');
 const sameSet = (actual, expected) => assert.deepEqual([...actual].sort(), [...expected].sort(), 'Candidate file set differs');
 
@@ -144,24 +168,7 @@ export async function verifyNativeArtifacts({ rootDirectory = root, target, comm
   }
   const files = await regularFiles(path.join(parent, name));
   const manifestBytes = files.get('candidate-manifest.json');
-  const manifest = JSON.parse(manifestBytes?.toString() ?? 'null');
-  assertCandidateManifest(manifest);
-  assertNativeVersion(version, [manifest.version]);
-  if (manifest.target !== target || manifest.defaultRuntimeProfile !== 'production' || JSON.stringify(manifest.availableRuntimeProfiles) !== '["production"]') throw new Error('Candidate target or runtime profile differs');
-  sameSet(Object.keys(manifest), ['format', 'channel', 'identity', 'version', 'target', 'productionReady', 'signed', 'notarized', 'defaultRuntimeProfile', 'availableRuntimeProfiles', 'files']);
-  const mac = nativeTargets[target].os === 'darwin';
-  const resources = mac ? `${candidateName}.app/Contents/Resources/` : '';
-  const binary = mac ? `${candidateName}.app/Contents/MacOS/liberty-native` : `${candidateName}.exe`;
-  const required = [binary, 'README.txt', `${resources}LICENSE`, `${resources}THIRD_PARTY_NOTICES.txt`, `${resources}${mac ? 'icon.icns' : 'icon.ico'}`, ...(mac ? [`${candidateName}.app/Contents/Info.plist`] : [])];
-  sameSet(manifest.files.map(file => file.path), required);
-  sameSet(files.keys(), [...required, 'candidate-manifest.json']);
-  for (const file of manifest.files) {
-    sameSet(Object.keys(file), ['path', 'bytes', 'sha256']);
-    const bytes = files.get(file.path);
-    if (bytes.length !== file.bytes || fileDigest(bytes) !== file.sha256) throw new Error('Candidate payload integrity failed');
-  }
-  assertNativeBinary(files.get(binary), target);
-  if (mac && files.get(`${candidateName}.app/Contents/Info.plist`).toString() !== candidatePlist(version)) throw new Error('Candidate bundle identity differs');
+  assertNativeCandidatePayload({ files, version, target });
   const archiveName = `${name}.tar.gz`;
   const archive = await readFile(path.join(parent, archiveName));
   if ((await readFile(path.join(parent, 'SHA256SUMS'), 'utf8')) !== `${fileDigest(archive)}  ${archiveName}\n`) throw new Error('Candidate archive checksum differs');

@@ -2,6 +2,12 @@
 name: "Complete Validation"
 on:
   workflow_call:
+    inputs:
+      source_commit:
+        description: "Optional exact source SHA for main-authorized publication"
+        type: "string"
+        required: false
+        default: ""
   workflow_dispatch:
 permissions:
   contents: "read"
@@ -30,6 +36,7 @@ jobs:
     uses: "./.github/workflows/ci-suite.yml"
     with:
       suite: "${{ matrix.suite }}"
+      source_commit: "${{ inputs.source_commit }}"
     permissions:
       contents: "read"
   gate:
