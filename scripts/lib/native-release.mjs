@@ -91,8 +91,52 @@ export async function latestAttemptJobs(api, runId, attempt) {
   return [...latest.values()];
 }
 
+export function assertRecoveryRun(run, jobs, repository, runId) {
+  assert.equal(run?.id, positiveId(runId), 'Recovery run differs');
+  assert.equal(run.repository?.full_name, repository, 'Recovery repository differs');
+  assert.equal(run.head_repository?.full_name, repository, 'Fork recovery is forbidden');
+  assert.equal(run.path, '.github/workflows/release-native.yml', 'Recovery must use the Native publisher');
+  assert.equal(run.event, 'workflow_dispatch');
+  assert.equal(run.head_branch, 'main', 'Recovery must originate from main');
+  assert.equal(run.status, 'completed', 'Recovery run is still active');
+  sha(run.head_sha);
+  positiveId(run.run_attempt);
+  assertFreshSourceValidation(jobs);
+  const stages = jobs.filter(job => job.name === 'Verify and preserve release inputs');
+  assert.equal(stages.length, 1, 'Exact recovery stage is missing or duplicated');
+  assert.ok(stages[0].status === 'completed' && stages[0].conclusion === 'success', 'Recovery bundle was not successfully preserved');
+  const bundleAttempt = positiveId(stages[0].run_attempt);
+  assert.ok(bundleAttempt <= run.run_attempt, 'Recovery stage attempt differs');
+  return { workflowSourceCommit: run.head_sha, bundleAttempt };
+}
+
 export function releaseAssetNames(version) {
   return [...releaseTargets.flatMap(target => [`liberty-native-candidate-${version}-${target}.tar.gz`, `candidate-manifest-${target}.json`, `native-build-manifest-${target}.json`]), 'liberty-native.cdx.json', 'native-go-NOTICES.txt', 'release-manifest.json', 'SHA256SUMS'].sort();
+}
+
+export function recoveryBundleNames(version) {
+  return [...releaseAssetNames(version).map(name => `assets/${name}`), 'plan.json', 'notes.md', 'previous/release.json', 'previous/release-manifest.json', 'previous/SHA256SUMS'].sort();
+}
+
+export function restoreReleaseBackup(bundle, currentFiles, context, workflowSourceCommit) {
+  sameNames(bundle.keys(), recoveryBundleNames(context.version));
+  positiveId(context.recoveryRunId);
+  positiveId(context.replaceReleaseId);
+  const plan = JSON.parse(bundle.get('plan.json'));
+  assert.equal(plan.publicationRunId, context.recoveryRunId, 'Recovery publication ID differs');
+  assert.equal(plan.workflowSourceCommit, workflowSourceCommit, 'Recovery workflow source differs');
+  assert.equal(plan.hasPreviousRelease, true, 'Recovery lacks an original release backup');
+  for (const key of ['repository', 'sourceCommit', 'version', 'tag', 'candidateRunId', 'candidateRunAttempt', 'replaceReleaseId']) assert.equal(plan[key], context[key], `Recovery plan differs: ${key}`);
+  assert.deepEqual(plan.artifacts, context.artifacts, 'Recovery candidate artifact identities differ');
+  const files = new Map(releaseAssetNames(context.version).map(name => [name, bundle.get(`assets/${name}`)]));
+  assert.deepEqual(verifyReleaseBundle(files, context), plan.assets);
+  for (const [name, bytes] of files) assert.ok(bytes.equals(currentFiles.get(name)), `Recovery asset differs: ${name}`);
+  assert.ok(releaseMarkers(context, files).every(marker => bundle.get('notes.md').toString().includes(marker)), 'Recovery notes do not bind the original inputs');
+  const previousRelease = JSON.parse(bundle.get('previous/release.json'));
+  const previousFiles = new Map(files);
+  for (const name of ['release-manifest.json', 'SHA256SUMS']) previousFiles.set(name, bundle.get(`previous/${name}`));
+  verifyPreviousRelease(previousRelease, previousFiles, currentFiles, context);
+  return { previousRelease, previousFiles };
 }
 
 export function verifyReleasePayload(files, { version, sourceCommit, license }) {
@@ -233,7 +277,7 @@ export function releaseNotes(changelog, context, files) {
 
 function assertBotRelease(release, context, files) {
   assert.equal(release.tag_name, context.tag);
-  assert.equal(release.target_commitish, context.sourceCommit);
+  assert.ok([context.sourceCommit, 'main'].includes(release.target_commitish), 'Release creation target differs');
   assert.equal(release.name, `Liberty ${context.tag}`);
   assert.equal(release.prerelease, true);
   assert.equal(release.author?.login, 'github-actions[bot]', 'Publication must use the GitHub Actions bot token');
@@ -298,7 +342,9 @@ export async function publishRelease({ api, context, files, previousRelease = nu
     assert.equal(tagCommit, context.sourceCommit);
   }
   if (!release) {
-    release = await api.json('releases', { method: 'POST', body: { tag_name: context.tag, target_commitish: context.sourceCommit, name: `Liberty ${context.tag}`, body: notes, draft: true, prerelease: true, make_latest: 'false' } });
+    // Existing tags define the immutable source. Their creation target is unused;
+    // main avoids GitHub's workflow-write check on historical target commits.
+    release = await api.json('releases', { method: 'POST', body: { tag_name: context.tag, target_commitish: tagCommit ? 'main' : context.sourceCommit, name: `Liberty ${context.tag}`, body: notes, draft: true, prerelease: true, make_latest: 'false' } });
     assertBotRelease(release, context, files);
     assert.equal(release.draft, true);
     await record({ status: 'draft', releaseId: release.id, previousReleaseId: context.replaceReleaseId ?? null });
@@ -341,7 +387,7 @@ export async function publishRelease({ api, context, files, previousRelease = nu
     assert.deepEqual(stableIdentity(await api.json('releases/latest')), context.stableLatest);
     // Include all identity fields on every PATCH: an omitted tag_name can cause
     // GitHub to assign a temporary untagged identity to a draft.
-    await api.json(`releases/${releaseId}`, { method: 'PATCH', body: { tag_name: context.tag, target_commitish: context.sourceCommit, name: `Liberty ${context.tag}`, body: `${notes}\n\nRelease ID: \`${releaseId}\` · Source commit: \`${context.sourceCommit}\` · Assets: **13**.\n`, draft: false, prerelease: true, make_latest: 'false' } });
+    await api.json(`releases/${releaseId}`, { method: 'PATCH', body: { tag_name: context.tag, target_commitish: beforePublishTag ? 'main' : context.sourceCommit, name: `Liberty ${context.tag}`, body: `${notes}\n\nRelease ID: \`${releaseId}\` · Source commit: \`${context.sourceCommit}\` · Assets: **13**.\n`, draft: false, prerelease: true, make_latest: 'false' } });
     release = await inspect(true, false);
     assert.ok(release.published_at);
   }
@@ -351,7 +397,7 @@ export async function publishRelease({ api, context, files, previousRelease = nu
     const bytes = await api.asset(asset, false);
     assert.ok(bytes.equals(files.get(asset.name)), `Public download differs: ${asset.name}`);
   }
-  const result = { status: 'published', repository: context.repository, tag: context.tag, sourceCommit: context.sourceCommit, workflowSourceCommit: context.workflowSourceCommit, releaseId, previousReleaseId: context.replaceReleaseId ?? null, publisher: release.author.login, draft: false, prerelease: true, stableLatest: context.stableLatest, candidateRunId: context.candidateRunId, assetCount: assets.length, publicDownloadsVerified: true, assets: release.assets.map(({ id, name, size, digest }) => ({ id, name, size, digest })) };
+  const result = { status: 'published', repository: context.repository, tag: context.tag, sourceCommit: context.sourceCommit, workflowSourceCommit: context.workflowSourceCommit, recoveryRunId: context.recoveryRunId ?? null, releaseId, previousReleaseId: context.replaceReleaseId ?? null, publisher: release.author.login, draft: false, prerelease: true, stableLatest: context.stableLatest, candidateRunId: context.candidateRunId, assetCount: assets.length, publicDownloadsVerified: true, assets: release.assets.map(({ id, name, size, digest }) => ({ id, name, size, digest })) };
   await record(result);
   return result;
 }

@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { candidateIdentity, candidateName, candidatePlist, fileDigest, nativeTargets } from './lib/native-package.mjs';
-import { assembleRelease, assertCandidateRun, assertFreshSourceValidation, assertMainPublication, assertPrereleaseVersion, assertWorkflowArtifacts, checksums, describe, jsonBytes, latestAttemptJobs, positiveId, publishRelease, releaseAssetNames, releaseMarkers, releaseNotes, releaseTargets, resolveTag, verifyReleaseBundle } from './lib/native-release.mjs';
+import { assembleRelease, assertCandidateRun, assertFreshSourceValidation, assertMainPublication, assertPrereleaseVersion, assertRecoveryRun, assertWorkflowArtifacts, checksums, describe, jsonBytes, latestAttemptJobs, positiveId, publishRelease, recoveryBundleNames, releaseAssetNames, releaseMarkers, releaseNotes, releaseTargets, resolveTag, restoreReleaseBackup, verifyReleaseBundle } from './lib/native-release.mjs';
 import { extractWorkflowZip, GitHubReleaseClient } from './publish-native-release.mjs';
 import { fullSuites } from './ci/plan.mjs';
 
@@ -147,6 +147,21 @@ class FakeGitHub {
 
 const publish = (f, api, more = {}) => publishRelease({ api, context: f.context, files: f.files, notes: f.notes, ...more });
 
+function recoveryFixture() {
+  const f = fixture();
+  const api = new FakeGitHub(f);
+  const previous = api.addManual(f);
+  const oldContext = { ...f.context };
+  const bundle = new Map([...f.files].map(([name, bytes]) => [`assets/${name}`, bytes]));
+  bundle.set('plan.json', jsonBytes({ ...oldContext, assets: verifyReleaseBundle(f.files, f.context), hasPreviousRelease: true }));
+  bundle.set('notes.md', Buffer.from(f.notes));
+  bundle.set('previous/release.json', jsonBytes(previous.previousRelease));
+  for (const name of ['release-manifest.json', 'SHA256SUMS']) bundle.set(`previous/${name}`, previous.previousFiles.get(name));
+  f.context = { ...f.context, recoveryRunId: oldContext.publicationRunId, publicationRunId: 789, workflowSourceCommit: 'c'.repeat(40) };
+  api.releases = [];
+  return { f, api, previous, oldContext, bundle };
+}
+
 test('publication dispatch requires Actions, explicit main, exact SHA and valid IDs', () => {
   assertMainPublication(environment);
   for (const [key, value] of [['GITHUB_ACTIONS', 'false'], ['GITHUB_REF', 'refs/tags/v2.0.0-alpha.1'], ['GITHUB_REF', 'refs/heads/other'], ['GITHUB_EVENT_NAME', 'pull_request'], ['GITHUB_SHA', 'main'], ['GITHUB_RUN_ID', '0'], ['GITHUB_REPOSITORY', '../other']]) assert.throws(() => assertMainPublication({ ...environment, [key]: value }));
@@ -191,6 +206,64 @@ test('failed-job retries preserve prior successful gates but supersede an older 
   assert.equal(jobs.find(job => job.name === 'publish').conclusion, 'success');
   api.list = async () => [{ name: 'same' }, { name: 'same' }];
   await assert.rejects(latestAttemptJobs(api, 123, 1), /Duplicate/);
+});
+
+test('recovery requires an exact completed main publication with fresh source gates and a preserved stage', () => {
+  const { run } = runFixture();
+  Object.assign(run, { id: 456, head_sha: 'b'.repeat(40), path: '.github/workflows/release-native.yml', head_branch: 'main', conclusion: 'failure', run_attempt: 2 });
+  const completed_at = new Date(Date.now() - 60_000).toISOString();
+  const names = ['Required source validation / full-gate', ...fullSuites.map(suite => `Required source validation / Full (${suite}) / ${suite}`)];
+  const jobs = [...names.map(name => ({ name, status: 'completed', conclusion: 'success', completed_at })), { name: 'Verify and preserve release inputs', status: 'completed', conclusion: 'success', run_attempt: 1 }];
+  assert.deepEqual(assertRecoveryRun(run, jobs, repository, 456), { workflowSourceCommit: run.head_sha, bundleAttempt: 1 });
+  for (const mutate of [value => { value.id = 457; }, value => { value.head_repository.full_name = 'other/fork'; }, value => { value.head_branch = 'other'; }, value => { value.path = '.github/workflows/build-native.yml'; }, value => { value.status = 'in_progress'; }]) {
+    const changed = structuredClone(run); mutate(changed);
+    assert.throws(() => assertRecoveryRun(changed, jobs, repository, 456));
+  }
+  for (const mutate of [value => { value.pop(); }, value => { value.at(-1).conclusion = 'failure'; }, value => { value.at(-1).run_attempt = 3; }, value => { value[0].conclusion = 'skipped'; }, value => { value[0].completed_at = '2020-01-01T00:00:00Z'; }]) {
+    const changed = structuredClone(jobs); mutate(changed);
+    assert.throws(() => assertRecoveryRun(run, changed, repository, 456));
+  }
+});
+
+test('new main publication imports the exact old backup and restores the deleted release as bot', async () => {
+  const { f, api, previous, oldContext, bundle } = recoveryFixture();
+  assert.deepEqual([...bundle.keys()].sort(), recoveryBundleNames(version));
+  const restored = restoreReleaseBackup(bundle, f.files, f.context, oldContext.workflowSourceCommit);
+  assert.deepEqual(restored.previousRelease, previous.previousRelease);
+  for (const [name, bytes] of previous.previousFiles) assert.ok(bytes.equals(restored.previousFiles.get(name)));
+  const originalJson = api.json.bind(api);
+  api.json = async (endpoint, options) => {
+    if (options?.method === 'POST') assert.equal(options.body.target_commitish, 'main', 'Historical creation targets require a different GitHub permission');
+    return originalJson(endpoint, options);
+  };
+  const result = await publish(f, api, restored);
+  assert.equal(result.publisher, 'github-actions[bot]');
+  assert.equal(result.recoveryRunId, oldContext.publicationRunId);
+  assert.equal(api.tagCommit, sourceCommit);
+  assert.equal(api.releases[0].target_commitish, 'main');
+  assert.equal(api.mutations.filter(item => item.method === 'DELETE').length, 0);
+});
+
+for (const [label, mutate] of [
+  ['publication ID', value => { value.publicationRunId = 457; }],
+  ['workflow source', value => { value.workflowSourceCommit = 'd'.repeat(40); }],
+  ['candidate run', value => { value.candidateRunId = 124; }],
+  ['source commit', value => { value.sourceCommit = 'e'.repeat(40); }],
+  ['original Release ID', value => { value.replaceReleaseId = 98; }],
+  ['missing original backup', value => { value.hasPreviousRelease = false; }],
+  ['candidate artifact proof', value => { value.artifacts[0].digest = 'sha256:' + 'e'.repeat(64); }],
+]) test(`recovery refuses a different ${label}`, () => {
+  const { f, oldContext, bundle } = recoveryFixture();
+  const plan = JSON.parse(bundle.get('plan.json')); mutate(plan);
+  bundle.set('plan.json', jsonBytes(plan));
+  assert.throws(() => restoreReleaseBackup(bundle, f.files, f.context, oldContext.workflowSourceCommit));
+});
+
+test('recovery refuses missing or modified original bytes and unknown files', () => {
+  for (const mutate of [value => { value.delete('previous/SHA256SUMS'); }, value => { value.set('previous/SHA256SUMS', Buffer.from('Corrupt original checksums')); }, value => { value.set('assets/native-go-NOTICES.txt', Buffer.from('Corrupt notices')); }, value => { value.set('unknown.txt', Buffer.from('Unexpected file')); }]) {
+    const { f, oldContext, bundle } = recoveryFixture(); mutate(bundle);
+    assert.throws(() => restoreReleaseBackup(bundle, f.files, f.context, oldContext.workflowSourceCommit));
+  }
 });
 
 test('three independent archives assemble into thirteen portable verified assets', () => {
@@ -454,6 +527,21 @@ test('artifact downloads still reject a different archive size or digest', async
   const api = new GitHubReleaseClient(repository, 'synthetic-auth');
   await assert.rejects(api.artifact({ id: 42, size_in_bytes: bytes.length + 1, digest: `sha256:${fileDigest(bytes)}` }), /ZIP size differs/);
   await assert.rejects(api.artifact({ id: 42, size_in_bytes: bytes.length, digest: `sha256:${fileDigest(Buffer.from('Different archive bytes'))}` }), /ZIP checksum differs/);
+});
+
+test('API rejection reports the reason and redacts the credential', async context => {
+  context.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ message: 'Resource not accessible by integration: synthetic-auth\n' }), { status: 403 }));
+  const api = new GitHubReleaseClient(repository, 'synthetic-auth');
+  await assert.rejects(api.json('releases'), error => error.message.includes('403: Resource not accessible by integration: [redacted]') && !error.message.includes('synthetic-auth') && !error.message.includes('\n'));
+});
+
+test('recovery ZIP permits only explicit safe nested paths while flat artifacts remain flat', async context => {
+  const names = ['assets/synthetic.txt', 'previous/release.json', 'plan.json'];
+  const bytes = await zipFixture(context, names);
+  assert.deepEqual([...(await extractWorkflowZip(bytes, names, { nested: true })).keys()], names);
+  await assert.rejects(extractWorkflowZip(bytes, names));
+  for (const name of ['assets/../outside', '/absolute', 'assets//file', 'assets/./file']) await assert.rejects(extractWorkflowZip(await zipFixture(context, [name]), [name], { nested: true }));
+  await assert.rejects(extractWorkflowZip(await zipFixture(context, ['assets/link'], true), ['assets/link'], { nested: true }));
 });
 
 test('workflow ZIP extraction verifies exact entries and rejects traversal, links and duplicates', async context => {
