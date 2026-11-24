@@ -7,7 +7,7 @@ import test from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { candidateIdentity, candidateName, candidatePlist, fileDigest, nativeTargets } from './lib/native-package.mjs';
 import { assembleRelease, assertCandidateRun, assertFreshSourceValidation, assertMainPublication, assertPrereleaseVersion, assertWorkflowArtifacts, checksums, describe, jsonBytes, latestAttemptJobs, positiveId, publishRelease, releaseAssetNames, releaseMarkers, releaseTargets, resolveTag, verifyReleaseBundle } from './lib/native-release.mjs';
-import { extractWorkflowZip } from './publish-native-release.mjs';
+import { extractWorkflowZip, GitHubReleaseClient } from './publish-native-release.mjs';
 import { fullSuites } from './ci/plan.mjs';
 
 const version = '2.0.0-alpha.1';
@@ -375,6 +375,48 @@ with zipfile.ZipFile(sys.argv[1], 'w') as archive:
         archive.writestr(entry, b'Synthetic artifact bytes')`, output, JSON.stringify(names), String(symlink)], { stdio: ['ignore', 'pipe', 'pipe'] });
   return readFile(output);
 }
+
+test('Actions artifact downloads negotiate the JSON API and return the verified ZIP', async context => {
+  const bytes = await zipFixture(context, ['candidate-manifest.json']);
+  context.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(url, `https://api.github.com/repos/${repository}/actions/artifacts/42/zip`);
+    // The Actions REST endpoint rejects octet-stream negotiation with HTTP 415,
+    // even though its successful redirect returns binary archive bytes.
+    if (options.headers.Accept !== 'application/vnd.github+json') return new Response(null, { status: 415 });
+    return new Response(bytes, { headers: { 'Content-Type': 'application/zip' } });
+  });
+  const api = new GitHubReleaseClient(repository, 'synthetic-auth');
+  const archive = await api.artifact({ id: 42, size_in_bytes: bytes.length, digest: `sha256:${fileDigest(bytes)}` });
+  assert.ok(archive.equals(bytes));
+  const files = await extractWorkflowZip(archive, ['candidate-manifest.json']);
+  assert.equal(files.get('candidate-manifest.json').toString(), 'Synthetic artifact bytes');
+});
+
+test('release asset downloads retain octet-stream negotiation and public reads omit credentials', async context => {
+  const bytes = Buffer.from('Synthetic release asset bytes');
+  const asset = { id: 42, name: 'synthetic.txt', browser_download_url: `https://github.com/${repository}/releases/download/${tag}/synthetic.txt` };
+  const requests = [];
+  context.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(options.headers.Accept, 'application/octet-stream');
+    requests.push({ url: String(url), authenticated: Object.hasOwn(options.headers, 'Authorization') });
+    return new Response(bytes);
+  });
+  const api = new GitHubReleaseClient(repository, 'synthetic-auth');
+  assert.ok((await api.asset(asset, true)).equals(bytes));
+  assert.ok((await api.asset(asset, false)).equals(bytes));
+  assert.deepEqual(requests, [
+    { url: `https://api.github.com/repos/${repository}/releases/assets/42`, authenticated: true },
+    { url: asset.browser_download_url, authenticated: false },
+  ]);
+});
+
+test('artifact downloads still reject a different archive size or digest', async context => {
+  const bytes = Buffer.from('Synthetic archive bytes');
+  context.mock.method(globalThis, 'fetch', async () => new Response(bytes));
+  const api = new GitHubReleaseClient(repository, 'synthetic-auth');
+  await assert.rejects(api.artifact({ id: 42, size_in_bytes: bytes.length + 1, digest: `sha256:${fileDigest(bytes)}` }), /ZIP size differs/);
+  await assert.rejects(api.artifact({ id: 42, size_in_bytes: bytes.length, digest: `sha256:${fileDigest(Buffer.from('Different archive bytes'))}` }), /ZIP checksum differs/);
+});
 
 test('workflow ZIP extraction verifies exact entries and rejects traversal, links and duplicates', async context => {
   const valid = await zipFixture(context, ['candidate-manifest.json']);
