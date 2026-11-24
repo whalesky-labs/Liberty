@@ -20,8 +20,8 @@ export class GitHubReleaseClient {
     this.repository = repository;
     this.token = token;
   }
-  async request(url, { method = 'GET', body, binary = false, authenticated = true } = {}) {
-    const headers = { Accept: binary ? 'application/octet-stream' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'liberty-native-publication' };
+  async request(url, { method = 'GET', body, binary = false, authenticated = true, accept } = {}) {
+    const headers = { Accept: accept ?? (binary ? 'application/octet-stream' : 'application/vnd.github+json'), 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'liberty-native-publication' };
     if (authenticated) headers.Authorization = `Bearer ${this.token}`;
     if (body !== undefined) headers['Content-Type'] = Buffer.isBuffer(body) ? 'application/octet-stream' : 'application/json';
     let response;
@@ -56,7 +56,8 @@ export class GitHubReleaseClient {
     throw new Error('GitHub list exceeds the release verification bound');
   }
   async artifact(artifact) {
-    const bytes = await this.request(`https://api.github.com/repos/${this.repository}/actions/artifacts/${positiveId(artifact.id)}/zip`, { binary: true });
+    // Actions negotiates its JSON REST API before redirecting to a binary ZIP.
+    const bytes = await this.request(`https://api.github.com/repos/${this.repository}/actions/artifacts/${positiveId(artifact.id)}/zip`, { binary: true, accept: 'application/vnd.github+json' });
     assert.equal(bytes.length, artifact.size_in_bytes, 'Artifact ZIP size differs');
     assert.equal(`sha256:${fileDigest(bytes)}`, artifact.digest, 'Artifact ZIP checksum differs');
     return bytes;
