@@ -69,6 +69,11 @@ test('Native publication validates authorized source and preserves inputs before
   for (const [name, job] of Object.entries(release.jobs)) assert.equal(job.permissions.contents, name === 'publish' ? 'write' : 'read');
   const publication = release.jobs.publish.steps.find(step => step.run?.endsWith(' publish'));
   assert.equal(publication.env.GH_TOKEN, '${{ github.token }}');
+  assert.equal(release.on.workflow_dispatch.inputs.recovery_run_id.required, false);
+  for (const name of ['prepare', 'stage', 'publish']) {
+    const transaction = release.jobs[name].steps.find(step => step.run?.startsWith('node scripts/publish-native-release.mjs'));
+    assert.equal(transaction.env.NATIVE_RECOVERY_RUN_ID, '${{ inputs.recovery_run_id }}');
+  }
   assert.ok(release.jobs.publish.steps.find(step => step.name.startsWith('Download immutable')).with.name.includes('needs.stage.outputs.bundle_attempt'), 'Failed-job retries must download the completed stage attempt');
 });
 

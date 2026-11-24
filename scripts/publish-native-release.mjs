@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fileDigest } from './lib/native-package.mjs';
 import { assertOsvExceptionsAreGoverned, OSV_EXCEPTION_CONFIG } from './lib/dependency-governance.mjs';
-import { assembleRelease, assertAsset, assertCandidateRun, assertFreshSourceValidation, assertMainPublication, assertPrereleaseVersion, assertWorkflowArtifacts, describe, findRelease, jsonBytes, latestAttemptJobs, positiveId, publishRelease, releaseAssetNames, releaseMarkers, releaseNotes, releaseTargets, resolveTag, verifyPreviousRelease, verifyReleaseBundle } from './lib/native-release.mjs';
+import { assembleRelease, assertAsset, assertCandidateRun, assertFreshSourceValidation, assertMainPublication, assertPrereleaseVersion, assertRecoveryRun, assertWorkflowArtifacts, describe, findRelease, jsonBytes, latestAttemptJobs, positiveId, publishRelease, recoveryBundleNames, releaseAssetNames, releaseMarkers, releaseNotes, releaseTargets, resolveTag, restoreReleaseBackup, verifyPreviousRelease, verifyReleaseBundle } from './lib/native-release.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const bundleDirectory = path.join(root, 'artifacts/native-release');
@@ -28,7 +28,11 @@ export class GitHubReleaseClient {
     try { response = await fetch(url, { method, headers, body: body === undefined ? undefined : Buffer.isBuffer(body) ? body : JSON.stringify(body), signal: AbortSignal.timeout(90_000) }); }
     catch { throw new Error('GitHub release request failed'); }
     if (response.status === 404 && !binary && method === 'GET') return null;
-    assert.ok(response.ok, `GitHub release request failed with status ${response.status}`);
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      const reason = typeof detail.message === 'string' ? detail.message.replaceAll(this.token, '[redacted]').replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 160) : '';
+      throw new Error(`GitHub release request failed with status ${response.status}${reason ? `: ${reason}` : ''}`);
+    }
     if (response.status === 204) return null;
     if (!binary) return response.json();
     const chunks = [];
@@ -79,7 +83,7 @@ export class GitHubReleaseClient {
 }
 
 const zipExtractor = `import json, os, pathlib, stat, sys, zipfile
-source, destination, expected = sys.argv[1], pathlib.Path(sys.argv[2]), set(json.loads(sys.argv[3]))
+source, destination, expected, nested = sys.argv[1], pathlib.Path(sys.argv[2]), set(json.loads(sys.argv[3])), sys.argv[4] == 'true'
 with zipfile.ZipFile(source) as archive:
     members = archive.infolist()
     names = [member.filename for member in members]
@@ -90,20 +94,23 @@ with zipfile.ZipFile(source) as archive:
     for member in members:
         name = member.filename
         mode = stat.S_IFMT(member.external_attr >> 16)
-        if member.is_dir() or mode not in (0, stat.S_IFREG) or member.flag_bits & 1 or '/' in name or '\\\\' in name or ':' in name or name in ('.', '..') or '\\x00' in name:
+        parts = name.split('/')
+        if member.is_dir() or mode not in (0, stat.S_IFREG) or member.flag_bits & 1 or (not nested and '/' in name) or '\\\\' in name or ':' in name or any(part in ('', '.', '..') for part in parts) or '\\x00' in name:
             raise ValueError('Unsafe workflow ZIP entry')
-        with open(destination / name, 'xb') as output:
+        target = destination.joinpath(*parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, 'xb') as output:
             output.write(archive.read(member))
 `;
 
-export async function extractWorkflowZip(bytes, expectedNames) {
+export async function extractWorkflowZip(bytes, expectedNames, { nested = false } = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'liberty-native-artifact-'));
   try {
     const zip = path.join(directory, 'input.zip');
     const output = path.join(directory, 'files');
     await mkdir(output);
     await writeFile(zip, bytes, { flag: 'wx', mode: 0o600 });
-    execFileSync('python3', ['-c', zipExtractor, zip, output, JSON.stringify(expectedNames)], { stdio: ['ignore', 'pipe', 'pipe'], timeout: 120_000 });
+    execFileSync('python3', ['-c', zipExtractor, zip, output, JSON.stringify(expectedNames), String(nested)], { stdio: ['ignore', 'pipe', 'pipe'], timeout: 120_000 });
     return new Map(await Promise.all(expectedNames.map(async name => [name, await readFile(path.join(output, name))])));
   } finally { await rm(directory, { recursive: true, force: true }); }
 }
@@ -135,8 +142,35 @@ async function prepare(api, environment) {
   const latest = await api.json('releases/latest');
   if (latest) assert.ok(latest.draft === false && latest.prerelease === false, 'Existing latest must be stable');
   const replaceReleaseId = environment.NATIVE_REPLACE_RELEASE_ID ? positiveId(environment.NATIVE_REPLACE_RELEASE_ID) : null;
+  const recoveryRunId = environment.NATIVE_RECOVERY_RUN_ID ? positiveId(environment.NATIVE_RECOVERY_RUN_ID) : null;
+  if (recoveryRunId) {
+    assert.ok(replaceReleaseId, 'Recovery requires the exact original Release ID');
+    assert.notEqual(recoveryRunId, positiveId(environment.GITHUB_RUN_ID), 'Recovery cannot refer to its current run');
+  }
   if (environment.NATIVE_EXPECTED_SOURCE_COMMIT) assert.equal(sourceCommit, environment.NATIVE_EXPECTED_SOURCE_COMMIT, 'Candidate source changed after authorization');
-  return { repository: environment.GITHUB_REPOSITORY, sourceCommit, version, tag, candidateRunId: runId, candidateRunAttempt: run.run_attempt, workflowSourceCommit: environment.GITHUB_SHA, publicationRunId: positiveId(environment.GITHUB_RUN_ID), artifacts, replaceReleaseId, stableLatest: latest ? { id: latest.id, tag: latest.tag_name } : null };
+  return { repository: environment.GITHUB_REPOSITORY, sourceCommit, version, tag, candidateRunId: runId, candidateRunAttempt: run.run_attempt, workflowSourceCommit: environment.GITHUB_SHA, publicationRunId: positiveId(environment.GITHUB_RUN_ID), artifacts, replaceReleaseId, recoveryRunId, stableLatest: latest ? { id: latest.id, tag: latest.tag_name } : null };
+}
+
+export async function recoverPreviousRelease(api, context, files) {
+  const run = await api.json(`actions/runs/${positiveId(context.recoveryRunId)}`);
+  assert.ok(run, 'Recovery publication run is missing');
+  const proof = assertRecoveryRun(run, await latestAttemptJobs(api, run.id, run.run_attempt), context.repository, context.recoveryRunId);
+  git('merge-base', '--is-ancestor', proof.workflowSourceCommit, context.workflowSourceCommit);
+  const name = `native-release-bundle-${run.id}-${proof.bundleAttempt}`;
+  const matches = (await api.list(`actions/runs/${run.id}/artifacts`, 'artifacts')).filter(artifact => artifact.name === name);
+  assert.equal(matches.length, 1, 'Exact immutable recovery bundle is missing or duplicated');
+  const artifact = matches[0];
+  assert.equal(artifact.expired, false, 'Recovery bundle expired');
+  assert.match(artifact.digest ?? '', /^sha256:[a-f0-9]{64}$/);
+  assert.ok(Number.isSafeInteger(artifact.size_in_bytes) && artifact.size_in_bytes > 0 && artifact.size_in_bytes <= 256 * 1024 * 1024);
+  assert.equal(artifact.workflow_run?.id, run.id);
+  assert.equal(artifact.workflow_run?.head_sha, proof.workflowSourceCommit);
+  assert.equal(artifact.workflow_run?.repository_id, run.repository.id);
+  assert.equal(artifact.workflow_run?.head_repository_id, run.repository.id);
+  const bundle = await extractWorkflowZip(await api.artifact(artifact), recoveryBundleNames(context.version), { nested: true });
+  const restored = restoreReleaseBackup(bundle, files, context, proof.workflowSourceCommit);
+  console.log(`Recovered exact original Release ${context.replaceReleaseId} from immutable artifact ${artifact.id}, publication run ${run.id}, stage attempt ${proof.bundleAttempt}.`);
+  return restored;
 }
 
 async function stage(api, context) {
@@ -164,6 +198,7 @@ async function stage(api, context) {
   let previousRelease = null;
   let previousFiles = null;
   if (context.replaceReleaseId && existing?.author?.type === 'User') {
+    assert.ok(!context.recoveryRunId, 'Recovery is only for an already deleted manual Release');
     previousRelease = existing;
     assert.equal(existing.id, context.replaceReleaseId, 'Replacement authorization belongs to another Release');
     previousFiles = new Map();
@@ -174,6 +209,9 @@ async function stage(api, context) {
       previousFiles.set(asset.name, bytes);
     }
     verifyPreviousRelease(previousRelease, previousFiles, files, verificationContext);
+  } else if (context.replaceReleaseId && context.recoveryRunId) {
+    assert.ok(!existing || existing.author?.login === 'github-actions[bot]' && releaseMarkers(context, files).every(marker => existing.body?.includes(marker)), 'Recovery cannot adopt a different Release');
+    ({ previousRelease, previousFiles } = await recoverPreviousRelease(api, verificationContext, files));
   } else if (context.replaceReleaseId) {
     assert.ok(existing?.author?.login === 'github-actions[bot]' && releaseMarkers(context, files).every(marker => existing.body?.includes(marker)), 'Original Release is missing; rerun the failed publish job with its preserved bundle');
   } else if (existing?.author?.type === 'User') {
@@ -202,7 +240,7 @@ async function publish(api, currentContext) {
   const record = value => writeFile(reportPath, jsonBytes(value), { mode: 0o600 });
   await record({ status: 'validating', tag: currentContext.tag, sourceCommit: currentContext.sourceCommit });
   const plan = JSON.parse(await readFile(path.join(bundleDirectory, 'plan.json'), 'utf8'));
-  for (const key of ['repository', 'sourceCommit', 'version', 'tag', 'candidateRunId', 'candidateRunAttempt', 'workflowSourceCommit', 'publicationRunId', 'replaceReleaseId']) assert.equal(plan[key], currentContext[key], `Preserved publication plan differs: ${key}`);
+  for (const key of ['repository', 'sourceCommit', 'version', 'tag', 'candidateRunId', 'candidateRunAttempt', 'workflowSourceCommit', 'publicationRunId', 'replaceReleaseId', 'recoveryRunId']) assert.equal(plan[key], currentContext[key], `Preserved publication plan differs: ${key}`);
   assert.deepEqual(plan.artifacts, currentContext.artifacts, 'Candidate artifact identities changed');
   const files = new Map(await Promise.all(releaseAssetNames(plan.version).map(async name => [name, await readFile(path.join(bundleDirectory, 'assets', name))])));
   assert.deepEqual((await readdir(path.join(bundleDirectory, 'assets'))).sort(), releaseAssetNames(plan.version));

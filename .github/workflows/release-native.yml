@@ -12,6 +12,11 @@ on:
         type: "string"
         required: false
         default: ""
+      recovery_run_id:
+        description: "Optional exact prior Native publication run with the original release backup after deletion"
+        type: "string"
+        required: false
+        default: ""
 permissions:
   contents: "read"
 env:
@@ -46,6 +51,7 @@ jobs:
           GH_TOKEN: "${{ github.token }}"
           NATIVE_CANDIDATE_RUN_ID: "${{ inputs.candidate_run_id }}"
           NATIVE_REPLACE_RELEASE_ID: "${{ inputs.replace_release_id }}"
+          NATIVE_RECOVERY_RUN_ID: "${{ inputs.recovery_run_id }}"
         run: "node scripts/publish-native-release.mjs prepare"
   quality:
     name: "Required source validation"
@@ -84,6 +90,7 @@ jobs:
           GH_TOKEN: "${{ github.token }}"
           NATIVE_CANDIDATE_RUN_ID: "${{ inputs.candidate_run_id }}"
           NATIVE_REPLACE_RELEASE_ID: "${{ inputs.replace_release_id }}"
+          NATIVE_RECOVERY_RUN_ID: "${{ inputs.recovery_run_id }}"
           NATIVE_EXPECTED_SOURCE_COMMIT: "${{ needs.prepare.outputs.source_commit }}"
         run: "node scripts/publish-native-release.mjs stage"
       - name: "Preserve verified bundle and any previous release before writes"
@@ -125,6 +132,7 @@ jobs:
           GH_TOKEN: "${{ github.token }}"
           NATIVE_CANDIDATE_RUN_ID: "${{ inputs.candidate_run_id }}"
           NATIVE_REPLACE_RELEASE_ID: "${{ inputs.replace_release_id }}"
+          NATIVE_RECOVERY_RUN_ID: "${{ inputs.recovery_run_id }}"
           NATIVE_EXPECTED_SOURCE_COMMIT: "${{ needs.prepare.outputs.source_commit }}"
         run: "node scripts/publish-native-release.mjs publish"
       - name: "Archive exact publication result"

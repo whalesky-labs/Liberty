@@ -88,7 +88,11 @@ gh workflow run release-native.yml --ref main -f candidate_run_id=<successful-ca
 
 已有人工预发行交接给 bot 时，必须显式传入 `replace_release_id=<exact-manual-release-id>`。这会更换 Release ID。只有该 ID 对应的已公开、非 immutable、2.x 预发行及其 13 份公开下载全部匹配候选源码和构建，且原正文与全部旧字节已备份，才删除这个旧 Release；标签不删除或移动。11 份候选归档、平台 manifest、SBOM 和 notices 保持原字节，统一清单与 `SHA256SUMS` 更新为格式 2。普通发布拒绝替换人工 Release，稳定版不能通过该参数交接。
 
-中断后优先对原发布 run 执行 `gh run rerun <publication-run-id> --failed`。publish job 使用已成功 stage 的输出 attempt 获取原 artifact，保留旧备份并只上传缺失资产；即使旧 Release 已删除但创建请求中断，也可从这个原始 bundle 恢复。写入前还会验证全部源码复核任务在 24 小时内成功，且源码的安全例外尚未过期；超过这个时间不能只复用旧门禁，必须先重新完成源码验证。不要用新 dispatch 代替缺失原发行备份的恢复。备份和结果 artifact 保留 14 天，过期后不能声称仍有可用恢复证据。已公开且字节一致的 bot Release 可重复核验，重复运行不覆盖资产。
+发行源码以标签解析出的提交、candidate/build manifest 和发布结果为准。[GitHub API](https://docs.github.com/en/rest/releases/releases) 的 `target_commitish` 在标签已存在时不参与标签定位；对历史提交指定此字段还可能触发额外的 workflow 写权限检查。因此已有标签的 Release 创建和公开使用 `target_commitish:main`，并在写入前后独立核对标签仍指向已验证源码。新标签使用确切源码 SHA，绝不以 main 的新提交替换既有标签。
+
+中断后优先对原发布 run 执行 `gh run rerun <publication-run-id> --failed`。publish job 使用已成功 stage 的输出 attempt 获取原 artifact，保留旧备份并只上传缺失资产；即使旧 Release 已删除但创建请求中断，也可从这个原始 bundle 恢复。如果必须修复原 run 的事务代码，旧 run 的 checkout 仍固定在旧 SHA；可从修复后的 main 重新 dispatch，同时传入同一 `candidate_run_id`、原 `replace_release_id` 和 `recovery_run_id=<original-publication-run-id>`。只读 stage 会验证该 run 来自本仓库 main、原源码完整复核和 stage 成功、确切 artifact 的来源/大小/摘要/文件集，以及原 ID、原元数据和全部资产；随后将同一备份随新计划重新保存为不可变 artifact，再进入写入阶段。没有这个原始备份不能恢复已删除的人工发行。
+
+写入和恢复前均验证相关源码复核任务在 24 小时内成功，且源码的安全例外尚未过期；过期不能只复用旧门禁。备份和结果 artifact 保留 14 天，过期后不能声称仍有可用恢复证据。已公开且字节一致的 bot Release 可重复核验，重复运行不覆盖资产。
 
 ## 资源、权限和合并
 

@@ -103,6 +103,11 @@ The optional exact `replace_release_id` is a deliberate migration of a
 verified manual prerelease to the bot, with original bytes preserved before
 deletion and a new Release ID. It cannot replace a stable release or move a
 tag. See the [transaction and recovery rules](ci-cd.md#native-bot-发布事务).
+For an existing tag, `target_commitish:main` is unused creation metadata; the
+resolved tag and verified manifests remain the source authority. If publication
+code must be repaired after deletion, the exact `recovery_run_id` imports and
+revalidates the prior immutable backup under a new complete source gate before
+the publish job receives write permission.
 `native:security:check`, `native:licenses:check` and `native:sbom:generate` use
 the explicit Native governance mode without Cargo. Complete CI combines shared
 dependency scans while retaining Cargo coverage until the old client's retirement.
