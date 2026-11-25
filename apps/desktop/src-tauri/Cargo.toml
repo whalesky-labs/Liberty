@@ -35,7 +35,7 @@ tauri = { version = "2.0.0", features = ["macos-private-api", "unstable"] }
 tauri-plugin-dialog = "2.0.0"
 tauri-plugin-fs = "2.0.0"
 typify = "0.7.0"
-xml-rs = "=0.8.28"
+xml-rs = "=1.0.0"
 xmltree = "0.11"
 zip = { version = "9.0.5", default-features = false, features = ["deflate"] }
 
