@@ -17,6 +17,6 @@ filelock==4.2.1
 pillow==13.0.0
 transformers==5.23.0
 numba==0.62.1
-llvmlite==0.45.1
+llvmlite==0.50.0
 sentencepiece==0.2.2
 six==1.17.0
