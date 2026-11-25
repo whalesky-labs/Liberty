@@ -3,7 +3,7 @@
 # Torch 2.2.2 is the last official Intel macOS wheel; Transformers Torch models are outside this runtime profile.
 numpy==1.26.4
 torch==2.2.2
-torchaudio==2.2.2
+torchaudio==2.11.1
 torchvision==0.17.2
 modelscope==1.27.0
 huggingface_hub==1.31.0
