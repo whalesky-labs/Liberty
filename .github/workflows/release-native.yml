@@ -94,7 +94,7 @@ jobs:
           NATIVE_EXPECTED_SOURCE_COMMIT: "${{ needs.prepare.outputs.source_commit }}"
         run: "node scripts/publish-native-release.mjs stage"
       - name: "Preserve verified bundle and any previous release before writes"
-        uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        uses: "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9"
         with:
           name: "native-release-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
           path: "artifacts/native-release/"
@@ -137,7 +137,7 @@ jobs:
         run: "node scripts/publish-native-release.mjs publish"
       - name: "Archive exact publication result"
         if: "${{ always() }}"
-        uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        uses: "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9"
         with:
           name: "native-publication-${{ github.run_id }}-${{ github.run_attempt }}"
           path: "artifacts/native-publication.json"
