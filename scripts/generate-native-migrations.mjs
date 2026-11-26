@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const resources = path.join(root, 'packages/desktop-resources/database');
 const destination = path.join(root, 'apps/native/internal/infrastructure/repositories/schema/migrations_generated.go');
-const version = 10;
+const version = 12;
 const columnAddition = /^ALTER TABLE [a-z_][a-z0-9_]* ADD COLUMN [a-z_][a-z0-9_]* /;
 const plans = [
   ['baselineSQL', 'v01-baseline.sql', ['PRAGMA ']],
@@ -21,6 +21,8 @@ const plans = [
   ['jobDeletionSQL', 'v08-job-deletions.sql', ['CREATE ']],
   ['runnerProtocolSQL', 'v09-runner-protocol.sql', ['ALTER ']],
   ['credentialCleanupSQL', 'v10-credential-cleanup-intents.sql', ['CREATE ']],
+  ['liveSessionsSQL', 'v11-live-sessions.sql', ['CREATE ']],
+  ['liveAutoLanguageSQL', 'v12-live-auto-language.sql', [columnAddition]],
 ];
 
 const lines = [

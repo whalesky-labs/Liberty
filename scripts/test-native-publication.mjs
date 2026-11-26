@@ -60,7 +60,7 @@ function fixture() {
     const program = Buffer.alloc(256);
     if (mac) { program.writeUInt32LE(0xfeedfacf); program.writeUInt32LE(nativeTargets[target].machine, 4); }
     else { program.write('MZ'); program.writeUInt32LE(64, 0x3c); program.writeUInt32LE(0x4550, 64); program.writeUInt16LE(nativeTargets[target].machine, 68); }
-    const files = new Map([[binary, program], ['README.txt', Buffer.from('Synthetic unsigned candidate\n')], [`${resources}LICENSE`, license], [`${resources}THIRD_PARTY_NOTICES.txt`, notices], [`${resources}${mac ? 'icon.icns' : 'icon.ico'}`, Buffer.from('Synthetic icon')], ...(mac ? [[`${candidateName}.app/Contents/Info.plist`, Buffer.from(candidatePlist(version))]] : [])]);
+    const files = new Map([[binary, program], ['README.txt', Buffer.from('Synthetic unsigned candidate\n')], [`${resources}LICENSE`, license], [`${resources}THIRD_PARTY_NOTICES.txt`, notices], [`${resources}LOCAL_TRANSLATION_NOTICES.txt`, Buffer.from('Synthetic local translation notices\n')], [`${resources}${mac ? 'icon.icns' : 'icon.ico'}`, Buffer.from('Synthetic icon')], ...(mac ? [[`${candidateName}.app/Contents/Info.plist`, Buffer.from(candidatePlist(version))]] : [])]);
     const manifest = jsonBytes({ format: 1, channel: 'candidate', identity: candidateIdentity, version, target, productionReady: false, signed: false, notarized: false, defaultRuntimeProfile: 'production', availableRuntimeProfiles: ['production'], files: [...files].map(([path, bytes]) => ({ path, bytes: bytes.length, sha256: fileDigest(bytes) })) });
     files.set('candidate-manifest.json', manifest);
     const name = `liberty-native-candidate-${version}-${target}`;

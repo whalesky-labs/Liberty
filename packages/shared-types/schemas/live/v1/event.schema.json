@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://liberty.local/schemas/live/v1/event.schema.json",
+  "title": "LiveASREvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "version", "sequence", "type"],
+  "properties": {
+    "protocol": {"const": "liberty-live-asr"},
+    "version": {"type": "integer", "const": 1},
+    "sequence": {"type": "integer", "minimum": 1},
+    "type": {"enum": ["ready", "partial", "final", "meter", "boundary", "stopped", "error"]},
+    "segmentId": {"type": "integer", "minimum": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "startMs": {"type": "integer", "minimum": 0, "maximum": 86400000},
+    "endMs": {"type": "integer", "minimum": 0, "maximum": 86400000},
+    "text": {"type": "string", "minLength": 1, "maxLength": 6000},
+    "level": {"type": "number", "minimum": 0, "maximum": 1},
+    "processingMs": {"type": "integer", "minimum": 0, "maximum": 600000},
+    "code": {"const": "live_asr_failed"}
+  },
+  "allOf": [
+    {"if": {"properties": {"type": {"enum": ["partial", "final"]}}}, "then": {"required": ["segmentId", "revision", "startMs", "endMs", "text"]}},
+    {"if": {"properties": {"type": {"const": "error"}}}, "then": {"required": ["code"]}}
+  ]
+}

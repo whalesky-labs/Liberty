@@ -115,7 +115,7 @@ func TestWriteEngineRunsRealChildAndPersistsOutcome(t *testing.T) {
 			if os.WriteFile(path, data, 0600) != nil {
 				t.Fatal("database fixture")
 			}
-			store, err := jobdb.Open(context.Background(), path)
+			store, _, err := jobdb.OpenPrepared(context.Background(), path, nil, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -211,7 +211,7 @@ func TestWriteDeletionResumesActualFilesystemAndDatabase(t *testing.T) {
 		t.Fatal("fixture database")
 	}
 	ctx := context.Background()
-	store, err := jobdb.Open(ctx, path)
+	store, _, err := jobdb.OpenPrepared(ctx, path, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

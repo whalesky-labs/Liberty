@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { assertOsvExceptionsAreGoverned, OSV_EXCEPTION_CONFIG, readPolicy } from "./lib/dependency-governance.mjs";
 import { assertPlainDirectory, assertRuntimeScanCoverage, loadRuntimeInputManifest, productionRuntimeProfile, readPlainFile, readProductionRuntimeScanInputs, readRuntimeInputs, runtimeInputPins, runtimeInputProfile, runtimeInventorySBOM, runtimeSecurityOptions, validateInstalledRuntimeInventory } from "./lib/native-runtime-inputs.mjs";
 import { fileDigest } from "./lib/native-package.mjs";
+import { translationComponents } from "./lib/live-translation-inputs.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { profileID, inputDirectory, inventoryFile } = runtimeSecurityOptions(process.argv.slice(2));
@@ -46,11 +47,15 @@ const emptyConfig = path.join(output, "no-exceptions.toml");
 await writeFile(emptyConfig, "");
 const runs = [];
 const inventories = profile.platforms.map((platform) => ({ name: platform.platformId, sbom: runtimeInventorySBOM(files.get(`requirements-lock-${platform.platformId}.txt`).toString("utf8"), profileID, platform.platformId) }));
+for (const inventory of inventories) inventory.sbom.components.push(...translationComponents(manifest, inventory.name));
 if (installedSBOM) inventories.push({ name: "installed", sbom: installedSBOM });
 for (const { name, sbom } of inventories) {
   const sbomFile = path.join(output, `${name}.cdx.json`);
   await writeFile(sbomFile, JSON.stringify(sbom, null, 2) + "\n");
-  const expected = [...sbom.components, { name: "funasr", version: "1.3.9" }];
+  const source = JSON.parse(files.get("source.cdx.json").toString("utf8"));
+  const upstreamVersion = profileID === "funasr-upgrade" ? "1.4.29" : "1.3.9";
+  if (!source.components?.some((component) => component.name === "funasr" && component.version === upstreamVersion && component.purl === `pkg:pypi/funasr@${upstreamVersion}`)) throw new Error("Pinned upstream FunASR identity missing");
+  const expected = [...sbom.components, { name: "funasr", version: upstreamVersion }];
   for (const [mode, config] of [["current-policy", governedConfig], ["unfiltered", emptyConfig]]) {
     const scan = await runScanner(["scan", "source", "-L", sbomFile, "-L", path.join(output, "source.cdx.json"), "--config", config, "--format", "json", "--all-packages"]);
     const prefix = `${name}-${mode}`;

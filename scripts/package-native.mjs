@@ -31,13 +31,13 @@ async function inventory(directory, prefix = "") {
 }
 
 async function packageNative() {
-  const { targetID, inputDirectory, verifyHost } = runtimePackageOptions(process.argv.slice(2));
+  const { targetID, inputDirectory, verifyHost, runtimeProfile = securityRuntimeProfile } = runtimePackageOptions(process.argv.slice(2));
   const target = nativeTargets[targetID];
   if (verifyHost) assertRunnableTarget(targetID);
   const runtimeManifest = inputDirectory ? await loadRuntimeInputManifest(root) : undefined;
-  const runtimePins = runtimeManifest ? runtimeInputPins(runtimeManifest) : undefined;
+  const runtimePins = runtimeManifest ? runtimeInputPins(runtimeManifest, runtimeProfile) : undefined;
   const runtimeFiles = inputDirectory ? await readRuntimeInputs(inputDirectory, runtimePins) : undefined;
-  if (inputDirectory) await run(process.execPath, [path.join(root, "scripts/check-native-runtime-security.mjs"), "--runtime-input-directory", inputDirectory]);
+  if (inputDirectory) await run(process.execPath, [path.join(root, "scripts/check-native-runtime-security.mjs"), ...(runtimeProfile === securityRuntimeProfile ? [] : ["--profile", runtimeProfile]), "--runtime-input-directory", inputDirectory]);
   await run(process.execPath, [path.join(root, "scripts/check-version-consistency.mjs"), "--native"]);
   const workspace = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
   const host = await readFile(path.join(native, "internal/host/profile.go"), "utf8");
@@ -51,7 +51,7 @@ async function packageNative() {
   const output = path.join(root, "target/native/packages");
   await mkdir(output, { recursive: true });
   const temporary = await mkdtemp(path.join(output, ".staging-"));
-  const name = `liberty-native-candidate-${version}-${targetID}${inputDirectory ? "-security-runtime" : ""}`;
+  const name = `liberty-native-candidate-${version}-${targetID}${inputDirectory ? (runtimeProfile === securityRuntimeProfile ? "-security-runtime" : `-${runtimeProfile}`) : ""}`;
   const content = path.join(temporary, name);
   const app = target.os === "darwin" ? path.join(content, `${candidateName}.app/Contents`) : content;
   const binary = target.os === "darwin" ? path.join(app, "MacOS/liberty-native") : path.join(content, "Liberty Native Candidate.exe");
@@ -68,6 +68,7 @@ async function packageNative() {
     await copyFile(path.join(root, "packages/desktop-resources/presentation", iconName), path.join(resources, iconName));
     await copyFile(path.join(root, "LICENSE"), path.join(resources, "LICENSE"));
     await copyFile(path.join(root, "artifacts/sbom/native-go-NOTICES.txt"), path.join(resources, "THIRD_PARTY_NOTICES.txt"));
+    await copyFile(path.join(root, "packages/desktop-resources/runtime/live-translation-NOTICES.txt"), path.join(resources, "LOCAL_TRANSLATION_NOTICES.txt"));
     if (runtimeFiles) await publishRuntimeInputs(path.join(resources, "runtime-inputs"), runtimeFiles, runtimePins);
     await writeFile(path.join(content, "README.txt"), `Liberty Native Candidate ${version} — ${targetID}
 
@@ -91,15 +92,15 @@ Only one current-branch client may write a profile. Previously released clients 
 Windows 包为便携目录，不是安装器；macOS 包不代表已完成签名、公证或升级回退验收。
 Windows output is portable, not an installer. macOS output does not establish signing, notarization or upgrade/rollback acceptance.
 ${runtimeFiles ? `
-本包额外携带经过源码清单固定摘要核验的 security-candidate 运行时输入，默认仍选择 production 运行时。
-This package also includes pinned security-candidate runtime inputs; the default runtime remains production.
-仅使用显式隔离目录加 --writable --prepare-database --runtime-profile security-candidate 验收候选运行时。
-Select it with an explicit isolated --profile-directory plus --writable --prepare-database --runtime-profile security-candidate.
+本包额外携带经过源码清单固定摘要核验的 ${runtimeProfile} 运行时输入，默认仍选择 production 运行时。
+This package also includes pinned ${runtimeProfile} runtime inputs; the default runtime remains production.
+仅使用显式隔离目录加 --writable --prepare-database --runtime-profile ${runtimeProfile} 验收候选运行时。
+Select it with an explicit isolated --profile-directory plus --writable --prepare-database --runtime-profile ${runtimeProfile}.
 安装仍需清单中的网络下载源；随包的 wheel 只覆盖 FunASR，不是完整离线环境。
 Installation still uses the configured network source; the bundled FunASR wheel is not a complete offline runtime.
 ` : ""}
 `);
-    const manifest = { format: 1, channel: "candidate", identity: candidateIdentity, version, target: targetID, productionReady: false, signed: false, notarized: false, defaultRuntimeProfile: "production", availableRuntimeProfiles: runtimeFiles ? ["production", securityRuntimeProfile] : ["production"], ...(runtimeFiles ? { candidateRuntimeVersion: runtimeManifest.candidateProfiles[securityRuntimeProfile].runtimeVersion, runtimeInputs: runtimePins } : {}), files: await inventory(content) };
+    const manifest = { format: 1, channel: "candidate", identity: candidateIdentity, version, target: targetID, productionReady: false, signed: false, notarized: false, defaultRuntimeProfile: "production", availableRuntimeProfiles: runtimeFiles ? ["production", runtimeProfile] : ["production"], ...(runtimeFiles ? { candidateRuntimeVersion: runtimeManifest.candidateProfiles[runtimeProfile].runtimeVersion, runtimeInputs: runtimePins } : {}), files: await inventory(content) };
     assertCandidateManifest(manifest);
     await writeFile(path.join(content, "candidate-manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
     const verified = JSON.parse(await readFile(path.join(content, "candidate-manifest.json"), "utf8"));

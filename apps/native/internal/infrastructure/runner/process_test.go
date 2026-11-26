@@ -15,6 +15,10 @@ import (
 
 func TestMain(m *testing.M) {
 	if mode := os.Getenv("LIBERTY_RUNNER_TEST_CHILD"); mode != "" {
+		if strings.HasPrefix(mode, "translation_") {
+			runTranslationFixture(mode)
+			os.Exit(0)
+		}
 		if mode == "descendant" {
 			time.Sleep(30 * time.Second)
 			os.Exit(0)

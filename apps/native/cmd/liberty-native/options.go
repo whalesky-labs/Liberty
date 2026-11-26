@@ -34,7 +34,7 @@ func parseOptions(args []string, channel string, output io.Writer) (launchOption
 	flags.StringVar(&options.profileDirectory, "profile-directory", "", "Explicit absolute profile directory; --prepare-database permits creation")
 	flags.StringVar(&options.restoreBackup, "restore-backup", "", "Restore a verified same-profile backup filename")
 	flags.StringVar(&options.importProfile, "import-profile", "", "Import a consistent snapshot from this absolute source directory into a new --profile-directory, then exit")
-	flags.StringVar(&options.runtimeProfile, "runtime-profile", "production", "Pinned runtime profile: production or security-candidate; candidate requires an explicit isolated writable profile")
+	flags.StringVar(&options.runtimeProfile, "runtime-profile", "production", "Pinned runtime profile: production, security-candidate or funasr-upgrade; candidate requires an explicit isolated writable profile")
 	flags.BoolVar(&options.defaultProfile, "default-profile", false, "View the existing production profile read only; import into a separate directory for Native writes or recovery")
 	flags.StringVar(&options.locale, "locale", "", "Override saved language: zh-CN or en-US")
 	flags.StringVar(&options.theme, "theme", "", "Override saved theme: auto, light or dark")
@@ -58,7 +58,7 @@ func parseOptions(args []string, channel string, output io.Writer) (launchOption
 	if options.theme != "" && options.theme != "auto" && options.theme != "light" && options.theme != "dark" {
 		return options, errors.New("unsupported_theme")
 	}
-	if options.runtimeProfile != "production" && options.runtimeProfile != "security-candidate" {
+	if options.runtimeProfile != "production" && options.runtimeProfile != "security-candidate" && options.runtimeProfile != "funasr-upgrade" {
 		return options, errors.New("unsupported_runtime_profile")
 	}
 	if options.runtimeProfile != "production" && (options.profileDirectory == "" || !options.writable || options.defaultProfile || options.database != "" || options.restoreBackup != "" || options.version) {

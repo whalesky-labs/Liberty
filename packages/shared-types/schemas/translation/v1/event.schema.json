@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://liberty.local/schemas/translation/v1/event.schema.json",
+  "title": "LocalTranslationEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "version", "type"],
+  "properties": {
+    "protocol": {"const": "liberty-local-translation"},
+    "version": {"type": "integer", "const": 1},
+    "type": {"enum": ["ready", "translation", "error"]},
+    "sequence": {"type": "integer", "minimum": 1},
+    "text": {"type": "string", "minLength": 1, "maxLength": 8192},
+    "code": {"const": "local_translation_failed"}
+  },
+  "oneOf": [
+    {"properties": {"type": {"const": "ready"}}, "maxProperties": 3},
+    {"properties": {"type": {"const": "translation"}}, "required": ["sequence", "text"], "maxProperties": 5},
+    {"properties": {"type": {"const": "error"}}, "required": ["code"], "maxProperties": 4}
+  ]
+}

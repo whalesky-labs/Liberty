@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { parseRuntimeModelPins, runtimeModelPinsPath } from "./lib/runtime-model-pins.mjs";
+import { translationComponents } from "./lib/live-translation-inputs.mjs";
 
 const requirementsPath = "python/funasr-runner/requirements.txt";
 const runtimeManifest = JSON.parse(readFileSync("packages/desktop-resources/runtime/runtime-manifest.json", "utf8"));
@@ -22,7 +23,13 @@ for (const lockFile of lockFiles) {
       errors.push(`${lockFile} must contain ${name}==${version}`);
     }
   }
+  for (const name of ["numpy", "pyyaml", "sentencepiece"]) {
+    if (!locked.has(name)) errors.push(`${lockFile} must include the local translation dependency ${name}`);
+  }
+  const yaml = locked.get("pyyaml")?.split(".").map(Number);
+  if (!yaml || yaml[0] < 5 || yaml[0] >= 7 || (yaml[0] === 5 && yaml[1] < 3)) errors.push(`${lockFile} is incompatible with the local translation PyYAML constraint`);
 }
+try { translationComponents(runtimeManifest); } catch (error) { errors.push(error.message); }
 
 if (!installerSource.includes('"requirements-lock-" + i.Platform.ID + ".txt"')) {
   errors.push("Native runtime installer must select the lock matching the shared platform ID");

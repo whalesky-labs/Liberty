@@ -95,6 +95,10 @@ type Installer struct {
 	interpreterOK    map[string]interpreterFingerprint
 	vendorBuildMu    sync.Mutex
 	productionVendor atomic.Pointer[map[string][]byte]
+	liveModelMu      sync.Mutex
+	liveModelFiles   map[string]os.FileInfo
+	translationMu    sync.Mutex
+	translationFiles map[string]os.FileInfo
 }
 
 type interpreterFingerprint struct {
@@ -165,7 +169,9 @@ func newInstallerWithProfile(rootDirectory, platform, profileID string, manifest
 	installer.Commands = Commands{installer: installer}
 	return installer, nil
 }
-func (i *Installer) candidateProfile() bool { return i.RuntimeProfile == SecurityCandidateProfile }
+func (i *Installer) candidateProfile() bool {
+	return i.RuntimeProfile == SecurityCandidateProfile || i.RuntimeProfile == FunASRUpgradeProfile
+}
 func (i *Installer) pinnedInputs() bool {
 	return i.candidateProfile() || i.Manifest.ProductionInputs != nil
 }

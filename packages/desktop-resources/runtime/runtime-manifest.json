@@ -191,6 +191,84 @@
           "sha256": "879737fe0464727dbe321d87a4f59fa56ab01148775fa99df85c8d2aeb05ebad"
         }
       ]
+    },
+    "funasr-upgrade": {
+      "runtimeVersion": "2026.11.25-funasr-1.4.29-candidate.1",
+      "pythonVersion": "3.11.18",
+      "platforms": [
+        {
+          "platformId": "darwin-aarch64",
+          "pythonBundle": {
+            "fileName": "cpython-3.11.18+20261110-aarch64-apple-darwin-install_only_stripped.tar.gz",
+            "urls": {
+              "official": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.11.18%2B20261110-aarch64-apple-darwin-install_only_stripped.tar.gz"
+            },
+            "sha256": "3afb0567b2a2b30b3a7341bd143cb4e8a69f3d8e95d4641218eaa45f0fabbd07"
+          }
+        },
+        {
+          "platformId": "darwin-x64",
+          "pythonBundle": {
+            "fileName": "cpython-3.11.18+20261110-x86_64-apple-darwin-install_only_stripped.tar.gz",
+            "urls": {
+              "official": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.11.18%2B20261110-x86_64-apple-darwin-install_only_stripped.tar.gz"
+            },
+            "sha256": "c2e4b51e535ead2e526b8974909a1b1e00fbc2ebe2281087b9b8b14dad0cad5d"
+          }
+        },
+        {
+          "platformId": "windows-x64",
+          "pythonBundle": {
+            "fileName": "cpython-3.11.18+20261110-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+            "urls": {
+              "official": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.11.18%2B20261110-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+            },
+            "sha256": "f31751f4a8483f5ac7cd77ad83f8dfb80d9f2a7245bff1585e27516c777fb46f"
+          }
+        }
+      ],
+      "files": [
+        {
+          "fileName": "requirements-lock-darwin-aarch64.txt",
+          "bytes": 136162,
+          "sha256": "5d3c996d42f52f84b523fa57ff1ac3c78ec2bf5d12ea4b1f35734f40413e169f"
+        },
+        {
+          "fileName": "requirements-lock-darwin-x64.txt",
+          "bytes": 136162,
+          "sha256": "dbb30c57173f8d52b6496f33b62db2a5eca800c3924e12c7900a02b2f6a18423"
+        },
+        {
+          "fileName": "requirements-lock-windows-x64.txt",
+          "bytes": 136348,
+          "sha256": "838a896891e5b0e2efd8ae5201fd4cd3332902ce725a27de796cb42107a8110a"
+        },
+        {
+          "fileName": "METADATA.patch",
+          "bytes": 674,
+          "sha256": "c4c453b60d64db4d3555627792ce3facd5d23ce5e617762a7b9bc0e3699c5451"
+        },
+        {
+          "fileName": "funasr-1.4.29+liberty.local1-py3-none-any.whl",
+          "bytes": 1016871,
+          "sha256": "02fc106e0c6de671133b5685c53776daa29d5c54fba0cda2ddbde9854ee3a46c"
+        },
+        {
+          "fileName": "provenance.json",
+          "bytes": 52324,
+          "sha256": "024fae60c1cec49f093933554ac57c278398a6234b5cdbb5eee7b97e2ddb61d7"
+        },
+        {
+          "fileName": "recipe.json",
+          "bytes": 2649,
+          "sha256": "9d62027bfc9dd22e644f12455e65e5ecc025a31674cda2bf1e5dd6867b180622"
+        },
+        {
+          "fileName": "source.cdx.json",
+          "bytes": 1925,
+          "sha256": "7f4302d117096b3c7420193bd1ae1b898f406ff313e38a2cf4c8c44810e35a81"
+        }
+      ]
     }
   },
   "productionInputs": {
@@ -241,5 +319,720 @@
         "sha256": "879737fe0464727dbe321d87a4f59fa56ab01148775fa99df85c8d2aeb05ebad"
       }
     ]
+  },
+  "liveASR": {
+    "modelSetVersion": "paraformer-streaming-2026.11.25.1",
+    "modelId": "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online",
+    "revision": "70e272c03055313e90f34db80bef9c19745e41cf",
+    "license": "Apache-2.0",
+    "files": [
+      {
+        "path": "README.md",
+        "revision": "70e272c03055313e90f34db80bef9c19745e41cf",
+        "sha256": "e424224c75e4d803f2177d916ea614e40b19345bb080b0edb9cc28b45b33133c",
+        "size": 13440
+      },
+      {
+        "path": "am.mvn",
+        "revision": "f748302a575ab56a3ba0ef92088f9bd87df0b281",
+        "sha256": "29b3c740a2c0cfc6b308126d31d7f265fa2be74f3bb095cd2f143ea970896ae5",
+        "size": 11203
+      },
+      {
+        "path": "config.yaml",
+        "revision": "7db13a83068a9424fd25a7704e63e3907525b1a6",
+        "sha256": "35e6bf41f8c7eaf9a0f787af7fdc8fc5ed75fa8009ade7d3c2f3ef5bce20c648",
+        "size": 2940
+      },
+      {
+        "path": "configuration.json",
+        "revision": "699a2514a0542a40ea7f22ec682c8f76d0f47f7b",
+        "sha256": "1aae0f45e3e503f52512eee4798d241611a44cc732a7a91d2e2d2f65dd9755be",
+        "size": 472
+      },
+      {
+        "path": "model.pt",
+        "revision": "699a2514a0542a40ea7f22ec682c8f76d0f47f7b",
+        "sha256": "4fdfb48ed4471777c9a511e96a2acae17f77cac9d709cc756634622769192a64",
+        "size": 880716041
+      },
+      {
+        "path": "seg_dict",
+        "revision": "f748302a575ab56a3ba0ef92088f9bd87df0b281",
+        "sha256": "59a2ef803a3f1648ad03a2e1480db1c1ee0c0d7dc4ef4dbd16cea33944329022",
+        "size": 8287834
+      },
+      {
+        "path": "tokens.json",
+        "revision": "699a2514a0542a40ea7f22ec682c8f76d0f47f7b",
+        "sha256": "2b20c2b12572d682afff84ce1c8d560f67b8b32a4c1f21567411d141ed352127",
+        "size": 93676
+      }
+    ]
+  },
+  "liveTranslation": {
+    "version": "argos-zh-en-1.9-ct2-4.9.1",
+    "engineVersion": "4.9.1",
+    "engineLicense": "MIT",
+    "modelLicense": "CC-BY-4.0",
+    "sourceLanguage": "zh",
+    "targetLanguage": "en",
+    "modelDirectory": "translate-zh_en-1_9",
+    "archive": {
+      "fileName": "translate-zh_en-1_9.argosmodel",
+      "url": "https://argos-net.com/v1/translate-zh_en-1_9.argosmodel",
+      "sha256": "62e7af5a3a48b530e47b7b3e5c78c2de79073ecd815750d2bf3ab35b4a67da2d",
+      "size": 74481402,
+      "files": [
+        {
+          "path": "translate-zh_en-1_9/metadata.json",
+          "sha256": "e42259bbbec6cd09ecd16d97d614bebbf1e7351130c6970fe77a2f1ed7f99cca",
+          "size": 135
+        },
+        {
+          "path": "translate-zh_en-1_9/README.md",
+          "sha256": "1bb7a1261520b8f7d1f94b7fd108c0ccfd7333a3e40a2256df274df0a2ff1cc8",
+          "size": 393
+        },
+        {
+          "path": "translate-zh_en-1_9/sentencepiece.model",
+          "sha256": "72600ea476b3e3b76763919c3a30ef5104d9b473b19567d45251f56034264f54",
+          "size": 804374
+        },
+        {
+          "path": "translate-zh_en-1_9/model/config.json",
+          "sha256": "b28e3136fc7a103e29585c10c8124849fb01d649531f58e00cbe240111560cd7",
+          "size": 196
+        },
+        {
+          "path": "translate-zh_en-1_9/model/model.bin",
+          "sha256": "edd8c8a6863d36959613ff291074627a1635fab2f51b872ef437e924d238921a",
+          "size": 82713318
+        },
+        {
+          "path": "translate-zh_en-1_9/model/shared_vocabulary.json",
+          "sha256": "c980413009e8041fc42c81730ad4b72ab6cb1313b3b89b1ced261fe5e177b024",
+          "size": 1368422
+        },
+        {
+          "path": "translate-zh_en-1_9/stanza/resources.json",
+          "sha256": "39faaee80e6cca9e211dcda8fb3da4f9c024dcff5b4bfc9832a8e0e271db2fda",
+          "size": 121862
+        },
+        {
+          "path": "translate-zh_en-1_9/stanza/zh-hans/tokenize/gsdsimp.pt",
+          "sha256": "37cfdbc78f972a6950c66719b363c80ad148ff6b57992c960a0309224e1c87fc",
+          "size": 1128796
+        }
+      ]
+    },
+    "engines": [
+      {
+        "platformId": "darwin-aarch64",
+        "fileName": "ctranslate2-4.9.1-cp311-cp311-macosx_11_0_arm64.whl",
+        "url": "https://files.pythonhosted.org/packages/ab/97/4d57426dc45907869bec3e1a43aa75eaea6921278dc822d1cbb41f0b5ac5/ctranslate2-4.9.1-cp311-cp311-macosx_11_0_arm64.whl",
+        "sha256": "3cdbc98c5a962b2723c285ae5f86c921823148c962f6c8f0f4889c10e8bfaa08",
+        "size": 1662569,
+        "files": [
+          {
+            "path": "ctranslate2/logging.py",
+            "sha256": "c66c762e5af23a100f6cc989c0c02bf89b97659a2047d8fad8e34d659d9f14e4",
+            "size": 1176
+          },
+          {
+            "path": "ctranslate2/version.py",
+            "sha256": "94e007f17c7873e903112f9ab25b64694ac4f36d35633dbb19bf5e5de02ae2de",
+            "size": 50
+          },
+          {
+            "path": "ctranslate2/_ext.cpython-311-darwin.so",
+            "sha256": "6085e605a789114524d54fb67f9311caec033a7d62f2c7344c4bdf7bc29a4602",
+            "size": 1831920
+          },
+          {
+            "path": "ctranslate2/__init__.py",
+            "sha256": "c96dd2361e2964f0d4891208ee65587f9dff2411f6f0a265ef3fa92b70e62f77",
+            "size": 3171
+          },
+          {
+            "path": "ctranslate2/extensions.py",
+            "sha256": "69783f7663cfbd34df9c8d45301834958366d2d655015b44a96d54a5ba864745",
+            "size": 21351
+          },
+          {
+            "path": "ctranslate2/specs/model_spec.py",
+            "sha256": "32d6050ce80cea033b98d27bf539d458c7f337532fa2148f567e33b4541ca431",
+            "size": 25261
+          },
+          {
+            "path": "ctranslate2/specs/transformer_spec.py",
+            "sha256": "6863845c7cefd783554b012bc7364d1c407c6c5a9068387d329f7cb420bdafc9",
+            "size": 34082
+          },
+          {
+            "path": "ctranslate2/specs/drama3_spec.py",
+            "sha256": "cbfbde89ecb0ce01bcb2a4da234e6897219d488712122a8c5a29667c457ae1f1",
+            "size": 8657
+          },
+          {
+            "path": "ctranslate2/specs/wav2vec2bert_spec.py",
+            "sha256": "34a4c2f2735dc4c793056d18fc429436b0e92a13f02faecfd65dddc264fe6b29",
+            "size": 3432
+          },
+          {
+            "path": "ctranslate2/specs/common_spec.py",
+            "sha256": "ed4b90dd8b0ef9f2c087016e5a5e3555b34b40bccd9584df8eb652805ff88039",
+            "size": 1542
+          },
+          {
+            "path": "ctranslate2/specs/__init__.py",
+            "sha256": "7ac258999ca20f7d39f443c90da52221cd87d9b690d075d89a390e3fe95906f9",
+            "size": 688
+          },
+          {
+            "path": "ctranslate2/specs/attention_spec.py",
+            "sha256": "e5a7276c6f546a4f623d0dc264ec26159f184b25eb4246101064c75725fd3659",
+            "size": 3796
+          },
+          {
+            "path": "ctranslate2/specs/wav2vec2_spec.py",
+            "sha256": "0fa0fe37f7dbb2f38455ef34da34b4de977aa6de5b3a2ef5ca0ff531f77f8637",
+            "size": 2034
+          },
+          {
+            "path": "ctranslate2/specs/whisper_spec.py",
+            "sha256": "bf1c6b02c1d8188b580b62bd630da07851146d799e1ad72a1585c332a71ad250",
+            "size": 2370
+          },
+          {
+            "path": "ctranslate2/converters/drama3_codec.py",
+            "sha256": "dc005bf3214a5bc2e9515780438b4c66dde5b72ece83d8c4fb9a9ea58b6ecd8f",
+            "size": 6242
+          },
+          {
+            "path": "ctranslate2/converters/opennmt_tf.py",
+            "sha256": "8227b4b7ce11f6f5171fc435cbebeeea124153c96388e3d6753f3107d2d78313",
+            "size": 15767
+          },
+          {
+            "path": "ctranslate2/converters/fairseq.py",
+            "sha256": "71d8f200163f1eacb53d2eb073f9d9b3724d8740fc45cfde3c34f5ce1897b1d7",
+            "size": 13095
+          },
+          {
+            "path": "ctranslate2/converters/transformers.py",
+            "sha256": "69b43681a70248d11f92dc80cf034278acb8a6e2cca1b96bcfc3f5cfc7c50e14",
+            "size": 193924
+          },
+          {
+            "path": "ctranslate2/converters/opus_mt.py",
+            "sha256": "5c201bdd7e1a7d10ad69912b6fb6ef22f24199f5600bd3566bf205e6d3814a64",
+            "size": 1210
+          },
+          {
+            "path": "ctranslate2/converters/converter.py",
+            "sha256": "c44dc260f0ef37352778157f36e3c9e7d4b178d29151cc819d2fccb31383dc83",
+            "size": 3492
+          },
+          {
+            "path": "ctranslate2/converters/__init__.py",
+            "sha256": "4ffc89327b3f5d757aa49cb7496a53b60aef6d3d28c119f170c9ffee2e6aa29e",
+            "size": 499
+          },
+          {
+            "path": "ctranslate2/converters/marian.py",
+            "sha256": "8b9a624bfe3348cf459a9d76170207ba8b74a4cf953e1ab630dc6eb7ee146bcd",
+            "size": 10959
+          },
+          {
+            "path": "ctranslate2/converters/utils.py",
+            "sha256": "bb9d6383753ecd044c32130ea7e28a1ec1d69bab504384c0ae55e246f2e91324",
+            "size": 3690
+          },
+          {
+            "path": "ctranslate2/converters/eole_ct2.py",
+            "sha256": "a274618d55eeff7bae5a9708e6fd184d292c811387cb0d653baaa130a3867808",
+            "size": 12303
+          },
+          {
+            "path": "ctranslate2/converters/opennmt_py.py",
+            "sha256": "c55283c0947e47a26850d6231504b0f21a7980eb2b575283fae52ef96d156a45",
+            "size": 13476
+          },
+          {
+            "path": "ctranslate2/converters/openai_gpt2.py",
+            "sha256": "466bf1cba52a6b97fd616f514097c5e1709e35b5e1f80c3ad69e4dfc4d77f613",
+            "size": 3209
+          },
+          {
+            "path": "ctranslate2/converters/drama3_weights.py",
+            "sha256": "92c3e76e173c9a9007953142ffb9ad8e04c3eb7cbfeb7471950572190e93f80c",
+            "size": 6292
+          },
+          {
+            "path": "ctranslate2/models/__init__.py",
+            "sha256": "8882cd73eab579784b3f45099c6a1e96596c4c022c7072797b92d562b3ea06ed",
+            "size": 567
+          },
+          {
+            "path": "ctranslate2/.dylibs/libctranslate2.4.9.1.dylib",
+            "sha256": "7bddb49d2dbe2558f0ea2dbe374e6cc5486e73a820bcc63b10b37057b2f71037",
+            "size": 3988368
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/RECORD",
+            "sha256": "8f224e59b9d0cb9889d7098fa4ff6df0cba5a2f248997e4ce5e3621a3310e5b5",
+            "size": 3078
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/WHEEL",
+            "sha256": "d5e1cb16bb4de3cd3ff094a50a61fee1adbd7a2029aaa8d7272c467e2671eac3",
+            "size": 136
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/entry_points.txt",
+            "sha256": "6479288eeb7f4e65511e5d1b2481a6d9bf70aabf7c18026ac4df6b949b50b21b",
+            "size": 466
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/top_level.txt",
+            "sha256": "d6151a5b370522e4a8d81008507140dceb20b2ee92d608aad32e91a2cbfc1ce4",
+            "size": 12
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/METADATA",
+            "sha256": "9f4568ac3fce896b3d9da726eaae78f1b65909fa1e03284e323ae0fe6ac81264",
+            "size": 11689
+          }
+        ]
+      },
+      {
+        "platformId": "darwin-x64",
+        "fileName": "ctranslate2-4.9.1-cp311-cp311-macosx_11_0_x86_64.whl",
+        "url": "https://files.pythonhosted.org/packages/99/4f/22c27a7ec68dcc0a95e0488187e3807933b5222d6d97cfad28cefe5c821f/ctranslate2-4.9.1-cp311-cp311-macosx_11_0_x86_64.whl",
+        "sha256": "33fac79fdd1ea4e136e613eb89236086ae82b4b7c156d1f218fcb149b97b1e7a",
+        "size": 12190568,
+        "files": [
+          {
+            "path": "ctranslate2/logging.py",
+            "sha256": "c66c762e5af23a100f6cc989c0c02bf89b97659a2047d8fad8e34d659d9f14e4",
+            "size": 1176
+          },
+          {
+            "path": "ctranslate2/version.py",
+            "sha256": "94e007f17c7873e903112f9ab25b64694ac4f36d35633dbb19bf5e5de02ae2de",
+            "size": 50
+          },
+          {
+            "path": "ctranslate2/_ext.cpython-311-darwin.so",
+            "sha256": "2653c266df3be674c7dd0ec6bcc69c01089952b55e04146fc6cbc042195a7883",
+            "size": 1818416
+          },
+          {
+            "path": "ctranslate2/__init__.py",
+            "sha256": "c96dd2361e2964f0d4891208ee65587f9dff2411f6f0a265ef3fa92b70e62f77",
+            "size": 3171
+          },
+          {
+            "path": "ctranslate2/extensions.py",
+            "sha256": "69783f7663cfbd34df9c8d45301834958366d2d655015b44a96d54a5ba864745",
+            "size": 21351
+          },
+          {
+            "path": "ctranslate2/specs/model_spec.py",
+            "sha256": "32d6050ce80cea033b98d27bf539d458c7f337532fa2148f567e33b4541ca431",
+            "size": 25261
+          },
+          {
+            "path": "ctranslate2/specs/transformer_spec.py",
+            "sha256": "6863845c7cefd783554b012bc7364d1c407c6c5a9068387d329f7cb420bdafc9",
+            "size": 34082
+          },
+          {
+            "path": "ctranslate2/specs/drama3_spec.py",
+            "sha256": "cbfbde89ecb0ce01bcb2a4da234e6897219d488712122a8c5a29667c457ae1f1",
+            "size": 8657
+          },
+          {
+            "path": "ctranslate2/specs/wav2vec2bert_spec.py",
+            "sha256": "34a4c2f2735dc4c793056d18fc429436b0e92a13f02faecfd65dddc264fe6b29",
+            "size": 3432
+          },
+          {
+            "path": "ctranslate2/specs/common_spec.py",
+            "sha256": "ed4b90dd8b0ef9f2c087016e5a5e3555b34b40bccd9584df8eb652805ff88039",
+            "size": 1542
+          },
+          {
+            "path": "ctranslate2/specs/__init__.py",
+            "sha256": "7ac258999ca20f7d39f443c90da52221cd87d9b690d075d89a390e3fe95906f9",
+            "size": 688
+          },
+          {
+            "path": "ctranslate2/specs/attention_spec.py",
+            "sha256": "e5a7276c6f546a4f623d0dc264ec26159f184b25eb4246101064c75725fd3659",
+            "size": 3796
+          },
+          {
+            "path": "ctranslate2/specs/wav2vec2_spec.py",
+            "sha256": "0fa0fe37f7dbb2f38455ef34da34b4de977aa6de5b3a2ef5ca0ff531f77f8637",
+            "size": 2034
+          },
+          {
+            "path": "ctranslate2/specs/whisper_spec.py",
+            "sha256": "bf1c6b02c1d8188b580b62bd630da07851146d799e1ad72a1585c332a71ad250",
+            "size": 2370
+          },
+          {
+            "path": "ctranslate2/converters/drama3_codec.py",
+            "sha256": "dc005bf3214a5bc2e9515780438b4c66dde5b72ece83d8c4fb9a9ea58b6ecd8f",
+            "size": 6242
+          },
+          {
+            "path": "ctranslate2/converters/opennmt_tf.py",
+            "sha256": "8227b4b7ce11f6f5171fc435cbebeeea124153c96388e3d6753f3107d2d78313",
+            "size": 15767
+          },
+          {
+            "path": "ctranslate2/converters/fairseq.py",
+            "sha256": "71d8f200163f1eacb53d2eb073f9d9b3724d8740fc45cfde3c34f5ce1897b1d7",
+            "size": 13095
+          },
+          {
+            "path": "ctranslate2/converters/transformers.py",
+            "sha256": "69b43681a70248d11f92dc80cf034278acb8a6e2cca1b96bcfc3f5cfc7c50e14",
+            "size": 193924
+          },
+          {
+            "path": "ctranslate2/converters/opus_mt.py",
+            "sha256": "5c201bdd7e1a7d10ad69912b6fb6ef22f24199f5600bd3566bf205e6d3814a64",
+            "size": 1210
+          },
+          {
+            "path": "ctranslate2/converters/converter.py",
+            "sha256": "c44dc260f0ef37352778157f36e3c9e7d4b178d29151cc819d2fccb31383dc83",
+            "size": 3492
+          },
+          {
+            "path": "ctranslate2/converters/__init__.py",
+            "sha256": "4ffc89327b3f5d757aa49cb7496a53b60aef6d3d28c119f170c9ffee2e6aa29e",
+            "size": 499
+          },
+          {
+            "path": "ctranslate2/converters/marian.py",
+            "sha256": "8b9a624bfe3348cf459a9d76170207ba8b74a4cf953e1ab630dc6eb7ee146bcd",
+            "size": 10959
+          },
+          {
+            "path": "ctranslate2/converters/utils.py",
+            "sha256": "bb9d6383753ecd044c32130ea7e28a1ec1d69bab504384c0ae55e246f2e91324",
+            "size": 3690
+          },
+          {
+            "path": "ctranslate2/converters/eole_ct2.py",
+            "sha256": "a274618d55eeff7bae5a9708e6fd184d292c811387cb0d653baaa130a3867808",
+            "size": 12303
+          },
+          {
+            "path": "ctranslate2/converters/opennmt_py.py",
+            "sha256": "c55283c0947e47a26850d6231504b0f21a7980eb2b575283fae52ef96d156a45",
+            "size": 13476
+          },
+          {
+            "path": "ctranslate2/converters/openai_gpt2.py",
+            "sha256": "466bf1cba52a6b97fd616f514097c5e1709e35b5e1f80c3ad69e4dfc4d77f613",
+            "size": 3209
+          },
+          {
+            "path": "ctranslate2/converters/drama3_weights.py",
+            "sha256": "92c3e76e173c9a9007953142ffb9ad8e04c3eb7cbfeb7471950572190e93f80c",
+            "size": 6292
+          },
+          {
+            "path": "ctranslate2/models/__init__.py",
+            "sha256": "8882cd73eab579784b3f45099c6a1e96596c4c022c7072797b92d562b3ea06ed",
+            "size": 567
+          },
+          {
+            "path": "ctranslate2/.dylibs/libctranslate2.4.9.1.dylib",
+            "sha256": "5468cdca6222eb3ccb909c4fdf274e53d229ca86afb4cd21a36f02cd8a838b6d",
+            "size": 58109664
+          },
+          {
+            "path": "ctranslate2/.dylibs/libiomp5.dylib",
+            "sha256": "aaea4f4a98d61676455748e6d533272233ba45074a4c7010b1850496e2c97988",
+            "size": 1849824
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/RECORD",
+            "sha256": "d67882207c32c5400fb415f4e724b52da1bb92feb35230a5e580ed95a6544de4",
+            "size": 3174
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/WHEEL",
+            "sha256": "64929d45e8b6f93283d2c11637efb1a9af07ef5c040254332551bee63143097f",
+            "size": 137
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/entry_points.txt",
+            "sha256": "6479288eeb7f4e65511e5d1b2481a6d9bf70aabf7c18026ac4df6b949b50b21b",
+            "size": 466
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/top_level.txt",
+            "sha256": "d6151a5b370522e4a8d81008507140dceb20b2ee92d608aad32e91a2cbfc1ce4",
+            "size": 12
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/METADATA",
+            "sha256": "9f4568ac3fce896b3d9da726eaae78f1b65909fa1e03284e323ae0fe6ac81264",
+            "size": 11689
+          }
+        ]
+      },
+      {
+        "platformId": "windows-x64",
+        "fileName": "ctranslate2-4.9.1-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/56/0b/ff6c26d55f0a2d7ded8be4b9d183952d7568be94240a3227df00c9fed453/ctranslate2-4.9.1-cp311-cp311-win_amd64.whl",
+        "sha256": "29b882c2b3e30e1a93b06b551263d8e469770ae9d6b1d02d9d5c2a998b304873",
+        "size": 23103840,
+        "files": [
+          {
+            "path": "ctranslate2/__init__.py",
+            "sha256": "825423817ffc8fe663c266490306184a029541c7a026eac43ad089af5cceb6bb",
+            "size": 3273
+          },
+          {
+            "path": "ctranslate2/_ext.cp311-win_amd64.pyd",
+            "sha256": "a0fbc7217dc4ec0c5462d031e37a8651d141ec44b97c8fa2de833a207ab8d91d",
+            "size": 797184
+          },
+          {
+            "path": "ctranslate2/ctranslate2.dll",
+            "sha256": "00d677b8eec690ee20fb9415c148f97f13398ca80d29a73ee3f18fa7b7bf04e0",
+            "size": 65495552
+          },
+          {
+            "path": "ctranslate2/cudnn64_9.dll",
+            "sha256": "9edbcdff73b0af070eb160b2ce66e59feca04aa017351d8eedcc5e8e149967d2",
+            "size": 266288
+          },
+          {
+            "path": "ctranslate2/extensions.py",
+            "sha256": "90336dd07f4abdf3427373eb446cdf923f4592f9daf388b63b963eadabfa5245",
+            "size": 21940
+          },
+          {
+            "path": "ctranslate2/libiomp5md.dll",
+            "sha256": "982233366b0afcda1e0f55a0b134097e35b779613f54ddb69e685e6cd06b755f",
+            "size": 1614192
+          },
+          {
+            "path": "ctranslate2/logging.py",
+            "sha256": "3fd7af1ddc6e331fe21efc098c401212afa3e74eb61fae0f979f9f263c44b879",
+            "size": 1221
+          },
+          {
+            "path": "ctranslate2/version.py",
+            "sha256": "3a1b5512e7b1e64e6cc36a527d0685b1f228efde34867fc30fec14c153e9a56e",
+            "size": 53
+          },
+          {
+            "path": "ctranslate2/converters/__init__.py",
+            "sha256": "b9f6237177f6b0ae1f89701453ab482725a636e2e32857ff287dc658b5dee25b",
+            "size": 507
+          },
+          {
+            "path": "ctranslate2/converters/converter.py",
+            "sha256": "4246fc3462cb9a0a8c4fa1d9905abad73c1bc72ab736559c6b12d9e80a7e60e4",
+            "size": 3601
+          },
+          {
+            "path": "ctranslate2/converters/drama3_codec.py",
+            "sha256": "4fc2ac5009e169e704e5c07d26a21702496ef23ed4de1ba2508b03ee41c77d06",
+            "size": 6408
+          },
+          {
+            "path": "ctranslate2/converters/drama3_weights.py",
+            "sha256": "64a04f6b12afdb8b6c8cb0a65bb6baa2c0b9132920d6f79c63737d08382c3d7c",
+            "size": 6452
+          },
+          {
+            "path": "ctranslate2/converters/eole_ct2.py",
+            "sha256": "ccbe78fa45cc36653dc18e69e0cb76abd886c7688360898bece9f0ad3e818d8c",
+            "size": 12658
+          },
+          {
+            "path": "ctranslate2/converters/fairseq.py",
+            "sha256": "a2cb46678011565c20abd3f1ab21ea6c9bca40f72dec32a59df50cd491ebcdcd",
+            "size": 13457
+          },
+          {
+            "path": "ctranslate2/converters/marian.py",
+            "sha256": "d7fecfdc46c80cf39dc896ed6ff2e9f8b0813c16fd03c13d3a1ce8c85c136fae",
+            "size": 11274
+          },
+          {
+            "path": "ctranslate2/converters/openai_gpt2.py",
+            "sha256": "d6b5ca3366544591d646fe17675df97cf9155a9338ad31beabb551ece0fa77e0",
+            "size": 3304
+          },
+          {
+            "path": "ctranslate2/converters/opennmt_py.py",
+            "sha256": "e85302c7da8612dd90125f6f2569f246be252698aee93862e702aaa61cf4ced2",
+            "size": 13852
+          },
+          {
+            "path": "ctranslate2/converters/opennmt_tf.py",
+            "sha256": "b81469db0cf9c6b89241c03f7344b47a463bc2ce91a515ffd0429e31174cefeb",
+            "size": 16222
+          },
+          {
+            "path": "ctranslate2/converters/opus_mt.py",
+            "sha256": "e4a6cf693881861a2b3f33294ee8087c827c4a072a1df2546c9ad628137e0e3b",
+            "size": 1254
+          },
+          {
+            "path": "ctranslate2/converters/transformers.py",
+            "sha256": "969fc6657b6187e3123d18ea0fd67389c6eedd83774c637ddbfc184bf770ac6b",
+            "size": 198912
+          },
+          {
+            "path": "ctranslate2/converters/utils.py",
+            "sha256": "c3b346dfd971fbd74e74be7b3aa2954dd0bffe8a64b8ff110028354cb9542703",
+            "size": 3817
+          },
+          {
+            "path": "ctranslate2/models/__init__.py",
+            "sha256": "131121920828abf5a7f6239e7526b0523c9b225ca94c236d788e21f0d303f015",
+            "size": 589
+          },
+          {
+            "path": "ctranslate2/specs/__init__.py",
+            "sha256": "8f09039cf3f2365be54bfdcdcc8ed9c428309987344b313d06c67bde32701eb0",
+            "size": 707
+          },
+          {
+            "path": "ctranslate2/specs/attention_spec.py",
+            "sha256": "529164bd202bb59b10612192dd3bf99f9b96f80aeb2e21209ac1a6a8c417f9bf",
+            "size": 3905
+          },
+          {
+            "path": "ctranslate2/specs/common_spec.py",
+            "sha256": "7eb7930e140ccb93d8a1f06b8a3e3f14382b2a890c600a5648f2290126489497",
+            "size": 1608
+          },
+          {
+            "path": "ctranslate2/specs/drama3_spec.py",
+            "sha256": "57d0736131d33116ea1d1b87fe6881d70d88b1923b6177f25296be14a5ee7c25",
+            "size": 8865
+          },
+          {
+            "path": "ctranslate2/specs/model_spec.py",
+            "sha256": "a3b95d7d40de196b63c910ca9a86d455fa843fa02b5c4d7aa96515ea8cb673ec",
+            "size": 26032
+          },
+          {
+            "path": "ctranslate2/specs/transformer_spec.py",
+            "sha256": "2e6b2188da435db2e0a65b48009fc6eab9af679c3d1b89cae7f98044f1b7d7cc",
+            "size": 34894
+          },
+          {
+            "path": "ctranslate2/specs/wav2vec2_spec.py",
+            "sha256": "3484ecb8eb9fd85e5b535f9a5e2b7cf9612d595f5f1f612aec0efce7b532621a",
+            "size": 2106
+          },
+          {
+            "path": "ctranslate2/specs/wav2vec2bert_spec.py",
+            "sha256": "520b6c2560bd98c809edb9f84ffc60d6e5cad2ba80e3ef6d4f628c19580f2a7c",
+            "size": 3529
+          },
+          {
+            "path": "ctranslate2/specs/whisper_spec.py",
+            "sha256": "fef9b5b1ce723a8c0e2788b2bdcc4c5eb82df9470b26b653f0eb4fb1c5177104",
+            "size": 2447
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/METADATA",
+            "sha256": "eba74916112c45646392e417fd240d9b2884e6947d603ef9c8c1257ee42bc146",
+            "size": 11878
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/WHEEL",
+            "sha256": "1a9f3a5de102f19bf0005d0de545de9e5cc56b984c2ab5fc88ff8293ef5cc2c2",
+            "size": 101
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/entry_points.txt",
+            "sha256": "6479288eeb7f4e65511e5d1b2481a6d9bf70aabf7c18026ac4df6b949b50b21b",
+            "size": 466
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/top_level.txt",
+            "sha256": "d6151a5b370522e4a8d81008507140dceb20b2ee92d608aad32e91a2cbfc1ce4",
+            "size": 12
+          },
+          {
+            "path": "ctranslate2-4.9.1.dist-info/RECORD",
+            "sha256": "59e7c32bbb5fba027a0b273f657aafc1a4ed06e984cd1eff6721365ae67f1824",
+            "size": 3193
+          }
+        ]
+      }
+    ],
+    "reverse": {
+      "source": "en",
+      "target": "zh",
+      "modelDirectory": "translate-en_zh-1_9",
+      "modelLicense": "CC-BY-4.0",
+      "archive": {
+        "fileName": "translate-en_zh-1_9.argosmodel",
+        "url": "https://argos-net.com/v1/translate-en_zh-1_9.argosmodel",
+        "sha256": "433e7c4f034d87fbe2353161e05f18646d7999452f801a4e1f0378522b9850ab",
+        "size": 70743021,
+        "files": [
+          {
+            "path": "translate-en_zh-1_9/metadata.json",
+            "sha256": "106086bc1b77d2d5c298aa38be69e8e87263eeb4167b4614b08a030c43d31b6a",
+            "size": 135
+          },
+          {
+            "path": "translate-en_zh-1_9/sentencepiece.model",
+            "sha256": "872224b85a11edc9d769a94949fd387b67ea85b50708db9f91f32f5b497a9af3",
+            "size": 806370
+          },
+          {
+            "path": "translate-en_zh-1_9/stanza/resources.json",
+            "sha256": "39faaee80e6cca9e211dcda8fb3da4f9c024dcff5b4bfc9832a8e0e271db2fda",
+            "size": 121862
+          },
+          {
+            "path": "translate-en_zh-1_9/stanza/en/tokenize/ewt.pt",
+            "sha256": "7bc5a1523f4e60107640ea44d2cb27c787bc339ba0c93be6c7dbf744d5635cd6",
+            "size": 630886
+          },
+          {
+            "path": "translate-en_zh-1_9/README.md",
+            "sha256": "050e546664f0e70d80b6f83aa1da5f04ee85335f4a1b62d1c89184f76100b5dc",
+            "size": 401
+          },
+          {
+            "path": "translate-en_zh-1_9/model/shared_vocabulary.json",
+            "sha256": "c0b6e24705ec0489d5b810de365959c1013aecd644cfeca161b54ea1df6a7dc0",
+            "size": 1367577
+          },
+          {
+            "path": "translate-en_zh-1_9/model/model.bin",
+            "sha256": "1a039114d9456b6528fabb65b455b6f156319634a0f984b1f6018f7737d67598",
+            "size": 82713318
+          },
+          {
+            "path": "translate-en_zh-1_9/model/config.json",
+            "sha256": "3a8660f12559a223969532ff191e5e6f50d4ff24164517edbd6a5090dc5144c6",
+            "size": 216
+          }
+        ]
+      }
+    }
   }
 }

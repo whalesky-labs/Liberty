@@ -338,6 +338,8 @@ mod tests {
         Migration::new(8, "v8", noop),
         Migration::new(9, "v9", noop),
         Migration::new(10, "intents", intents),
+        Migration::new(11, "v11", noop),
+        Migration::new(12, "v12", noop),
     ];
 
     struct NoSecrets;
@@ -463,11 +465,11 @@ mod tests {
 
     #[test]
     fn v10_and_old_schema_import_after_upgrade_and_reopen_idempotently() {
-        for version in [0, 2, 9, 10] {
+        for version in [0, 2, 9, 10, 11, 12] {
             let mut profile = Profile::new(version);
             let (path, data) =
                 profile.record("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", &["synthetic-retired"]);
-            assert_eq!(profile.migrate().unwrap(), 10);
+            assert_eq!(profile.migrate().unwrap(), 12);
             assert!(!path.exists());
             assert_eq!(profile.count(), 1);
             assert_eq!(profile.main_count(), 1);
@@ -695,7 +697,7 @@ mod tests {
     #[test]
     fn checkpoint_block_keeps_new_and_existing_normal_wal_intents_replayable() {
         for existing in [false, true] {
-            let mut profile = Profile::new(10);
+            let mut profile = Profile::new(12);
             profile.conn.busy_timeout(Duration::ZERO).unwrap();
             profile
                 .conn

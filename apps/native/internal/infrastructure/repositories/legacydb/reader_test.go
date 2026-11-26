@@ -99,7 +99,7 @@ func TestReadOnlyAndDeletionVisibility(t *testing.T) {
 }
 
 func TestRejectsUnknownSchemaWithoutModifyingIt(t *testing.T) {
-	for _, version := range []string{"1", "9", "11", "invalid"} {
+	for _, version := range []string{"1", "9", "13", "invalid"} {
 		t.Run(version, func(t *testing.T) {
 			path := fixture(t, version)
 			before, _ := os.ReadFile(path)

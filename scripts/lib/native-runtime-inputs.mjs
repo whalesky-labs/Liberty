@@ -5,8 +5,12 @@ import path from "node:path";
 import { fileDigest, nativeTargets, packageTarget } from "./native-package.mjs";
 
 export const securityRuntimeProfile = "security-candidate";
+export const funasrUpgradeProfile = "funasr-upgrade";
 export const productionRuntimeProfile = "production";
 export const vendorRuntimeFiles = Object.freeze(["funasr-1.3.9+liberty.local2-py3-none-any.whl", "METADATA.patch", "recipe.json", "provenance.json", "source.cdx.json"]);
+export function vendorRuntimeFilesForProfile(profileID) {
+  return profileID === funasrUpgradeProfile ? ["funasr-1.4.29+liberty.local1-py3-none-any.whl", ...vendorRuntimeFiles.slice(1)] : vendorRuntimeFiles;
+}
 
 export function runtimeInputProfile(manifest, profileID = securityRuntimeProfile) {
   if (profileID === productionRuntimeProfile) {
@@ -14,7 +18,7 @@ export function runtimeInputProfile(manifest, profileID = securityRuntimeProfile
     if (!inputs || inputs.builder?.fileName !== "build_vendor_wheel.py" || !Number.isSafeInteger(inputs.builder.bytes) || inputs.builder.bytes < 1 || inputs.builder.bytes > 128 * 1024 || !/^[a-f0-9]{64}$/.test(inputs.builder.sha256)) throw new Error("Unknown or incomplete production runtime build inputs");
     return { runtimeVersion: manifest.runtimeVersion, pythonVersion: manifest.pythonVersion, platforms: manifest.platforms?.filter((platform) => platform.asrBackend === "funasr" && !platform.unsupportedReason), files: inputs.files };
   }
-  if (profileID !== securityRuntimeProfile) throw new Error("Unknown runtime profile");
+  if (profileID !== securityRuntimeProfile && profileID !== funasrUpgradeProfile) throw new Error("Unknown runtime profile");
   return manifest.candidateProfiles?.[profileID];
 }
 
@@ -22,7 +26,7 @@ export function runtimeInputPins(manifest, profileID = securityRuntimeProfile) {
   const profile = runtimeInputProfile(manifest, profileID);
   if (!profile || !Array.isArray(profile.platforms) || profile.platforms.length !== 3 || !Array.isArray(profile.files)) throw new Error("Unknown or incomplete runtime profile");
   if (new Set(profile.platforms.map((platform) => platform.platformId)).size !== 3 || profile.platforms.some((platform) => !Object.hasOwn(nativeTargets, platform.platformId))) throw new Error("Invalid candidate runtime platforms");
-  const names = new Set([...vendorRuntimeFiles, ...profile.platforms.map((platform) => `requirements-lock-${platform.platformId}.txt`)]);
+  const names = new Set([...vendorRuntimeFilesForProfile(profileID), ...profile.platforms.map((platform) => `requirements-lock-${platform.platformId}.txt`)]);
   const seen = new Set();
   let size = 0;
   for (const pin of profile.files) {
@@ -41,9 +45,11 @@ export function runtimeSecurityOptions(args) {
   let production = false;
   for (let index = 0; index < args.length; index++) {
     const name = args[index];
-    if (name === "--production" && !production) {
+    if (name === "--production" && !production && profileID === securityRuntimeProfile) {
       production = true;
       profileID = productionRuntimeProfile;
+    } else if (name === "--profile" && !production && profileID === securityRuntimeProfile && args[index + 1] === funasrUpgradeProfile) {
+      profileID = args[++index];
     } else if (["--runtime-input-directory", "--installed-inventory"].includes(name) && args[index + 1] && path.isAbsolute(args[index + 1])) {
       const value = args[++index];
       if (name === "--runtime-input-directory" && inputDirectory === undefined) inputDirectory = value;
@@ -171,6 +177,7 @@ export function runtimePackageOptions(args) {
   const targetArgs = [];
   let inputDirectory;
   let verifyHost = false;
+  let runtimeProfile;
   for (let index = 0; index < args.length;) {
     const name = args[index++];
     if (name === "--verify-host" && !verifyHost) {
@@ -179,11 +186,13 @@ export function runtimePackageOptions(args) {
     }
     const value = args[index++];
     if (name === "--runtime-input-directory" && inputDirectory === undefined && value && path.isAbsolute(value)) inputDirectory = value;
+    else if (name === "--runtime-profile" && runtimeProfile === undefined && [securityRuntimeProfile, funasrUpgradeProfile].includes(value)) runtimeProfile = value;
     else if (name === "--target" && targetArgs.length === 0 && value) targetArgs.push(name, value);
     else throw new Error("Expected --target, optional --verify-host and optional --runtime-input-directory <absolute-directory>");
   }
   const targetID = packageTarget(targetArgs);
-  return { targetID, inputDirectory, verifyHost };
+  if (runtimeProfile && !inputDirectory) throw new Error("Explicit candidate runtime requires verified runtime inputs");
+  return { targetID, inputDirectory, verifyHost, ...(runtimeProfile ? {runtimeProfile} : {}) };
 }
 
 export function runtimeInventorySBOM(text, profileID, platformID) {

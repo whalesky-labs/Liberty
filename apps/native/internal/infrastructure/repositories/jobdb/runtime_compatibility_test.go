@@ -99,7 +99,7 @@ func TestWriteRuntimeSourcesAndGenerationCASOnRustSchema(t *testing.T) {
 		t.Fatal("download source failed to invalidate stale settings")
 	}
 	s.Close()
-	reopened, err := Open(ctx, path)
+	reopened, err := openCompatibility(ctx, path)
 	if err != nil {
 		t.Fatal(err)
 	}

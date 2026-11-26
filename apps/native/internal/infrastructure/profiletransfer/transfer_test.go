@@ -106,7 +106,7 @@ func TestImportConsistentWALSnapshotSeparatesActiveDataAndCredentialOwnership(t 
 		t.Fatal(err)
 	}
 	first, err := Import(t.Context(), source, target, vault)
-	if err != nil || first.AlreadyImported || first.Version != 10 || first.CredentialCount != 1 {
+	if err != nil || first.AlreadyImported || first.Version != 12 || first.CredentialCount != 1 {
 		t.Fatal("snapshot import failed", err)
 	}
 	mainAfter, err := os.ReadFile(filepath.Join(source, profile.DatabaseName))
@@ -345,6 +345,7 @@ func TestImportRejectsActiveLegacyOwnershipBeforeCredentialWritesAndCanRetry(t *
 		"INSERT INTO job_runs(job_id,status,pid,process_identity) VALUES('synthetic-running','running',123,'synthetic-identity')",
 		"INSERT INTO job_deletion_ops(operation_id,job_id,trash_name,phase,created_at_ms,updated_at_ms) VALUES('synthetic-delete','synthetic-job','synthetic-trash','prepared',1,1)",
 		"INSERT INTO runtime_component_state(platform_id,component,source,operation_kind,updated_at) VALUES('synthetic-platform','python','managed','installing','now')",
+		"INSERT INTO live_sessions(id,state,source_language,target_language,translate_enabled,created_at,updated_at) VALUES('synthetic-live','paused','zh','en',0,'now','now')",
 	} {
 		t.Run(strings.Fields(activity)[2], func(t *testing.T) {
 			source, legacy, vault := syntheticSource(t)
@@ -361,7 +362,7 @@ func TestImportRejectsActiveLegacyOwnershipBeforeCredentialWritesAndCanRetry(t *
 			if _, err := os.Stat(filepath.Join(target, profile.DatabaseName)); !os.IsNotExist(err) {
 				t.Fatal("active snapshot became a Native database", err)
 			}
-			if _, err := legacy.Exec("DELETE FROM job_runs; DELETE FROM job_deletion_ops; DELETE FROM runtime_component_state"); err != nil {
+			if _, err := legacy.Exec("DELETE FROM job_runs; DELETE FROM job_deletion_ops; DELETE FROM runtime_component_state; DELETE FROM live_sessions"); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := Import(t.Context(), source, target, vault); err != nil {

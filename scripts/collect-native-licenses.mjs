@@ -48,6 +48,9 @@ if (Object.keys(reviewed).length !== modules.length) throw new Error("Stale nati
 go("mod", "verify");
 const goroot = go("env", "GOROOT");
 await append(go("env", "GOVERSION"), goroot, ["LICENSE", "PATENTS"]);
+const bloubDirectory = path.join(root, "packages/desktop-resources/presentation/bloub");
+const bloubSource = JSON.parse(await readFile(path.join(bloubDirectory, "source.json"), "utf8"));
+await append(`bloub ${bloubSource.commit} (MIT) — ${bloubSource.repository}`, bloubDirectory, ["LICENSE", "NOTICE"]);
 const output = path.join(root, "artifacts/sbom/native-go-NOTICES.txt");
 await mkdir(path.dirname(output), { recursive: true });
 const temporary = `${output}.${process.pid}.tmp`;

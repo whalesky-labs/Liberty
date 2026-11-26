@@ -19,6 +19,37 @@ type LiveReader struct {
 	Files  *runner.Files
 }
 
+func (r *LiveReader) ReadRevision(ctx context.Context) (uint64, error) {
+	if reader, ok := r.Reader.(interface {
+		ReadRevision(context.Context) (uint64, error)
+	}); ok {
+		return reader.ReadRevision(ctx)
+	}
+	return 0, nil
+}
+
+func (r *LiveReader) QueryJobs(ctx context.Context, q domain.QueueQuery) (domain.JobPage, error) {
+	if reader, ok := r.Reader.(interface {
+		QueryJobs(context.Context, domain.QueueQuery) (domain.JobPage, error)
+	}); ok {
+		page, err := reader.QueryJobs(ctx, q)
+		if err != nil {
+			return domain.JobPage{}, err
+		}
+		for i := range page.Items {
+			if err := r.overlay(ctx, &page.Items[i]); err != nil {
+				return domain.JobPage{}, err
+			}
+		}
+		return page, nil
+	}
+	jobs, err := r.ListJobs(ctx)
+	if err != nil {
+		return domain.JobPage{}, err
+	}
+	return domain.QueryJobs(jobs, q), nil
+}
+
 func (r *LiveReader) ListJobs(ctx context.Context) ([]domain.JobSummary, error) {
 	jobs, err := r.Reader.ListJobs(ctx)
 	if err != nil {

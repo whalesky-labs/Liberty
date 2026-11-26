@@ -8,10 +8,69 @@ import { assertCandidateManifest, candidateIdentity, fileDigest } from "./lib/na
 import { assertRuntimeScanCoverage, loadRuntimeInputManifest, parseRuntimeLock, productionRuntimeProfile, publishRuntimeInputs, readProductionRuntimeScanInputs, readRuntimeInputs, runtimeInputDigest, runtimeInputPins, runtimeInventorySBOM, runtimePackageOptions, runtimeSecurityOptions, securityRuntimeProfile, validateInstalledRuntimeInventory, vendorRuntimeFiles } from "./lib/native-runtime-inputs.mjs";
 import { parseRuntimeModelPins, runtimeModelPinsPath } from "./lib/runtime-model-pins.mjs";
 import { candidateRuntimeAcceptanceDirectory } from "./run-native.mjs";
+import { translationComponents } from "./lib/live-translation-inputs.mjs";
 
 const platforms = ["darwin-aarch64", "darwin-x64", "windows-x64"].map((platformId) => ({ platformId }));
 const fixtureFiles = () => new Map([...vendorRuntimeFiles, ...platforms.map(({ platformId }) => `requirements-lock-${platformId}.txt`)].map((name) => [name, Buffer.from(`synthetic ${name}\n`)]));
 const manifestFor = (files) => ({ candidateProfiles: { "security-candidate": { platforms, files: [...files].map(([fileName, bytes]) => ({ fileName, bytes: bytes.length, sha256: fileDigest(bytes) })) } } });
+
+test("local translation wheels are included in vulnerability inventory with exact platform pins", async () => {
+  const manifest = await loadRuntimeInputManifest(fileURLToPath(new URL("..", import.meta.url)));
+  assert.equal(translationComponents(manifest)[0].hashes.length, 3);
+  for (const {platformId} of platforms) {
+    const [component] = translationComponents(manifest, platformId);
+    assert.equal(component.purl, "pkg:pypi/ctranslate2@4.9.1");
+    assert.equal(component.hashes[0].content, manifest.liveTranslation.engines.find(e => e.platformId === platformId).sha256);
+  }
+  for (const mutate of [
+    t => {t.engines[0].sha256 = "unverified";},
+    t => {t.engines[0].files[0].path = "../injected.py";},
+    t => {t.engines[0].platformId = "other";},
+    t => {t.modelLicense = "MIT";},
+    t => {t.reverse = null;},
+    t => {t.reverse.archive.sha256 = "unverified";},
+    t => {t.reverse.archive.files[0].path = "../outside";},
+    t => {t.reverse.source = "zh";},
+    t => {t.engines[0].url = "http://example.invalid/engine.whl";},
+  ]) {
+    const invalid = structuredClone(manifest); mutate(invalid.liveTranslation);
+    assert.throws(() => translationComponents(invalid));
+  }
+});
+
+test("FunASR upgrade is independently pinned and cannot replace production or mix candidate sidecars", async () => {
+  const root = await realpath(fileURLToPath(new URL("..", import.meta.url)));
+  const manifest = await loadRuntimeInputManifest(root);
+  const pins = runtimeInputPins(manifest, "funasr-upgrade");
+  const recipeBytes = await readFile(path.join(root, "python/funasr-runner/vendor/funasr-1.4.29.json"));
+  const recipe = JSON.parse(recipeBytes);
+  const recipePin = pins.find((p) => p.fileName === "recipe.json");
+  assert.equal(recipePin.sha256, fileDigest(recipeBytes));
+  assert.equal(recipe.upstream.version, "1.4.29");
+  assert.equal(recipe.upstream.sha256, "3a9c233218c12fce95fb15717cc881c30a223877f5c6809e33256b1aa57c56e7");
+  const wheel = pins.find((p) => p.fileName === recipe.output.filename);
+  assert.equal(wheel.sha256, recipe.output.sha256);
+  assert.equal(wheel.bytes, recipe.output.bytes);
+  for (const pin of pins.filter((p) => p.fileName.startsWith("requirements-lock-"))) {
+    const bytes = await readFile(path.join(root, "packages/desktop-resources/runtime/candidates/funasr-upgrade", pin.fileName));
+    assert.equal(bytes.length, pin.bytes);
+    assert.equal(fileDigest(bytes), pin.sha256);
+    const parsed = parseRuntimeLock(bytes.toString("utf8"));
+    assert.deepEqual(parsed.bytes, bytes);
+    assert.equal(parsed.packages.find((p) => p.name === "funasr").version, recipe.output.version);
+    for (const name of ["rapidfuzz", "websockets"]) assert.ok(parsed.packages.some((p) => p.name === name));
+  }
+  const sbom = await readFile(path.join(root,"packages/desktop-resources/runtime/candidates/funasr-upgrade/source.cdx.json"));
+  assert.equal(fileDigest(sbom),pins.find((p)=>p.fileName==="source.cdx.json").sha256);
+  assert.ok(JSON.parse(sbom).components.some((p)=>p.purl==="pkg:pypi/funasr@1.4.29"));
+  assert.ok(runtimeInputPins(manifest,"production").some((p)=>p.fileName==="funasr-1.3.9+liberty.local2-py3-none-any.whl"));
+  const mixed = structuredClone(manifest);
+  mixed.candidateProfiles["funasr-upgrade"].files = manifest.candidateProfiles["security-candidate"].files;
+  assert.throws(()=>runtimeInputPins(mixed,"funasr-upgrade"));
+  assert.equal(runtimeSecurityOptions(["--profile","funasr-upgrade","--runtime-input-directory",root]).profileID,"funasr-upgrade");
+  assert.throws(()=>runtimeSecurityOptions(["--profile","funasr-upgrade","--production","--runtime-input-directory",root]));
+  assert.throws(()=>runtimePackageOptions(["--runtime-profile","funasr-upgrade"]));
+});
 
 test("checked-in candidate locks reproduce their pinned sidecar bytes", async () => {
   const root = await realpath(fileURLToPath(new URL("..", import.meta.url)));

@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "funasr-1.4.29-liberty.local1-metadata-v1",
+  "upstream": {
+    "name": "funasr",
+    "version": "1.4.29",
+    "filename": "funasr-1.4.29-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/97/fc/80048d657335f8d049504186d9834fd08b5310c7ce2f6a03161d0a9d1889/funasr-1.4.29-py3-none-any.whl",
+    "sha256": "3a9c233218c12fce95fb15717cc881c30a223877f5c6809e33256b1aa57c56e7",
+    "bytes": 1016596,
+    "purl": "pkg:pypi/funasr@1.4.29",
+    "gitCommit": "ea49266c17efc980bd1b39aabae49967a02cc8b2"
+  },
+  "output": {
+    "version": "1.4.29+liberty.local1",
+    "filename": "funasr-1.4.29+liberty.local1-py3-none-any.whl",
+    "sha256": "02fc106e0c6de671133b5685c53776daa29d5c54fba0cda2ddbde9854ee3a46c",
+    "bytes": 1016871
+  },
+  "inventory": {
+    "files": 445,
+    "pythonFiles": 433,
+    "pythonManifestSha256": "d966ba96da671261ed317a18e12410db7c06f317694da0afc0d301ce192c0c37",
+    "metadataSha256": "d2c8438bc04c6771a6a9a9ba45df7d40ab9d3fd924b2043a8a5dbfb82c4bbb7a",
+    "patchedMetadataSha256": "a231346e44a679ed08d3381d77a01be787ec1f6b9c1918be1bc768a8d8a0f75f",
+    "wheelMetadataSha256": "98e75747d0b7c0c568bfb71263c3d8f970b3a374a6996087bc642be5cb09a1aa",
+    "recordSha256": "401df05a089cdf48bf7bce742367bc1cadd4675553c369fcdd4caf25ef050c1d",
+    "license": {
+      "id": "MIT",
+      "path": "licenses/LICENSE",
+      "sha256": "f382b62dcc61fc566b9215b1e3b604b539bfd96ed52ae1eeff5090f6dc176057"
+    }
+  },
+  "patch": {
+    "dependencyBefore": "Requires-Dist: oss2\n",
+    "dependencyAfter": "Requires-Dist: six>=1.16.0\nRequires-Dist: oss2; extra == \"oss\"\nProvides-Extra: oss\n",
+    "metadataDiffSha256": "c4c453b60d64db4d3555627792ce3facd5d23ce5e617762a7b9bc0e3699c5451",
+    "scope": "Only METADATA dependency declarations change: move oss2 to explicit oss extra and add six. Update METADATA Version, funasr/version.txt, dist-info paths and RECORD as distribution bookkeeping. All Python sources and other payload bytes remain identical. No model or package code is executed."
+  },
+  "archive": {
+    "timestamp": [
+      2026,
+      11,
+      25,
+      0,
+      0,
+      0
+    ],
+    "compression": "deflate",
+    "compressionLevel": 6,
+    "createSystem": 3,
+    "mode": 33188,
+    "note": "Fixed DEFLATE level 6 and ZIP metadata; every output byte is pinned."
+  },
+  "limits": {
+    "archiveBytes": 2097152,
+    "entries": 512,
+    "entryBytes": 262144,
+    "totalBytes": 8388608,
+    "compressionRatio": 200
+  },
+  "deliveryBoundary": "Isolated FunASR upgrade candidate. This metadata-only wheel does not establish production cutover, security clearance or platform acceptance."
+}

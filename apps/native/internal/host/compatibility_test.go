@@ -70,7 +70,7 @@ func TestWriteHostSubmissionSchedulerResultRetryDeleteAndOwnership(t *testing.T)
 	if os.WriteFile(path, data, 0600) != nil {
 		t.Fatal("database fixture")
 	}
-	store, err := jobdb.Open(ctx, path)
+	store, _, err := jobdb.OpenPrepared(ctx, path, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestWriteHostSubmissionSchedulerResultRetryDeleteAndOwnership(t *testing.T)
 	store.Close()
 	t.Setenv("LIBERTY_HOST_FIXTURE_CHILD", "asr")
 	openFixture := func() (*Profile, error) {
-		store, err := jobdb.Open(ctx, path)
+		store, _, err := jobdb.OpenPrepared(ctx, path, nil, false)
 		if err != nil {
 			return nil, err
 		}

@@ -99,8 +99,8 @@ func TestCredentialFreeHostRecoveryRestoresCompleteBusinessSnapshot(t *testing.T
 	ctx := context.Background()
 	fixture := &recoveryFixture{database: filepath.Join(t.TempDir(), "credential-free #资料.sqlite3"), now: time.Now().UTC().Add(-6 * time.Hour)}
 	initial, prepared := hostRecoveryOpen(t, fixture.database, "create")
-	if prepared.Version != 10 {
-		t.Fatal("credential-free fixture was not prepared as v10")
+	if prepared.Version != 12 {
+		t.Fatal("credential-free fixture was not prepared as v12")
 	}
 	recoveryRequire(t, initial.Start(ctx))
 	template, err := initial.Resources.SaveTemplate(ctx, domain.SummaryTemplate{ID: "host-recovery-template", Name: "Before takeover", Prompt: "Summarize the historical meeting."})
@@ -127,7 +127,7 @@ func TestCredentialFreeHostRecoveryRestoresCompleteBusinessSnapshot(t *testing.T
 		}
 	}
 	handover, takeover := hostRecoveryOpen(t, fixture.database, "handover")
-	if takeover.Version != 10 || takeover.FromVersion != 10 || takeover.Backup == "" {
+	if takeover.Version != 12 || takeover.FromVersion != 12 || takeover.Backup == "" {
 		t.Fatal("host did not create the first takeover recovery point", takeover)
 	}
 	recoveryEqualSnapshot(t, before, recoverySnapshot(t, takeover.Backup))
@@ -209,7 +209,7 @@ func TestCredentialFreeHostRecoveryRestoresCompleteBusinessSnapshot(t *testing.T
 	if len(after["meeting_members"]) != len(recoverySnapshot(t, mainOnly)["meeting_members"])+1 {
 		t.Fatal("credential-free late write was not isolated to committed WAL")
 	}
-	corruptName := filepath.Base(fixture.database) + ".pre-native-v10-synthetic-corrupt.bak"
+	corruptName := filepath.Base(fixture.database) + ".pre-native-v12-synthetic-corrupt.bak"
 	recoveryRequire(t, os.WriteFile(filepath.Join(filepath.Dir(fixture.database), corruptName), []byte("synthetic corrupt snapshot"), 0600))
 	failed, err := RestoreProfile(ctx, fixture.database, corruptName)
 	if !errors.Is(err, schema.ErrRestore) || failed.SafetyBackup != "" {
@@ -223,7 +223,7 @@ func TestCredentialFreeHostRecoveryRestoresCompleteBusinessSnapshot(t *testing.T
 	hostRecoveryWithoutCredentials(t, takeover.Backup)
 	restored, err := RestoreProfile(ctx, fixture.database, filepath.Base(takeover.Backup))
 	recoveryRequire(t, err)
-	if restored.RestoredVersion != 10 || restored.SafetyBackup == "" || restored.SafetyBackup == takeover.Backup {
+	if restored.RestoredVersion != 12 || restored.SafetyBackup == "" || restored.SafetyBackup == takeover.Backup {
 		t.Fatal("public host restore did not retain its pre-restore safety backup", restored)
 	}
 	recoveryEqualSnapshot(t, before, recoverySnapshot(t, fixture.database))

@@ -17,6 +17,16 @@ import (
 	"liberty.local/liberty/internal/infrastructure/repositories/legacydb"
 )
 
+func openCompatibility(ctx context.Context, path string) (*Store, error) {
+	// Upgrade the frozen v10 copy once; later reopen checks exercise the normal
+	// writer entry and must not re-run migration/credential recovery unnecessarily.
+	if store, err := Open(ctx, path); !errors.Is(err, legacydb.ErrSchema) {
+		return store, err
+	}
+	store, _, err := OpenPrepared(ctx, path, nil, false)
+	return store, err
+}
+
 func fixtureStore(t *testing.T) (*Store, string) {
 	t.Helper()
 	dir := os.Getenv("LIBERTY_NATIVE_FIXTURE_DIR")
@@ -32,7 +42,7 @@ func fixtureStore(t *testing.T) (*Store, string) {
 	if err = os.WriteFile(path, bytes, 0600); err != nil {
 		t.Fatal(err)
 	}
-	s, err := Open(context.Background(), path)
+	s, err := openCompatibility(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}

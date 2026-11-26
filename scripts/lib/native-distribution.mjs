@@ -18,8 +18,8 @@ export const upgradeCodes = Object.freeze({
 });
 export const productionPromotion = Object.freeze({
   productionIdentity: 'com.westng.liberty',
-  requiredChange: 'Reviewed cutover must switch Go launch channel/profile, bundle identity, input manifest policy, installer UpgradeCodes and the release entry together, then retire the old client.',
-  requiredEvidence: ['all-three-target-execution', 'ui-accessibility-parity', 'runtime-security-clearance', 'data-migration-and-restore', 'installer-upgrade-and-rollback', 'signing-and-notarization', 'production-observation'],
+  requiredChange: 'Reviewed cutover must switch Go launch channel/profile, bundle identity, input manifest policy and the release entry together, then retire the old client; installer UpgradeCodes also change when an installer is delivered.',
+  requiredEvidence: ['all-three-target-execution', 'ui-accessibility-parity', 'runtime-security-clearance', 'data-migration-and-restore', 'distribution-upgrade-and-rollback', 'production-observation'],
 });
 const env = { ...process.env, GOTOOLCHAIN: 'go1.27.4', GOFLAGS: '-mod=readonly', GOWORK: 'off' };
 const xml = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;');
@@ -54,7 +54,7 @@ export function msiVersion(version) {
 export function renderWix(template, { target, version, files }) {
   if (!Object.hasOwn(upgradeCodes, target)) throw new Error('MSI target must be Windows x64');
   msiVersion(version);
-  const expected = [`${candidateName}.exe`, 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'];
+  const expected = [`${candidateName}.exe`, 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'LOCAL_TRANSLATION_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'];
   assert.deepEqual([...files].sort(), expected.sort(), 'Installer payload must be the exact verified candidate file set');
   const win64 = 'yes';
   const components = files.map((name, index) => `            <Component Id="Payload${index}" Guid="*" Win64="${win64}">\n              <File Id="File${index}" Source="payload\\${xml(name)}" Name="${xml(name)}" Checksum="yes" />\n              <RegistryValue Root="HKCU" Key="Software\\Liberty\\NativeCandidate\\${target}" Name="File${index}" Type="integer" Value="1" KeyPath="yes" />\n            </Component>`).join('\n');
@@ -266,11 +266,13 @@ async function installWix(stage) {
 export function msiQueryScript(file) {
   return `$i=New-Object -ComObject WindowsInstaller.Installer; $d=$i.OpenDatabase(${ps(file)},0); $p=@{}; $q=$d.OpenView('SELECT \`Property\`,\`Value\` FROM \`Property\`'); $q.Execute(); while($r=$q.Fetch()){$p[$r.StringData(1)]=$r.StringData(2)}; $f=@(); $q=$d.OpenView('SELECT \`FileName\` FROM \`File\`'); $q.Execute(); while($r=$q.Fetch()){$f+=($r.StringData(1) -split '\\|')[-1]}; @{properties=$p;files=@($f);template=$d.SummaryInformation(0).Property(7)} | ConvertTo-Json -Depth 5 -Compress`;
 }
-export function assertMsiMetadata(metadata, target, version) {
+export function assertMsiMetadata(metadata, target, version, { allowLegacyNotices = false } = {}) {
   if (!Object.hasOwn(upgradeCodes, target)) throw new Error('MSI target must be Windows x64');
   const properties = metadata.properties ?? {};
   if (properties.ProductName !== `Liberty Native Candidate (${target})` || properties.ProductVersion !== msiVersion(version) || properties.UpgradeCode?.replace(/[{}]/g, '').toUpperCase() !== upgradeCodes[target] || properties.ALLUSERS || metadata.template?.split(';')[0] !== 'x64') throw new Error('MSI product, version, identity, per-user scope or architecture mismatch');
-  assert.deepEqual([...metadata.files].sort(), [`${candidateName}.exe`, 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'].sort(), 'MSI must embed the exact file set');
+  const expected = [`${candidateName}.exe`, 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'];
+  if (!allowLegacyNotices || metadata.files.includes('LOCAL_TRANSLATION_NOTICES.txt')) expected.push('LOCAL_TRANSLATION_NOTICES.txt');
+  assert.deepEqual([...metadata.files].sort(), expected.sort(), 'MSI must embed the exact file set');
   if (!/^\{[A-F0-9-]{36}\}$/i.test(properties.ProductCode ?? '')) throw new Error('MSI ProductCode missing');
   return properties;
 }
@@ -382,7 +384,7 @@ export async function acceptWindowsInstall(options) {
   const previous = path.resolve(options.previous);
   powershell(authenticodeScript(previous));
   const old = JSON.parse(powershell(msiQueryScript(previous)));
-  const oldProperties = assertMsiMetadata(old, options.target, old.properties?.ProductVersion);
+  const oldProperties = assertMsiMetadata(old, options.target, old.properties?.ProductVersion, { allowLegacyNotices: true });
   const current = path.resolve(options.output, manifest.file);
   const currentMetadata = JSON.parse(powershell(msiQueryScript(current)));
   const currentProperties = assertMsiMetadata(currentMetadata, options.target, manifest.version);

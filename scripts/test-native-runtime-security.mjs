@@ -8,10 +8,12 @@ import vm from "node:vm";
 import * as governance from "./lib/dependency-governance.mjs";
 import * as inputs from "./lib/native-runtime-inputs.mjs";
 import { fileDigest, nativeTargets } from "./lib/native-package.mjs";
+import * as translationInputs from "./lib/live-translation-inputs.mjs";
 
 const checkerURL = new URL("./check-native-runtime-security.mjs", import.meta.url);
 const checkerSource = await readFile(checkerURL, "utf8");
 const root = fileURLToPath(new URL("../", import.meta.url));
+const pinnedTranslation = (await inputs.loadRuntimeInputManifest(root)).liveTranslation;
 const exceptionFile = path.join(root, governance.OSV_EXCEPTION_CONFIG);
 const verifiedExceptions = Buffer.from('[[IgnoredVulns]]\nid = "GHSA-2222-3333-4444"\nignoreUntil = 2999-12-31\nreason = "Synthetic vulnerability-specific exception for scanner control-flow tests."\n');
 const replacementExceptions = Buffer.from('[[IgnoredVulns]]\nid = "GHSA-5555-6666-7777"\nreason = "Synthetic replacement deliberately lacks the required expiry."\n');
@@ -26,12 +28,12 @@ function runtimeFixture() {
   ]);
   files.set("source.cdx.json", Buffer.from(JSON.stringify({ bomFormat: "CycloneDX", specVersion: "1.5", version: 1, components: [{ type: "library", name: "funasr", version: "1.3.9", purl: "pkg:pypi/funasr@1.3.9" }] })));
   const pins = [...files].map(([fileName, bytes]) => ({ fileName, bytes: bytes.length, sha256: fileDigest(bytes) }));
-  const manifest = { candidateProfiles: { [inputs.securityRuntimeProfile]: { runtimeVersion: "synthetic-review-1", platforms, files: pins } } };
+  const manifest = { liveTranslation: structuredClone(pinnedTranslation), candidateProfiles: { [inputs.securityRuntimeProfile]: { runtimeVersion: "synthetic-review-1", platforms, files: pins } } };
   const inventory = { runtimeProfile: inputs.securityRuntimeProfile, runtimeInputSha256: inputs.runtimeInputDigest(files), platform: platforms[0].platformId, components: [...locked, { name: "pip", version: "26.3" }] };
   return { files, manifest, inventory, platforms };
 }
 
-async function runSecurityCheck({ production = false, installed = false, omitUpstream = false, installedExitCode, governedExitCode, replaceExceptions = false } = {}) {
+async function runSecurityCheck({ production = false, installed = false, omitUpstream = false, omitTranslation = false, installedExitCode, governedExitCode, replaceExceptions = false } = {}) {
   assert.equal(typeof vm.SourceTextModule, "function", "Run with node --experimental-vm-modules --test scripts/test-native-runtime-security.mjs");
   const fixture = runtimeFixture();
   const profileID = production ? inputs.productionRuntimeProfile : inputs.securityRuntimeProfile;
@@ -80,7 +82,7 @@ async function runSecurityCheck({ production = false, installed = false, omitUps
         const configFile = args[args.indexOf("--config") + 1];
         const mode = path.basename(configFile) === "no-exceptions.toml" ? "unfiltered" : "current-policy";
         const inventory = path.basename(sbomFiles[0], ".cdx.json");
-        const results = sbomFiles.map((filename) => ({ source: { path: filename, type: "sbom" }, packages: JSON.parse(memoryFile(filename)).components.map(({ name, version }) => ({ package: { ecosystem: "PyPI", name, version } })).filter((entry) => !omitUpstream || entry.package.name !== "funasr" || entry.package.version !== "1.3.9") }));
+        const results = sbomFiles.map((filename) => ({ source: { path: filename, type: "sbom" }, packages: JSON.parse(memoryFile(filename)).components.map(({ name, version }) => ({ package: { ecosystem: "PyPI", name, version } })).filter((entry) => (!omitUpstream || entry.package.name !== "funasr" || entry.package.version !== "1.3.9") && (!omitTranslation || entry.package.name !== "ctranslate2")) }));
         scans.push({ inventory, mode, configFile, config: memoryFile(configFile), sbomFiles, results });
         const code = inventory === "installed" && installedExitCode !== undefined ? installedExitCode : mode === "current-policy" ? governedExitCode ?? 0 : 1;
         child.stdout.emit("data", JSON.stringify({ results }));
@@ -121,6 +123,7 @@ async function runSecurityCheck({ production = false, installed = false, omitUps
       readPlainFile: async (directory, name) => { assert.equal(path.join(directory, name), inventoryFile); return Buffer.from(JSON.stringify(fixture.inventory)); },
     }],
     ["./lib/native-package.mjs", { fileDigest }],
+    ["./lib/live-translation-inputs.mjs", translationInputs],
   ]);
   const context = vm.createContext({ process: mockProcess, Buffer, console: { log() {} } });
   const checker = new vm.SourceTextModule(checkerSource, { context, identifier: checkerURL.href, initializeImportMeta(meta) { meta.url = checkerURL.href; } });
@@ -152,6 +155,14 @@ test("candidate lock inventories require six complete scans and allow unfiltered
   assert.deepEqual(result.scans.map(({ inventory, mode }) => [inventory, mode]), result.platforms.flatMap(({ platformId }) => [[platformId, "current-policy"], [platformId, "unfiltered"]]));
   assert.ok(result.summary.runs.every((run) => run.coverageComplete && run.exitCode === (run.mode === "current-policy" ? 0 : 1)));
   assert.ok(result.scans.every((scan) => scan.sbomFiles[1] === path.join(result.output, "source.cdx.json")));
+  assert.ok(result.scans.every((scan) => scan.results.some(source => source.packages.some(entry => entry.package.name === "ctranslate2" && entry.package.version === "4.9.1"))));
+});
+
+test("omitting optional local translation fails runtime scan coverage", async () => {
+  const result = await runSecurityCheck({ omitTranslation: true });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.summary.passed, false);
+  assert.ok(result.summary.runs.every(run => !run.coverageComplete));
 });
 
 test("production scans use actual production identity and preserve upstream coverage and failure gates", async () => {

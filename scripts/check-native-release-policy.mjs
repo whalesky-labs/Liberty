@@ -16,7 +16,7 @@ export function assertNativeWorkflow(source) {
 
 // Shared by local packaging and the independent Release assembler. All callers
 // verify source provenance separately; this check authenticates payload bytes.
-export function assertNativeCandidatePayload({ files, version, target }) {
+export function assertNativeCandidatePayload({ files, version, target, allowLegacyNotices = false }) {
   const manifest = JSON.parse(files.get('candidate-manifest.json')?.toString() ?? 'null');
   assertCandidateManifest(manifest);
   assertNativeVersion(version, [manifest.version]);
@@ -26,6 +26,9 @@ export function assertNativeCandidatePayload({ files, version, target }) {
   const resources = mac ? `${candidateName}.app/Contents/Resources/` : '';
   const binary = mac ? `${candidateName}.app/Contents/MacOS/liberty-native` : `${candidateName}.exe`;
   const required = [binary, 'README.txt', `${resources}LICENSE`, `${resources}THIRD_PARTY_NOTICES.txt`, `${resources}${mac ? 'icon.icns' : 'icon.ico'}`, ...(mac ? [`${candidateName}.app/Contents/Info.plist`] : [])];
+  const translationNotices = `${resources}LOCAL_TRANSLATION_NOTICES.txt`;
+  // Previous-version rollback inputs may predate the local translation notices.
+  if (!allowLegacyNotices || files.has(translationNotices)) required.push(translationNotices);
   sameSet(manifest.files.map(file => file.path), required);
   sameSet(files.keys(), [...required, 'candidate-manifest.json']);
   for (const file of manifest.files) {

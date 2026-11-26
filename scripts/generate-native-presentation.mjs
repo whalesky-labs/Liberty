@@ -92,3 +92,4 @@ for (const [name, bytes] of artifacts) {
   } else await writeFile(target, bytes);
 }
 console.log("Native messages, icons and mascot match the shared desktop sources.");
+await import("./generate-native-bloub.mjs");

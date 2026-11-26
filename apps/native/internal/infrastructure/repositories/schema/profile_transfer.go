@@ -29,6 +29,7 @@ func profileSnapshotQuiescent(ctx context.Context, connection *sql.Conn) error {
 		{"job_runs", "SELECT COUNT(*) FROM job_runs WHERE status IN ('queued','running')", ErrProfileTransferBusy},
 		{"job_deletion_ops", "SELECT COUNT(*) FROM job_deletion_ops", ErrProfileTransferBusy},
 		{"ai_summary_runs", "SELECT COUNT(*) FROM ai_summary_runs WHERE status='running'", ErrProfileTransferBusy},
+		{"live_sessions", "SELECT COUNT(*) FROM live_sessions WHERE state IN ('preparing','listening','paused','stopping')", ErrProfileTransferBusy},
 		// Keep these five active kinds aligned with domain.RuntimeOperation.Active.
 		// Failed operations are terminal; unfamiliar values remain invalid.
 		{"runtime_component_state", "SELECT COUNT(*) FROM runtime_component_state WHERE operation_kind IN ('detecting','waiting_for_python','downloading','installing','validating')", ErrProfileTransferBusy},

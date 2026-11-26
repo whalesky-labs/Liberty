@@ -16,6 +16,7 @@ import (
 	"liberty.local/liberty/internal/infrastructure/diagnosticlog"
 	"liberty.local/liberty/internal/infrastructure/execution"
 	"liberty.local/liberty/internal/infrastructure/legacyjobs"
+	"liberty.local/liberty/internal/infrastructure/liveaudio"
 	"liberty.local/liberty/internal/infrastructure/managed"
 	"liberty.local/liberty/internal/infrastructure/media"
 	"liberty.local/liberty/internal/infrastructure/profile"
@@ -42,6 +43,7 @@ type Profile struct {
 	LegacyImport  application.LegacyImportResult
 	WordExport    *application.WordExport
 	Summary       *application.SummaryService
+	Live          *application.LiveService
 	Work          *application.Work
 	Pet           *application.Pet
 	store         *jobdb.Store
@@ -60,7 +62,7 @@ func (p *Profile) RecordPetDiagnostic(event diagnosticlog.Event, instance diagno
 	}
 }
 
-// Open accepts only an explicit existing v10 profile.
+// Open accepts only an explicit existing v11 profile.
 func Open(ctx context.Context, database string) (*Profile, error) {
 	store, err := jobdb.Open(ctx, database)
 	if err != nil {
@@ -196,6 +198,7 @@ func assembleWithRuntimePlatform(ctx context.Context, database string, store *jo
 	p.Diagnostics = application.NewDiagnostics(Version, managed.CurrentPlatform(), store, p.Runtime, p.diagnosticLog)
 	p.WordExport = application.NewWordExport(p.Meetings, store)
 	p.Summary = application.NewSummaryService(p.Meetings, store, p.Resources, ai.Client{}, p.Pet)
+	p.Live = application.NewLiveService(store, &liveaudio.Audio{Runtime: resolver, Directory: directory}, &execution.Streaming{Runtime: resolver, Models: installer, Settings: store, Directory: directory}, &execution.LocalTranslator{Runtime: resolver, Installer: installer, Directory: directory}, p.scheduler)
 	p.Work = application.NewWork(store, time.Now)
 	success = true
 	return p, nil
@@ -213,11 +216,17 @@ func (p *Profile) Start(ctx context.Context) error {
 	if err := p.Summary.Recover(ctx); err != nil {
 		return err
 	}
+	if err := p.Live.Recover(ctx); err != nil {
+		return err
+	}
 	_, _ = p.Pet.Workflow(ctx, "daily_open", "Liberty app opened")
 	return nil
 }
 func (p *Profile) Close() {
 	p.once.Do(func() {
+		if p.Live != nil {
+			p.Live.Close()
+		}
 		if p.Summary != nil {
 			p.Summary.Close()
 		}

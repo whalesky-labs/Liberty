@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://liberty.local/schemas/live/v1/input.schema.json",
+  "title": "LiveASRInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "version", "sequence", "type", "offsetMs"],
+  "properties": {
+    "protocol": {"const": "liberty-live-asr"},
+    "version": {"type": "integer", "const": 1},
+    "sequence": {"type": "integer", "minimum": 1},
+    "type": {"enum": ["audio", "boundary", "stop"]},
+    "offsetMs": {"type": "integer", "minimum": 0, "maximum": 86400000},
+    "pcm": {"type": "string", "minLength": 1, "maxLength": 4268, "contentEncoding": "base64"}
+  },
+  "allOf": [{"if": {"properties": {"type": {"const": "audio"}}}, "then": {"required": ["pcm"]}, "else": {"not": {"required": ["pcm"]}}}]
+}

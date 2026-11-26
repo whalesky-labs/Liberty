@@ -73,7 +73,7 @@ try {
     await mkdir(path.dirname(path.join(fixtureRoot, name)), { recursive: true });
     await writeFile(path.join(fixtureRoot, name), content);
   };
-  for (const name of ["scripts/check-dependency-governance.mjs", "scripts/check-native-runtime-security.mjs", "scripts/generate-sbom.mjs", "scripts/collect-native-licenses.mjs", "scripts/lib/dependency-governance.mjs", "scripts/lib/native-runtime-inputs.mjs", "scripts/lib/native-package.mjs", "packages/desktop-resources/runtime/runtime-manifest.json", "python/funasr-runner/tools/build_vendor_wheel.py", "python/funasr-runner/vendor/funasr-1.3.9.json", "python/funasr-runner/vendor/source.cdx.json", ...PYTHON_LOCK_FILES.slice(1)]) {
+  for (const name of ["scripts/check-dependency-governance.mjs", "scripts/check-native-runtime-security.mjs", "scripts/generate-sbom.mjs", "scripts/collect-native-licenses.mjs", "scripts/lib/dependency-governance.mjs", "scripts/lib/native-runtime-inputs.mjs", "scripts/lib/native-package.mjs", "scripts/lib/live-translation-inputs.mjs", "packages/desktop-resources/presentation/bloub/source.json", "packages/desktop-resources/presentation/bloub/LICENSE", "packages/desktop-resources/presentation/bloub/NOTICE", "packages/desktop-resources/runtime/runtime-manifest.json", "python/funasr-runner/tools/build_vendor_wheel.py", "python/funasr-runner/vendor/funasr-1.3.9.json", "python/funasr-runner/vendor/source.cdx.json", ...PYTHON_LOCK_FILES.slice(1)]) {
     await mkdir(path.dirname(path.join(fixtureRoot, name)), { recursive: true });
     await copyFile(path.join(repositoryRoot, name), path.join(fixtureRoot, name));
   }
@@ -196,6 +196,7 @@ if(name==='osv-scanner') {
   assert.deepEqual(sbom.components.filter(({ purl }) => purl.startsWith("pkg:npm/")).map(({ name }) => name).sort(), ["builder", "optional", "transitive"]);
   assert(sbom.components.some(({ name, purl }) => name === "example.test/module" && purl.startsWith("pkg:golang/")));
   assert(sbom.components.some(({ name }) => name === "dev-demo"));
+  assert(sbom.components.some(({ purl, hashes }) => purl === "pkg:pypi/ctranslate2@4.9.1" && hashes.length === 3));
   assert(sbom.components.some(({ purl }) => purl === "pkg:pypi/funasr@1.3.9%2Bliberty.local2"));
   assert(sbom.components.some(({ purl }) => purl === "pkg:pypi/funasr@1.3.9"));
   assert.deepEqual(sbom.dependencies, [{ ref: "pkg:pypi/funasr@1.3.9%2Bliberty.local2", dependsOn: ["pkg:pypi/funasr@1.3.9"] }]);

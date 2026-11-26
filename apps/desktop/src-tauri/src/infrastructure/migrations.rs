@@ -13,7 +13,7 @@ use crate::infrastructure::{
 };
 use crate::local_db::LocalResult;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 10;
+pub const CURRENT_SCHEMA_VERSION: i64 = 12;
 const CREDENTIAL_JOURNAL_KEY: &str = "native_credential_migration_v3";
 const CREDENTIAL_JOURNAL_ERROR: &str = "无法恢复系统凭据迁移记录。";
 
@@ -775,6 +775,8 @@ mod tests {
         Migration::new(8, "test v8", test_noop),
         Migration::new(9, "test v9", test_noop),
         Migration::new(10, "test v10", test_noop),
+        Migration::new(11, "test v11", test_noop),
+        Migration::new(12, "test v12", test_noop),
     ];
 
     struct TestDirectory(PathBuf);
@@ -996,7 +998,7 @@ mod tests {
 
         assert_eq!(
             run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap(),
-            10
+            CURRENT_SCHEMA_VERSION
         );
 
         assert_published_material(&profile.connection, &store);
@@ -1132,7 +1134,10 @@ mod tests {
         store.fail_delete.set(false);
         run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap();
 
-        assert_eq!(ensure_schema_version(&profile.connection).unwrap(), 10);
+        assert_eq!(
+            ensure_schema_version(&profile.connection).unwrap(),
+            CURRENT_SCHEMA_VERSION
+        );
         assert_eq!(store.writes.borrow().len(), 2);
         assert!(read_credential_journal(&profile.connection)
             .unwrap()
@@ -1216,7 +1221,7 @@ mod tests {
 
         assert_eq!(
             run_migrations(&profile.connection, &store, TEST_MIGRATIONS).unwrap(),
-            10
+            CURRENT_SCHEMA_VERSION
         );
 
         profile
