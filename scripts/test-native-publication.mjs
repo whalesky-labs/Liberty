@@ -303,6 +303,13 @@ test('release notes accept plain and bracketed exact version headings and stop a
   }
 });
 
+test('release notes contain only the version changelog and hidden provenance markers', () => {
+  const f = fixture();
+  const section = `## ${version} - 2026-11-24\n\n### 中文\n\n- 合成变更。\n\n### English\n\n- Synthetic changes.\n`;
+  const changelog = `# Changelog\n\n## Unreleased\n\nFuture changes.\n\n${section}\n## 1.2.3\n\nPrevious changes.\n`;
+  assert.equal(releaseNotes(changelog, f.context, f.files), `${releaseMarkers(f.context, f.files).join('\n')}\n\n${section}`);
+});
+
 test('release notes reject a missing exact version or bilingual content outside its section', () => {
   const f = fixture();
   for (const changelog of [
