@@ -323,13 +323,13 @@ func (s *Store) PetMakeupCheckIn(ctx context.Context, now string) (domain.PetDai
 		}
 		if !state.MakeupAvailable || state.MakeupDate == nil {
 			if state.MakeupBlockedReason != nil {
-				return errorsText(*state.MakeupBlockedReason)
+				return errors.New(*state.MakeupBlockedReason)
 			}
-			return errorsText("当前没有可补签的断签日期。")
+			return errors.New("当前没有可补签的断签日期。")
 		}
 		if _, e = consumePetItem(ctx, tx, domain.PetMakeupTicket, 1, now); e != nil {
 			if errors.Is(e, domain.ErrPet) {
-				return errorsText("补签票券数量不足。")
+				return errors.New("补签票券数量不足。")
 			}
 			return e
 		}

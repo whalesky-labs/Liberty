@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"context"
+	"errors"
 
 	"github.com/egoist/mygo"
 	"liberty.local/liberty/internal/domain"
@@ -58,6 +59,9 @@ func (f *NativeMemberFiles) Import(ctx context.Context) (domain.MemberImportResu
 		return domain.MemberImportResult{}, false, err
 	}
 	result, err := f.Service.ImportMembers(ctx, values)
+	if errors.Is(err, domain.ErrResourceInvalid) {
+		err = memberxlsx.ErrWorkbook
+	}
 	return result, true, err
 }
 func (f *NativeMemberFiles) Export(ctx context.Context) (bool, error) {

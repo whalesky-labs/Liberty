@@ -64,6 +64,8 @@ export type MessageTree = {
     processingLabel: string;
     back: string;
     forward: string;
+    collapseMenu: string;
+    expandMenu: string;
     localReady: string;
     remoteReady: string;
     mockMode: string;

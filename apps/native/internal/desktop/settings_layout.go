@@ -116,7 +116,10 @@ func settingsPage(context *ui.Context, locale, section string, content func()) {
 	pageHeight := height - titlebarHeight - presentation.StatusbarHeight - 26
 	if width <= 760 {
 		padding = 8
-		pageHeight -= 146 + presentation.ActivityBarWidth
+		pageHeight -= presentation.ActivityBarWidth
+		if !*shellMenuCollapsed(context) {
+			pageHeight -= 146
+		}
 	}
 	ui.Scroll(context.Key(section)).Fill().Children(func() {
 		ui.Column(context).FillWidth().AlignItems(ui.Center).Children(func() {

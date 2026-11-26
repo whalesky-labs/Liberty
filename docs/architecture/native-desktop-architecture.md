@@ -1,6 +1,6 @@
 # Go + MyGo 原生客户端架构
 
-最后核实：2026-11-23，依据当前 `apps/native`、根脚本、共享契约和共享资源目录。本文维护实现边界，不记录某次测试运行的完成率；阶段证据见[原生实施记录](../ai/plans/2026-11-17-native-desktop-implementation.md)，发布要求见[发布就绪检查](release-readiness.md)。
+最后核实：2026-11-26，依据当前 `apps/native`、根脚本、共享契约和共享资源目录。本文维护实现边界，不记录某次测试运行的完成率；阶段证据见[原生实施记录](../ai/plans/2026-11-17-native-desktop-implementation.md)，发布要求见[发布就绪检查](release-readiness.md)。
 
 ## 客户端与发布状态
 
@@ -25,6 +25,8 @@ Liberty 的原生重构实现位于 `apps/native`，采用 Go + MyGo 自绘桌�
 | `internal/infrastructure/ai/`、`remote/` | 受信目标、凭据传输和有界 HTTP 响应 |
 | `internal/infrastructure/profile/`、`credentials/`、`system/` | 资料锁、系统凭据和平台实现 |
 | `internal/desktop/presentation/`、`internal/contracts/` | UI 共用资源和嵌入契约；生成文件由根脚本维护 |
+
+人员 Excel 解析器只校验文件、XML 与单元格格式；应用导入入口构造 `domain.MemberImport`，一次校验批次姓名、重复与记录人数，并以私有存储的批次类型交给仓储。单条人员保存是独立入口，保留自身实体约束。农场/打工的阶段时间、进度、奖励与汇总计算维护在 `domain/work_rules.go`；仓储保留事务与 SQL，视图使用类型化业务错误选择双语提示。
 
 ```mermaid
 flowchart LR

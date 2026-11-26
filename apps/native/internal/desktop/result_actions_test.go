@@ -84,7 +84,9 @@ func TestWorkbenchOriginalEditAndTextExportInteractions(t *testing.T) {
 					t.Fatal("wrong text export action")
 				}
 			}
-			result.Job.DiarizationStatus = "unavailable"
+			next := *result
+			next.Job.DiarizationStatus = "unavailable"
+			v.Client.Result = &next
 			tt.Frame()
 			if node, ok := tt.Access(common("edit")); ok && !node.Disabled {
 				t.Fatal("degraded speaker result editable")

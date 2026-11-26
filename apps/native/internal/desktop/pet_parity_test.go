@@ -70,6 +70,36 @@ func TestPetStoreCardsUsePaneWidthAndKeepFinalRowSize(t *testing.T) {
 	}
 }
 
+func TestPetStoreDetailsShareBottomBaseline(t *testing.T) {
+	for _, locale := range []string{"zh-CN", "en-US"} {
+		t.Run(locale, func(t *testing.T) {
+			store := petParityStore()
+			view := &PetView{Locale: locale, section: "store", Client: &client.PetController{}, OpenItem: func(string) {}}
+			tester := ui.NewTesterWith(func(context *ui.Context) {
+				ui.Grid(context).FillWidth().Columns(len(store.Catalog)).Gap(12).Children(func() {
+					for _, item := range store.Catalog {
+						view.storeCard(context, item)
+					}
+				})
+			}, 1100, 700, ui.TesterOptions{Dark: locale == "en-US"})
+			captureParity(t, tester, "pet-store-card-baseline-"+locale)
+			baseline := float32(-1)
+			for _, item := range store.Catalog {
+				label := view.text("查看详情：", "View Details: ") + view.itemName(item.Item.ItemKey)
+				button, ok := tester.AccessByRole(ui.RoleButton, label)
+				if !ok || button.Offscreen {
+					t.Fatal("product detail action is missing", label, button)
+				}
+				if baseline < 0 {
+					baseline = button.Bounds.Y
+				} else if math.Abs(float64(button.Bounds.Y-baseline)) > 1 {
+					t.Fatalf("product detail actions do not share a bottom baseline: %q y=%v, expected y=%v", label, button.Bounds.Y, baseline)
+				}
+			}
+		})
+	}
+}
+
 func TestPetPagesKeepControlsInsideNarrowWindow(t *testing.T) {
 	for _, locale := range []string{"zh-CN", "en-US"} {
 		for _, route := range []string{"/pet", "/daily-check-in", "/redeem-key"} {

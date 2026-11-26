@@ -30,3 +30,29 @@ func TestSettingsNormalizationMatchesOriginal(t *testing.T) {
 		t.Fatal("normalization differs")
 	}
 }
+
+func TestMemberImportValidatesOnceAndOwnsItsData(t *testing.T) {
+	for _, values := range [][]MeetingMember{
+		nil, {{ID: "a", Name: " "}}, {{Name: "A"}},
+		{{ID: "a", Name: "A"}, {ID: "b", Name: " A "}},
+		{{ID: "a", Name: "A", IsRecorder: true}, {ID: "b", Name: "B", IsRecorder: true}},
+	} {
+		if _, err := NewMemberImport(values); err != ErrResourceInvalid {
+			t.Fatal("invalid import accepted", err)
+		}
+	}
+	values := []MeetingMember{{ID: "a", Name: " A ", Department: " Team ", IsRecorder: true}}
+	batch, err := NewMemberImport(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values[0].Name = "changed input"
+	first := batch.Members()
+	if first[0].Name != "A" || first[0].Department != "Team" {
+		t.Fatal("batch not normalized or owned")
+	}
+	first[0].Name = "changed output"
+	if batch.Members()[0].Name != "A" {
+		t.Fatal("adapter mutated validated batch")
+	}
+}

@@ -67,19 +67,38 @@ func (g *JobWindow) ExportWord(ctx context.Context, run string, publish func(dom
 		return ErrWindowScope
 	}
 	g.owner.mu.Lock()
-	defer g.owner.mu.Unlock()
-	if !g.authorized() || g.role != Workbench || g.source != "local" || g.owner.word == nil || publish == nil {
+	authorized := g.authorized()
+	g.owner.mu.Unlock()
+	if !authorized {
+		return ErrWindowScope
+	}
+	// Serialize only this grant's accepted mutation with replacement/close.
+	// Other windows can still read and open while the document is published.
+	release, err := g.lockMutation(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	g.owner.mu.Lock()
+	allowed := g.authorized() && g.role == Workbench && g.source == "local" && g.owner.word != nil && publish != nil
+	exporter, pet := g.owner.word, g.owner.pet
+	g.owner.mu.Unlock()
+	if !allowed {
 		return ErrWindowScope
 	}
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	document, err := g.owner.word.Prepare(ctx, g.id, run)
+	document, err := exporter.Prepare(ctx, g.id, run)
 	if err != nil {
 		return err
 	}
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	return g.finishExport(ctx, publish(document))
+	err = publish(document)
+	if err == nil {
+		recordPetWorkflow(ctx, pet, "export_completed", g.id)
+	}
+	return err
 }

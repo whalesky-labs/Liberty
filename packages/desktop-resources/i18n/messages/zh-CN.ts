@@ -83,6 +83,8 @@ export const zhCNMessages: MessageTree = {
       processingLabel: "处理中",
       back: "返回上一页",
       forward: "前进到下一页",
+      collapseMenu: "折叠二级菜单",
+      expandMenu: "展开二级菜单",
       localReady: "本地模型已就绪",
       remoteReady: "远端服务已配置",
       mockMode: "当前等待环境与模型下载",

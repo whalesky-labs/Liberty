@@ -50,7 +50,7 @@ func TestFarmFullCycleWaitsForEachCareAndConsumesSeedOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state.Plots[0].Status != farmPlanted || *state.Plots[0].NextCareAt != "2026-07-15T12:05:00+00:00" {
+	if state.Plots[0].Status != domain.FarmPlanted || *state.Plots[0].NextCareAt != "2026-07-15T12:05:00+00:00" {
 		t.Fatalf("bad first stage %+v", state.Plots[0])
 	}
 	if _, err = s.PlantCrop(ctx, "farm-plot-1", "carrot", now); err == nil {
@@ -67,7 +67,7 @@ func TestFarmFullCycleWaitsForEachCareAndConsumesSeedOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state.Plots[0].Status != farmNeedsWater || state.Plots[0].StageIndex != 0 {
+	if state.Plots[0].Status != domain.FarmNeedsWater || state.Plots[0].StageIndex != 0 {
 		t.Fatal("offline time skipped required care")
 	}
 	waterAt := now.Add(24 * time.Hour)
@@ -92,7 +92,7 @@ func TestFarmFullCycleWaitsForEachCareAndConsumesSeedOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.State.Plots[0].Status != farmEmpty || result.Harvest.LPReward < 3 || result.Harvest.LPReward > 6 {
+	if result.State.Plots[0].Status != domain.FarmEmpty || result.Harvest.LPReward < 3 || result.Harvest.LPReward > 6 {
 		t.Fatal("harvest outcome differs")
 	}
 	ledger, err := s.HarvestLedger(ctx, 0)
@@ -118,7 +118,7 @@ func TestPlantCropOnlyUpdatesConsumedSeedAndPlot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state.Plots[0].Status != farmPlanted || state.Plots[0].PlantedAt == nil || *state.Plots[0].PlantedAt != formatWorkTime(plantedAt) {
+	if state.Plots[0].Status != domain.FarmPlanted || state.Plots[0].PlantedAt == nil || *state.Plots[0].PlantedAt != formatWorkTime(plantedAt) {
 		t.Fatal("planting was not persisted", state.Plots[0])
 	}
 	var defaultUpdatedAt, seedUpdatedAt string
@@ -232,7 +232,7 @@ func TestWorkAllMapsRespectSlotAndCareIntervals(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if result.State.Tasks[job.SlotIndex-1].Status != workIdle || result.Reward.LPReward < job.LPMin || result.Reward.LPReward > job.LPMax {
+			if result.State.Tasks[job.SlotIndex-1].Status != domain.WorkIdle || result.Reward.LPReward < job.LPMin || result.Reward.LPReward > job.LPMax {
 				t.Fatal("invalid claim state/reward")
 			}
 			if _, err = s.ClaimWorkTask(ctx, game.Key, id, claimAt); err == nil {
@@ -281,9 +281,9 @@ func TestWorkAndFarmReplayAndLedgerFailureAreAtomic(t *testing.T) {
 				v, e := s.ClaimWorkTask(ctx, "factory", "factory-slot-1", now)
 				return v.Reward.ID, e
 			}
-			table, item, statusQuery, expected := "farm_harvest_ledger", "wheat-harvest-food", `SELECT status FROM farm_plots WHERE id='farm-plot-1'`, farmMature
+			table, item, statusQuery, expected := "farm_harvest_ledger", "wheat-harvest-food", `SELECT status FROM farm_plots WHERE id='farm-plot-1'`, domain.FarmMature
 			if !farm {
-				table, item, statusQuery, expected = "work_game_reward_ledger", "energy-capsule-tool", `SELECT status FROM work_game_tasks WHERE id='factory-slot-1'`, workClaimable
+				table, item, statusQuery, expected = "work_game_reward_ledger", "energy-capsule-tool", `SELECT status FROM work_game_tasks WHERE id='factory-slot-1'`, domain.WorkClaimable
 			}
 			prepare("2026-07-15T10:00:00+00:00")
 			if _, err := s.db.ExecContext(ctx, `CREATE TRIGGER reject_work_ledger BEFORE INSERT ON `+table+` BEGIN SELECT RAISE(ABORT,'synthetic ledger failure');END`); err != nil {

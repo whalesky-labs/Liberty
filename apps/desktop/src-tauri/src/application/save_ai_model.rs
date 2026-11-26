@@ -50,7 +50,7 @@ pub fn save_ai_model(
 
     let publish_result = publish_model(connection, model, target_reference, retired_reference);
     if let Err(error) = publish_result {
-        if ai_models::credential_reference_matches(connection, &model.id, target_reference)? {
+        if ai_models::saved_model_matches(connection, model, target_reference)? {
             return credential_cleanup::recover_pending(connection, credential_store)
                 .map_err(|cleanup_error| format!("AI 模型已保存，但{cleanup_error}"));
         }
@@ -242,5 +242,68 @@ mod tests {
         credential_cleanup::recover_pending(&connection, &store).expect("retry cleanup");
         assert!(!store.secrets.borrow().contains_key("old-ref"));
         assert!(cleanup_repository::list(&connection).unwrap().is_empty());
+    }
+
+    #[test]
+    fn metadata_write_failure_with_kept_credential_is_reported() {
+        let mut conn = database();
+        let vault = TestCredentialStore::default();
+        save_ai_model(&mut conn, &vault, &model("original", "synthetic-value")).unwrap();
+        let original_reference = ai_models::find_credential_reference(&conn, "model-a").unwrap();
+        let mut edit = model("fail", "unused");
+        edit.credential = AiModelCredentialUpdate::Keep;
+        let error = save_ai_model(&mut conn, &vault, &edit).expect_err("metadata failure");
+        assert!(error.contains("CHECK constraint"));
+        let actual: String = conn
+            .query_row(
+                "SELECT name FROM ai_model_configs WHERE id='model-a'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(actual, "original");
+        assert_eq!(
+            ai_models::find_credential_reference(&conn, "model-a").unwrap(),
+            original_reference
+        );
+        assert_eq!(vault.secrets.borrow().len(), 1);
+    }
+
+    #[test]
+    fn committed_metadata_and_reference_both_match_before_recovery() {
+        let mut conn = database();
+        let vault = TestCredentialStore::default();
+        let saved = model("original", "synthetic-value");
+        save_ai_model(&mut conn, &vault, &saved).unwrap();
+        let reference = ai_models::find_credential_reference(&conn, &saved.id).unwrap();
+        assert!(ai_models::saved_model_matches(&conn, &saved, reference.as_deref()).unwrap());
+        for field in [
+            "name",
+            "base_url",
+            "model",
+            "enabled",
+            "is_default",
+            "created_at",
+            "updated_at",
+        ] {
+            let mut different = model("original", "unused");
+            match field {
+                "name" => different.name = "changed".into(),
+                "base_url" => different.base_url = "https://other.example.test".into(),
+                "model" => different.model = "changed".into(),
+                "enabled" => different.enabled = false,
+                "is_default" => different.is_default = false,
+                "created_at" => different.created_at = "changed".into(),
+                "updated_at" => different.updated_at = "changed".into(),
+                _ => unreachable!(),
+            }
+            assert!(
+                !ai_models::saved_model_matches(&conn, &different, reference.as_deref()).unwrap(),
+                "{field}"
+            );
+        }
+        assert!(
+            !ai_models::saved_model_matches(&conn, &saved, Some("different-reference")).unwrap()
+        );
     }
 }

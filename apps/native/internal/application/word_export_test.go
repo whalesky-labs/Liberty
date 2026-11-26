@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"liberty.local/liberty/internal/domain"
 )
@@ -81,5 +82,70 @@ func TestWordBackfillAndBoundPublication(t *testing.T) {
 				t.Fatal("revoked workbench exported")
 			}
 		})
+	}
+}
+
+func TestWordPublicationLeavesOtherWindowGrantsResponsive(t *testing.T) {
+	ctx := context.Background()
+	run := "run"
+	f := &minutesFixture{result: domain.Result{Job: domain.JobSummary{ID: scopedID, Source: "local", ActiveSummaryRunID: &run}, SummaryRuns: []domain.SummaryRun{{ID: run, Status: "completed", Result: &domain.SummaryResult{Overview: "Synthetic summary"}}}}}
+	scopes := NewWindowScopes(f)
+	scopes.EnableWordExport(NewWordExport(f, f))
+	grant, err := scopes.OpenFromMain(ctx, Workbench, "local", scopedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, release := make(chan struct{}), make(chan struct{})
+	done := make(chan error, 1)
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	go func() {
+		done <- grant.ExportWord(ctx, "", func(domain.MinutesDocument) error { close(entered); <-release; return nil })
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("publisher did not start")
+	}
+	childDone := make(chan error, 1)
+	go func() {
+		child, err := grant.OpenChild(MeetingNotes)
+		if err == nil {
+			_, err = child.Result(ctx, scopedID)
+			child.Close()
+		}
+		childDone <- err
+	}()
+	select {
+	case err := <-childDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Word publication blocked another window")
+	}
+	closed := make(chan struct{})
+	go func() { grant.Close(); close(closed) }()
+	select {
+	case <-closed:
+		t.Fatal("accepted export was revoked before publication finished")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(release)
+	released = true
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("grant did not close after publication")
+	}
+	if err := grant.ExportWord(ctx, "", func(domain.MinutesDocument) error { t.Error("revoked publisher called"); return nil }); err != ErrWindowScope {
+		t.Fatal(err)
 	}
 }

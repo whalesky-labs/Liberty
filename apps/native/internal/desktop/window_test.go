@@ -108,9 +108,13 @@ func TestShellLeavesRoomForNativeTitlebarControls(t *testing.T) {
 				leftInset := max(float32(16), float32(platform.bar.Left+16))
 				rightInset := max(float32(16), float32(platform.bar.Right+12))
 				barHeight := max(float32(presentation.TitlebarHeight), float32(platform.bar.Height))
+				toggle, ok := tester.Find(shell.msg("shell.collapseMenu"))
+				if !ok || toggle.X < leftInset || toggle.Y < 0 || toggle.Y+toggle.H > barHeight {
+					t.Fatalf("menu toggle overlaps native controls or escapes the titlebar: %+v, found %v", toggle, ok)
+				}
 				metric, ok := tester.Find(presentation.Message("en-US", "shell.cpu"))
-				if !ok || metric.X < leftInset {
-					t.Fatalf("titlebar metrics overlap native controls: %+v, found %v", metric, ok)
+				if !ok || metric.X < toggle.X+toggle.W {
+					t.Fatalf("titlebar metrics overlap the menu toggle: %+v, found %v", metric, ok)
 				}
 				memory, ok := tester.Find("123 MiB")
 				if !ok {

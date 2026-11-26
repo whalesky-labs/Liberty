@@ -231,7 +231,7 @@ func TestWriteDeletionResumesActualFilesystemAndDatabase(t *testing.T) {
 	scheduler := application.NewScheduler(noWork{}, 1)
 	defer scheduler.Shutdown(ctx)
 	broken := &interruptedPurge{Files: files, fail: true}
-	deleter := application.NewDeleter(store, broken, Processes{}, scheduler)
+	deleter := application.NewDeleter(store, broken, Processes{}, scheduler, nil)
 	if err := deleter.Delete(ctx, id); err == nil {
 		t.Fatal("purge interruption not reported")
 	}
@@ -264,7 +264,7 @@ func TestWriteDeletionResumesActualFilesystemAndDatabase(t *testing.T) {
 	broken.fail = false
 	// The source fixture also has a separate prepared deletion; Recover handles
 	// both without consulting any real profile, process or media file.
-	if err := application.NewDeleter(resumed, broken, Processes{}, scheduler).Recover(ctx); err != nil {
+	if err := application.NewDeleter(resumed, broken, Processes{}, scheduler, nil).Recover(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(artifact); !os.IsNotExist(err) {

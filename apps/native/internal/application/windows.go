@@ -191,13 +191,6 @@ func (g *JobWindow) ExportText(ctx context.Context, kind domain.TextExportKind, 
 	return err
 }
 
-func (g *JobWindow) finishExport(ctx context.Context, err error) error {
-	if err == nil {
-		recordPetWorkflow(ctx, g.owner.pet, "export_completed", g.id)
-	}
-	return err
-}
-
 func NewWindowScopes(reader resultReader) *WindowScopes {
 	return &WindowScopes{reader: reader, current: make(map[WindowRole]*JobWindow)}
 }

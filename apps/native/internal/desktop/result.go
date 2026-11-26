@@ -28,6 +28,9 @@ type ResultView struct {
 	editingSegment, originalSpeaker, draftSpeaker string
 	focusSpeakerSegment                           string
 	transcriptCache                               transcriptCache
+	displayResult                                 *domain.Result
+	displaySegments                               []domain.Segment
+	canRenameSpeaker                              bool
 }
 
 type transcriptFilterOption struct {
@@ -96,7 +99,13 @@ func (v *ResultView) Body(c *ui.Context) {
 		ui.Text(c, v.msg("remoteOperationUnavailable")).TextColor(c.Theme().Warning).Role(ui.RoleStatus)
 		return
 	}
-	segments := r.DisplaySegments()
+	// Controllers publish immutable result snapshots. Legacy speaker matching
+	// belongs to a changed snapshot, not every repaint of the same transcript.
+	if v.displayResult != r {
+		v.displayResult, v.displaySegments = r, r.DisplaySegments()
+		v.canRenameSpeaker = r.CanRenameSpeaker()
+	}
+	segments := v.displaySegments
 	panel(c, func() {
 		ui.Row(c).Children(func() {
 			if v.Close != nil && textButton(c, presentation.Message(v.Locale, "common.closeWindow")).Clicked() {
@@ -213,7 +222,7 @@ func (v *ResultView) Body(c *ui.Context) {
 			ui.Column(c.Key(segment.ID)).FillWidth().Padding(12).Gap(10).Children(func() {
 				tools := ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(10)
 				tools.Children(func() {
-					busy := !v.EditingEnabled || v.Actions == nil || !r.CanRenameSpeaker() || !meetingOperationAvailable(job.Source, v.RemoteCapabilities, "transcript.speakers.rename") || (v.Actions != nil && v.Actions.Busy)
+					busy := !v.EditingEnabled || v.Actions == nil || !v.canRenameSpeaker || !meetingOperationAvailable(job.Source, v.RemoteCapabilities, "transcript.speakers.rename") || (v.Actions != nil && v.Actions.Busy)
 					if v.editingSegment == segment.ID {
 						input := ui.TextInput(c, &v.draftSpeaker).Width(190).Placeholder(v.msg("speakerInputPlaceholder")).Label(v.msg("speakerInputPlaceholder")).Disabled(busy).AutoFocus()
 						if input.Shortcut(0, ui.KeyEscape) {

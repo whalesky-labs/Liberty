@@ -110,24 +110,34 @@ func (v MeetingMember) Validate() error {
 
 type MemberImportResult struct{ Created, Updated int }
 
-func ValidateMemberImport(values []MeetingMember) error {
+// MemberImport is a validated batch owned by the application boundary. Its
+// private storage cannot be mutated by adapters after validation.
+type MemberImport struct{ values []MeetingMember }
+
+func (batch MemberImport) Members() []MeetingMember {
+	return append([]MeetingMember(nil), batch.values...)
+}
+
+func NewMemberImport(values []MeetingMember) (MemberImport, error) {
 	if len(values) == 0 {
-		return ErrResourceInvalid
+		return MemberImport{}, ErrResourceInvalid
 	}
-	seen := make(map[string]bool)
+	values = append([]MeetingMember(nil), values...)
+	seen := make(map[string]bool, len(values))
 	recorders := 0
-	for _, v := range values {
-		name := strings.TrimSpace(v.Name)
-		if name == "" || seen[name] {
-			return ErrResourceInvalid
+	for i := range values {
+		v := &values[i]
+		v.Name, v.Department = strings.TrimSpace(v.Name), strings.TrimSpace(v.Department)
+		if v.Validate() != nil || seen[v.Name] {
+			return MemberImport{}, ErrResourceInvalid
 		}
-		seen[name] = true
+		seen[v.Name] = true
 		if v.IsRecorder {
 			recorders++
 		}
 	}
 	if recorders > 1 {
-		return ErrResourceInvalid
+		return MemberImport{}, ErrResourceInvalid
 	}
-	return nil
+	return MemberImport{values: values}, nil
 }

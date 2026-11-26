@@ -3,6 +3,7 @@ package desktop
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -109,7 +110,11 @@ func TestResultUsesOnlyValidSpeakerProjection(t *testing.T) {
 	if !tt.HasText("Original transcript") || tt.HasText("Mismatching transcript") || tt.HasText(label) {
 		t.Fatal("unverified mismatch shown")
 	}
-	c.Result.Speakers[0].Text = "Original transcript"
+	// ResultController replaces snapshots and never mutates published slices.
+	next := *c.Result
+	next.Speakers = slices.Clone(next.Speakers)
+	next.Speakers[0].Text = "Original transcript"
+	c.Result = &next
 	tt.Frame()
 	if !tt.HasText(label) {
 		t.Fatal("compatible legacy label lost")

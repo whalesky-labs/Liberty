@@ -117,20 +117,32 @@ pub fn find_credential_reference(conn: &Connection, model_id: &str) -> LocalResu
     .map_err(|error| error.to_string())
 }
 
-pub fn credential_reference_matches(
+// A matching credential reference alone cannot prove a metadata-only save
+// committed: Keep intentionally leaves that reference unchanged.
+pub fn saved_model_matches(
     conn: &Connection,
-    model_id: &str,
+    model: &AiModelSaveInput,
     expected_reference: Option<&str>,
 ) -> LocalResult<bool> {
-    let stored = conn
-        .query_row(
-            "SELECT COALESCE(api_key_ref, '') FROM ai_model_configs WHERE id = ?1",
-            params![model_id],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
-        .map_err(|error| error.to_string())?;
-    Ok(stored.as_deref() == Some(expected_reference.unwrap_or_default()))
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM ai_model_configs WHERE
+         id=?1 AND name=?2 AND base_url=?3 AND model=?4 AND enabled=?5
+         AND is_default=?6 AND created_at=?7 AND updated_at=?8
+         AND COALESCE(api_key_ref, '')=?9 AND api_key='')",
+        params![
+            model.id,
+            model.name,
+            model.base_url,
+            model.model,
+            model.enabled,
+            model.is_default,
+            model.created_at,
+            model.updated_at,
+            expected_reference.unwrap_or_default()
+        ],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub fn model_exists(conn: &Connection, model_id: &str) -> LocalResult<bool> {

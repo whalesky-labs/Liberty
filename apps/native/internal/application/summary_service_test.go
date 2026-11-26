@@ -306,3 +306,119 @@ func TestSummaryRetryReusesCompletedChunks(t *testing.T) {
 		t.Fatal("retry sent an already completed chunk again")
 	}
 }
+
+type summaryDeletionPorts struct{}
+
+func (summaryDeletionPorts) Execute(context.Context, string) error { return nil }
+func (summaryDeletionPorts) Trash(string, string) error            { return nil }
+func (summaryDeletionPorts) Purge(string) error                    { return nil }
+func (summaryDeletionPorts) Terminate(*uint32, *string) error      { return nil }
+
+type cancelObservedProvider struct{ entered chan context.Context }
+
+func (p *cancelObservedProvider) Complete(ctx context.Context, _ domain.SummaryRequest) (string, error) {
+	p.entered <- ctx
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
+func TestWholeJobDeletionCancelsAcceptedSummaryBeforeServiceClose(t *testing.T) {
+	provider := &cancelObservedProvider{entered: make(chan context.Context, 1)}
+	service, store, reader, resources := summaryFixture(t, provider)
+	ctx := context.Background()
+	run, err := service.Start(ctx, reader.result.Job.ID, application.SummaryForm{ModelID: resources.model.Metadata.ID, TemplateID: resources.options.Templates[0].ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var request context.Context
+	select {
+	case request = <-provider.entered:
+	case <-time.After(time.Second):
+		t.Fatal("request never started")
+	}
+	ports := summaryDeletionPorts{}
+	scheduler := application.NewScheduler(ports, 1)
+	defer scheduler.Shutdown(ctx)
+	deleter := application.NewDeleter(store, ports, ports, scheduler, service)
+	if err := deleter.Delete(ctx, run.JobID); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-request.Done():
+	default:
+		t.Fatal("whole job deletion left the provider request active")
+	}
+	if _, err := store.SummaryRun(ctx, run.JobID, run.ID); !errors.Is(err, domain.ErrSummaryMissing) {
+		t.Fatal("deleted summary remains", err)
+	}
+	service.Close()
+	if _, err := store.SummaryRun(ctx, run.JobID, run.ID); !errors.Is(err, domain.ErrSummaryMissing) {
+		t.Fatal("canceled result republished", err)
+	}
+}
+
+type summaryAcceptanceBarrier struct {
+	*jobdb.Store
+	entered, release, tombstone chan struct{}
+}
+
+func (s *summaryAcceptanceBarrier) CreateSummary(ctx context.Context, seed domain.SummarySeed) (domain.SummaryRun, error) {
+	close(s.entered)
+	<-s.release
+	return s.Store.CreateSummary(ctx, seed)
+}
+func (s *summaryAcceptanceBarrier) PrepareDeletion(ctx context.Context, id string) (domain.JobDeletion, error) {
+	value, err := s.Store.PrepareDeletion(ctx, id)
+	if err == nil {
+		close(s.tombstone)
+	}
+	return value, err
+}
+func TestJobDeletionFencesSummaryAcceptanceAlreadyInProgress(t *testing.T) {
+	provider := newGatedProvider()
+	original, store, reader, resources := summaryFixture(t, provider)
+	original.Close()
+	barrier := &summaryAcceptanceBarrier{Store: store, entered: make(chan struct{}), release: make(chan struct{}), tombstone: make(chan struct{})}
+	service := application.NewSummaryService(reader, barrier, resources, provider)
+	defer service.Close()
+	released := false
+	defer func() {
+		if !released {
+			close(barrier.release)
+		}
+	}()
+	ctx := context.Background()
+	started := make(chan error, 1)
+	go func() {
+		_, err := service.Start(ctx, reader.result.Job.ID, application.SummaryForm{ModelID: resources.model.Metadata.ID, TemplateID: resources.options.Templates[0].ID})
+		started <- err
+	}()
+	select {
+	case <-barrier.entered:
+	case <-time.After(time.Second):
+		t.Fatal("acceptance never entered")
+	}
+	ports := summaryDeletionPorts{}
+	scheduler := application.NewScheduler(ports, 1)
+	defer scheduler.Shutdown(ctx)
+	deleted := make(chan error, 1)
+	go func() {
+		deleted <- application.NewDeleter(barrier, ports, ports, scheduler, service).Delete(ctx, reader.result.Job.ID)
+	}()
+	select {
+	case <-barrier.tombstone:
+	case <-time.After(time.Second):
+		t.Fatal("deletion never fenced the job")
+	}
+	close(barrier.release)
+	released = true
+	if err := <-started; !errors.Is(err, application.ErrJobNotFound) {
+		t.Fatal("summary acceptance survived deletion", err)
+	}
+	if err := <-deleted; err != nil {
+		t.Fatal(err)
+	}
+	if provider.calls.Load() != 0 {
+		t.Fatal("deleted job reached provider")
+	}
+}

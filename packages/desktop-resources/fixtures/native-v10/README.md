@@ -6,6 +6,8 @@
 
 样本是冻结的历史输入与期望输出。修改 Native 实现时不要刷新期望值来掩盖行为变化；有意改变业务规则时，新增独立 Native 回归并记录与旧格式的边界。当前系统的迁移规则仍由共享 `database/` 与 Native schema 执行器维护，此目录不作为新 schema 的生成源。
 
+已确认的成长配饰缺陷是一个明确例外：旧样本在读取商店时会用解锁记录重新装备已卸下的 `clover-bow`。当前两端已改为保留库存中的装备选择。`TestWriteRustPetStoreActionsAndReopen` 从 `funded/use-over-99` 的商店读取开始，仅在内存中转换该配饰的装备标志、商品状态和配饰槽投影；原始归档、数量、时间、奖励、身份与其余字段不变。独立的卸下、替换、刷新和重开测试验证修复行为。
+
 日期黄金样本的原始上下文为 UTC+08:00：输入保存 UTC 时刻，签到和每日上限的期望值按该固定偏移计算。带 `compatibility` 标签的 jobdb 测试显式恢复此上下文，避免使用 CI 主机时区改变历史输入含义；不修改应用的本地日期规则，也不修改未带该标签的时区测试。host 的 Runner 进程样本使用显式桌面目标和绑定当前输入摘要的合成运行时文件，不代表已安装真实运行时。
 
-旧客户端退役后，跨进程资料锁由 Native 子进程测试验证；恢复凭据由 Native 的实际 journal writer、recovery 和重放测试验证。这里的静态文件不再声称验证一个仍在维护的 Rust 客户端，也不提供向旧客户端回写的支持承诺。签名、公证、真实平台与发布条件见[发布就绪检查](../../../../docs/architecture/release-readiness.md)。
+跨进程资料锁由 Native 子进程测试验证；恢复凭据由 Native 的实际 journal writer、recovery 和重放测试验证。静态样本验证历史数据与 Native 的兼容边界，不等于执行当前 Rust 客户端，也不提供向旧客户端回写的支持承诺。当前旧端仍为临时生产入口，切换与退役状态以[原生架构](../../../../docs/architecture/native-desktop-architecture.md)为准。签名、公证、真实平台与发布条件见[发布就绪检查](../../../../docs/architecture/release-readiness.md)。

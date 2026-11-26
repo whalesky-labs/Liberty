@@ -166,3 +166,60 @@ func TestSavePetSettingsFailureRollsBackWithoutLeakingSQLiteError(t *testing.T) 
 		t.Fatal("failed save changed persisted settings", after, err)
 	}
 }
+
+func TestGrowthAccessoryChoicesSurviveRefreshAndReopen(t *testing.T) {
+	ctx := context.Background()
+	filename := filepath.Join(t.TempDir(), "synthetic.sqlite3")
+	store, _, err := OpenPrepared(ctx, filename, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { store.Close() }()
+	const now = "2026-11-26T00:00:00Z"
+	if err := store.EnsurePet(ctx, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, "UPDATE pet_profile SET experience=?,level=10,stage='first_meet' WHERE id='default-pet'", domain.PetExperienceForLevel(11)-1); err != nil {
+		t.Fatal(err)
+	}
+	key := "synthetic-job"
+	if grown, err := store.PetGrowth(ctx, "workflow", "job_created", &key, now); err != nil || grown.Level != 11 {
+		t.Fatal("growth setup failed", err)
+	}
+	before, err := store.PetStore(ctx, now)
+	if err != nil || before.Equipment.Accessory == nil || before.Equipment.Accessory.ItemKey != "clover-bow" {
+		t.Fatal("new growth unlock not imported", err)
+	}
+	if _, err := store.UnequipPetSlot(ctx, "accessory", "2026-11-26T00:00:01Z"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(ctx, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := store.PetStore(ctx, "2026-11-26T00:00:02Z")
+	if err != nil || after.Equipment.Accessory != nil {
+		t.Fatal("refresh/reopen restored removed accessory", err)
+	}
+	// A different growth unlock can be selected without resurrecting the first.
+	if _, err := store.db.ExecContext(ctx, "INSERT INTO pet_cosmetic_unlocks(id,pet_id,cosmetic_type,cosmetic_key,unlocked_at,equipped) VALUES('synthetic-next','default-pet','accessory','strawberry-candy',?,0)", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.PetStore(ctx, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.EquipPetItem(ctx, "strawberry-candy", "2026-11-26T00:00:03Z"); err != nil {
+		t.Fatal(err)
+	}
+	refreshed, err := store.PetStore(ctx, "2026-11-26T00:00:04Z")
+	if err != nil || refreshed.Equipment.Accessory == nil || refreshed.Equipment.Accessory.ItemKey != "strawberry-candy" {
+		t.Fatal("replacement accessory lost", err)
+	}
+	var equipped int
+	if err := store.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pet_inventory WHERE slot='accessory' AND equipped=1").Scan(&equipped); err != nil || equipped != 1 {
+		t.Fatal("old unlock re-equipped another accessory", equipped, err)
+	}
+}

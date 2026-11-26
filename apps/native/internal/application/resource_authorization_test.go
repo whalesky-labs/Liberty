@@ -297,3 +297,48 @@ func TestResourceEditorScopeFollowsOnlyItsCreatedEntityAndRevokesAfterServiceClo
 		})
 	}
 }
+
+func TestExplicitDefaultModelWinsRegardlessOfExistingOrder(t *testing.T) {
+	for _, targetFirst := range []bool{false, true} {
+		t.Run(map[bool]string{false: "old-default-first", true: "target-first"}[targetFirst], func(t *testing.T) {
+			service, store, vault := newResourceScopeService(t)
+			ctx := context.Background()
+			for _, id := range []string{"old-default", "target"} {
+				stamp := "2026-11-25T00:00:00Z"
+				if (id == "target") == targetFirst {
+					stamp = "2026-11-26T00:00:00Z"
+				}
+				value := domain.AIModel{ID: id, Name: id, BaseURL: "https://example.test/v1", Model: "synthetic", Enabled: true, IsDefault: id == "old-default", CreatedAt: stamp, UpdatedAt: stamp}
+				reference := "synthetic:" + id
+				vault.values[reference] = domain.NewSecret("synthetic-value")
+				if err := store.PublishModel(ctx, application.ModelRecord{Metadata: value, Reference: reference}, "", nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+			editor, draft, err := service.OpenEditor(ctx, application.Models, "target")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer editor.Close()
+			draft.Model.IsDefault = true
+			saved, _, err := editor.Save(ctx, draft, domain.CredentialUpdate{Action: domain.KeepCredential})
+			if err != nil || !saved.Model.IsDefault {
+				t.Fatal("explicit selection lost", err)
+			}
+			models, err := service.Models(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, model := range models {
+				if model.IsDefault != (model.ID == "target") {
+					t.Fatal("persisted default differs", model.ID)
+				}
+			}
+			saved.Model.Enabled = false
+			disabled, _, err := editor.Save(ctx, saved, domain.CredentialUpdate{Action: domain.KeepCredential})
+			if err != nil || disabled.Model.IsDefault {
+				t.Fatal("disabled model remained default", err)
+			}
+		})
+	}
+}

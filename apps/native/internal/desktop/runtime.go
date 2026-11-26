@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -144,9 +145,26 @@ func (v *RuntimeView) component(c *ui.Context, s domain.RuntimeComponent, source
 					v.Client.SwitchSource(s.Component, next)
 				}
 			}
+			if s.Component == "model" {
+				ui.Box(c).Width(160).Height(40)
+			}
 			percent, indeterminate := runtimeProgress(s)
 			status := v.msg(runtimeComponentKey(s, source))
-			ui.Box(c).Grow(1).MinWidth(80).MinHeight(40).Center().Tooltip(status).Children(func() {
+			statusColor := c.Theme().TextMuted
+			if s.Ready() {
+				statusColor = c.Theme().Success
+			} else if s.Operation.Kind == "failed" {
+				statusColor = c.Theme().Danger
+			} else if s.Operation.Active() {
+				statusColor = c.Theme().Accent
+			}
+			ui.Column(c).Grow(1).Basis(0).MinWidth(120).Gap(6).Center().Tooltip(status).Children(func() {
+				ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, status).Grow(1).MinWidth(0).FontSize(11).TextColor(statusColor).SingleLine()
+					if s.Operation.Active() {
+						ui.Text(c, fmt.Sprintf("%.0f%%", percent)).FontSize(11).TextColor(c.Theme().TextMuted)
+					}
+				})
 				runtimeProgressBar(c, percent, status, indeterminate)
 			})
 			label := "runtimeResourceDownload"
@@ -159,7 +177,13 @@ func (v *RuntimeView) component(c *ui.Context, s domain.RuntimeComponent, source
 					label = "runtimeResourceDetectAgain"
 				}
 			}
-			if textButton(c, v.msg(label)).Label(v.msg(runtimeNameKey(s.Component)) + " · " + v.msg(label)).Disabled(busy || unsupported || (s.SourceName() == "managed" && source == "")).Clicked() {
+			accessibleLabel := v.msg(runtimeNameKey(s.Component)) + " · " + v.msg(label)
+			button := ui.ButtonBase(c).MinHeight(36).Padding(6, 10).Radius(6).Border(1, palette(c).Separator).Background(palette(c).Subpanel).Label(accessibleLabel).Disabled(busy || unsupported || (s.SourceName() == "managed" && source == ""))
+			if button.Hovered() {
+				button.Background(palette(c).Selected)
+			}
+			button.TextColor(palette(c).NavAccent).Children(func() { ui.Text(c, v.msg(label)).FontSize(12).SingleLine() })
+			if button.Clicked() {
 				if s.SourceName() == "system" {
 					v.Client.Detect(s.Component)
 				} else {
@@ -177,8 +201,8 @@ func runtimeProgressBar(c *ui.Context, value float32, label string, indeterminat
 	}
 	p := palette(c)
 	value = max(0, min(100, value))
-	ui.Row(c).FillWidth().Height(5).Radius(3).Background(p.Separator).Label(label).Role(ui.RoleProgress).Range(0, 100, float64(value)).Busy(true).Children(func() {
-		ui.Row(c).WidthPercent(value).Height(5).Radius(3).Background(c.Theme().Accent)
+	ui.Row(c).FillWidth().Height(6).Radius(3).Background(p.Separator).Label(label).Role(ui.RoleProgress).Range(0, 100, float64(value)).Busy(true).Children(func() {
+		ui.Row(c).WidthPercent(value).Height(6).Radius(3).Background(c.Theme().Accent)
 	})
 }
 func runtimeNameKey(component string) string {

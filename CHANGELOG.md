@@ -2,7 +2,25 @@
 
 ## Unreleased
 
-后续变更待补充。 / Future changes will be recorded here.
+## 2.0.0-alpha.3 - 2026-11-26
+
+### 中文
+
+- 新增可折叠的模块菜单，收起后释放内容空间，并保留当前页面、草稿、键盘焦点与窗口内导航状态；同步中英文标签和窄窗口设置布局。
+- 调整设置数字输入、运行时状态与进度展示，并对齐宠物商店详情按钮及打工地图统计区域。
+- 修复历史字幕慢速导出阻塞另一场实时录音，以及 Word 导出阻塞其他任务窗口的问题，保留关闭、撤销与文件发布的生命周期约束。
+- 修复两端明确设置默认 AI 模型受旧排序影响、旧端模型元数据写入失败误报成功，以及原生整任务删除未取消在途 AI 摘要请求的问题。
+- 修复成长配饰卸下或替换后被商店刷新重新装备的问题，两端均保留库存中的当前装备选择。
+- 收敛原生人员导入的重复业务校验，将农场和打工的纯规则移入领域层，并按结果快照复用旧逐字稿显示与编辑资格判定。
+
+### English
+
+- Added collapsible module navigation that reclaims content space while preserving the current page, drafts, keyboard focus and window navigation state, with bilingual labels and compact Settings layouts.
+- Refined Settings number inputs, runtime status and progress displays, and aligned Pet Store detail actions and work-map statistics.
+- Fixed slow historical subtitle exports blocking another live recording and Word exports blocking other job windows, preserving close, revocation and publication ordering.
+- Fixed explicit default AI model selections being overridden by list order in both clients, failed model metadata writes reporting success in the retained client, and native whole-job deletion leaving an accepted AI summary request active.
+- Fixed shop refresh restoring unequipped or replaced growth accessories; both clients now preserve the current inventory equipment choice.
+- Consolidated native member-import business validation, moved pure farm/work rules into the domain layer, and reused legacy transcript display and edit eligibility decisions per result snapshot.
 
 ## 2.0.0-alpha.2 - 2026-11-26
 

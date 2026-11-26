@@ -211,7 +211,22 @@ func TestWriteRustPetStoreActionsAndReopen(t *testing.T) {
 			persist := func(t *testing.T) map[string]any { return checkinPersistence(t, store, fixture.Queries) }
 			compareSnapshot(t, "initial", scenario.Initial, persist(t), true)
 			seen := map[string]bool{}
+			correctedGrowthEquipment := false
 			for _, step := range scenario.Steps {
+				// R6 intentionally stops the old read path from resurrecting an
+				// explicitly unequipped clover-bow. Keep the frozen file intact and
+				// change only this documented equipment projection in the oracle.
+				if correctedGrowthEquipment {
+					preserveGrowthEquipmentChoice(step.Persisted)
+					preserveGrowthEquipmentChoice(step.Output)
+				}
+				if scenario.Name == "funded" && step.Input.Name == "use-over-99" {
+					correctedGrowthEquipment = true
+				}
+				if correctedGrowthEquipment {
+					preserveGrowthEquipmentChoice(step.AfterRead)
+					preserveGrowthEquipmentChoice(step.ReopenedState)
+				}
 				if !t.Run(step.Input.Name, func(t *testing.T) {
 					if seen[step.Input.Name] {
 						t.Fatal("duplicate step name")
@@ -363,6 +378,51 @@ func TestPetStoreCompatibilityEventBijection(t *testing.T) {
 		}
 		if len(checkinJSONDifferences("snapshot", rust, native)) == 0 {
 			t.Fatal("event quantity or metadata difference was hidden")
+		}
+	}
+}
+
+// Only the approved equipment bug differs from the frozen v10 oracle. All
+// amounts, timestamps, rewards, identities, errors and remaining fields still
+// use the original expected values. New behavior also has a direct reopen test.
+func preserveGrowthEquipmentChoice(value any) {
+	switch value := value.(type) {
+	case []any:
+		if len(value) == 10 && value[2] == "clover-bow" {
+			value[6] = json.Number("0")
+			return
+		}
+		for _, child := range value {
+			preserveGrowthEquipmentChoice(child)
+		}
+	case map[string]any:
+		for _, child := range value {
+			preserveGrowthEquipmentChoice(child)
+		}
+		if value["itemKey"] == "clover-bow" {
+			if _, exists := value["equipped"]; exists {
+				value["equipped"] = false
+			}
+		}
+		if item, ok := value["item"].(map[string]any); ok && item["itemKey"] == "clover-bow" {
+			value["equipped"] = false
+			if value["status"] == "equipped" {
+				value["status"] = "owned"
+			}
+		}
+		if equipment, ok := value["equipment"].(map[string]any); ok {
+			if accessory, ok := equipment["accessory"].(map[string]any); ok && accessory["itemKey"] == "clover-bow" {
+				equipment["accessory"] = nil
+				if inventory, ok := value["inventory"].([]any); ok {
+					for _, entry := range inventory {
+						item, ok := entry.(map[string]any)
+						if ok && item["slot"] == "accessory" && item["equipped"] == true {
+							equipment["accessory"] = item
+							break
+						}
+					}
+				}
+			}
 		}
 	}
 }

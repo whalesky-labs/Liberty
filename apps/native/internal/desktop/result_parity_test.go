@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -313,5 +314,34 @@ func TestResultExportFailureAndSuccessStayReadableAndRecover(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLegacyDisplayProjectionChangesOnlyWithResultSnapshot(t *testing.T) {
+	view := resultParityView("en-US", 4)
+	original := view.Client.Result
+	original.Job.DiarizationStatus = "legacy_unverified"
+	original.Transcript = slices.Clone(original.Speakers)
+	for i := range original.Transcript {
+		original.Transcript[i].Speaker = nil
+	}
+	tester := ui.NewTester(view.View, 1280, 900)
+	if view.displaySegments[0].Speaker == nil || !view.canRenameSpeaker {
+		t.Fatal("matching legacy speakers not displayed")
+	}
+	next := *original
+	next.Speakers = slices.Clone(original.Speakers)
+	next.Speakers[0].EndMS++
+	view.Client.Result = &next
+	tester.Frame()
+	if view.displaySegments[0].Speaker != nil || view.canRenameSpeaker {
+		t.Fatal("changed legacy projection reused stale match")
+	}
+	restored := next
+	restored.Speakers = original.Speakers
+	view.Client.Result = &restored
+	tester.Frame()
+	if view.displaySegments[0].Speaker == nil || !view.canRenameSpeaker {
+		t.Fatal("restored projection retained fallback")
 	}
 }

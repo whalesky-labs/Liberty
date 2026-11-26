@@ -197,6 +197,7 @@ func (v *PetView) storeCard(c *ui.Context, state domain.PetStoreCatalogItemState
 				description = v.text(state.LockedReasonZh, state.LockedReasonEn)
 			}
 			ui.Text(c, description).FillWidth().FontSize(11).TextColor(c.Theme().TextMuted)
+			ui.Box(c).Grow(1).MinHeight(0)
 			if textButton(c, v.text("查看详情", "View Details")).Label(v.text("查看详情：", "View Details: ") + v.text(item.NameZh, item.NameEn)).Disabled(v.OpenItem == nil).Clicked() {
 				v.OpenItem(item.ItemKey)
 			}
