@@ -1,6 +1,8 @@
 package desktop
 
 import (
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -249,10 +251,26 @@ func (v *SettingsView) text(c *ui.Context, key, hint string, value *string, mult
 }
 func (v *SettingsView) number(c *ui.Context, key, hint string, value *uint32, minValue, maxValue, step float64) {
 	v.row(c, key, hint, func() {
-		number := float64(*value)
-		field := ui.NumberInput(c, &number, minValue, maxValue, step).Width(160).MinHeight(40).Justify(ui.End).Label(v.msg(key))
+		format := func() string { return strconv.FormatUint(uint64(*value), 10) }
+		text := ui.Local(c.Root(), "settings-number-"+key, format)
+		field := ui.TextInput(c.Key(key), text).Width(160).MinHeight(40).Label(v.msg(key)).Range(minValue, maxValue, float64(*value)).Step(step)
 		if field.Changed() {
-			*value = uint32(number)
+			if number, err := strconv.ParseFloat(strings.TrimSpace(*text), 64); err == nil && number >= minValue && number <= maxValue {
+				*value = uint32(math.Round(number))
+			}
+		}
+		delta := 0.0
+		if field.Shortcut(0, ui.KeyUp) {
+			delta = step
+		}
+		if field.Shortcut(0, ui.KeyDown) {
+			delta = -step
+		}
+		if delta != 0 {
+			*value = uint32(math.Max(minValue, math.Min(maxValue, float64(*value)+delta)))
+		}
+		if delta != 0 || !field.Focused() {
+			*text = format()
 		}
 		if field.FocusLeft() {
 			v.Client.Save()

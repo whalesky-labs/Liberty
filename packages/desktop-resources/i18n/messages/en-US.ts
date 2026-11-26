@@ -83,6 +83,8 @@ export const enUSMessages: MessageTree = {
       processingLabel: "Processing",
       back: "Go Back",
       forward: "Go Forward",
+      collapseMenu: "Collapse secondary menu",
+      expandMenu: "Expand secondary menu",
       localReady: "Local models ready",
       remoteReady: "Remote service configured",
       mockMode: "Waiting for environment and model download",

@@ -102,6 +102,44 @@ func TestMarketMatchesLegacyResponsiveCardsAndHeroBounds(t *testing.T) {
 	}
 }
 
+func TestMarketMapStatsShareBottomBaseline(t *testing.T) {
+	for _, locale := range []string{"zh-CN", "en-US"} {
+		t.Run(locale, func(t *testing.T) {
+			state := marketFixture()
+			for index := range state.Maps[:3] {
+				base := int64(index * 3)
+				state.Maps[index].Summary = domain.WorkMapSummary{ActivePlots: base + 1, NeedsCarePlots: base + 2, MaturePlots: base + 3}
+			}
+			view := &WorkMarketView{Client: &client.WorkController{MarketState: &state}, Locale: locale, Open: func(string) {}}
+			tester := ui.NewTesterWith(func(context *ui.Context) {
+				ui.Grid(context).FillWidth().Columns(4).Gap(14).Children(func() {
+					for _, entry := range state.Maps {
+						view.mapCard(context, entry)
+					}
+				})
+			}, 1200, 600, ui.TesterOptions{Dark: locale == "en-US"})
+			captureParity(t, tester, "market-map-stats-alignment-"+locale)
+			baseline := float32(-1)
+			for index := range state.Maps[:3] {
+				label := fmt.Sprintf("%s %d", workText(locale, "Active", "进行中"), int64(index*3+1))
+				stat, ok := tester.Find(label)
+				if !ok {
+					t.Fatal("map activity statistic is missing", label)
+				}
+				if baseline < 0 {
+					baseline = stat.Y
+				} else if math.Abs(float64(stat.Y-baseline)) > 1 {
+					t.Fatalf("map statistics do not share a bottom baseline: %q y=%v, expected y=%v", label, stat.Y, baseline)
+				}
+			}
+			unavailable, ok := tester.Find(workText(locale, "Coming soon", "筹备中"))
+			if !ok || math.Abs(float64(unavailable.Y-baseline)) > 1 {
+				t.Fatalf("unavailable map label does not share the statistics baseline: %+v, expected y=%v", unavailable, baseline)
+			}
+		})
+	}
+}
+
 func TestMarketStatusDisabledAndNavigationSemantics(t *testing.T) {
 	for _, locale := range []string{"zh-CN", "en-US"} {
 		state := marketFixture()

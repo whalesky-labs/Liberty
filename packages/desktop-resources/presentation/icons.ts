@@ -21,6 +21,7 @@ export const navIconNames = {
   remote: "cloud",
   diagnostics: "checkmark-shield",
   back: "chevron-left",
+  sidebar: "sidebar-left",
 } as const;
 
 export const shellIconPaths = {

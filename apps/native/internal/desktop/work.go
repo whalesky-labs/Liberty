@@ -97,7 +97,7 @@ func (v *WorkMarketView) mapCard(c *ui.Context, entry domain.WorkMap) {
 	} else if entry.Status != "locked" && !available {
 		status = workText(locale, "Map unavailable", "地图不可用")
 	}
-	button := ui.ButtonBase(c).Column().FillWidth().MinWidth(0).Padding(0).Justify(ui.Start).Radius(10).Clip().Background(palette(c).Panel).Label(name).Tooltip(status).Disabled(!available).HandleInput(workIgnoreRepeat)
+	button := ui.ButtonBase(c).Column().FillWidth().FillHeight().MinWidth(0).Padding(0).Justify(ui.Start).Radius(10).Clip().Background(palette(c).Panel).Label(name).Tooltip(status).Disabled(!available).HandleInput(workIgnoreRepeat)
 	if !available {
 		button.Opacity(.68).DimDisabled(false)
 	}
@@ -118,11 +118,12 @@ func (v *WorkMarketView) mapCard(c *ui.Context, entry domain.WorkMap) {
 			}
 			ui.Text(c, status).Absolute().Top(12).Left(12).MinHeight(30).Padding(6, 12).Radius(15).Background(background).TextColor(color).FontSize(13).FontWeight(800)
 		})
-		ui.Column(c).FillWidth().Padding(16).Gap(14).Children(func() {
+		ui.Column(c).FillWidth().FillHeight().Grow(1).Padding(16).Gap(14).Children(func() {
 			ui.Column(c).FillWidth().Gap(6).Children(func() {
 				ui.Text(c, name).FillWidth().FontSize(18).Bold()
 				ui.Text(c, workText(locale, entry.DescriptionEn, entry.DescriptionZh)).FillWidth().FontSize(14).LineHeight(1.55).TextColor(c.Theme().TextMuted)
 			})
+			ui.Box(c).Grow(1).MinHeight(0)
 			ui.Row(c).FillWidth().Wrap().Gap(8).Children(func() {
 				if !available {
 					reason := workText(locale, "Coming soon", "筹备中")

@@ -40,9 +40,22 @@ const (
 	shellContentMaxWidth = 1180
 )
 
+func shellMenuCollapsed(c *ui.Context) *bool {
+	// The workspace rebuilds Shell every frame; keep this window-local UI state
+	// on the stable root so navigation and preference updates do not reset it.
+	return ui.Local(c.Root(), "shell-menu-collapsed", func() bool { return false })
+}
+
+func shellNavigationWidth(c *ui.Context) float32 {
+	if *shellMenuCollapsed(c) {
+		return presentation.ActivityBarWidth
+	}
+	return presentation.SidebarWidth
+}
+
 func shellContentWidth(c *ui.Context) float32 {
 	width, _ := c.Size()
-	return min(shellContentMaxWidth, max(0, width-presentation.SidebarWidth-2*shellContentPaddingX))
+	return min(shellContentMaxWidth, max(0, width-shellNavigationWidth(c)-2*shellContentPaddingX))
 }
 
 func (s *Shell) msg(key string) string { return presentation.Message(s.Locale, key) }
@@ -72,10 +85,25 @@ func (s *Shell) View(c *ui.Context) {
 	// The root and Themed both paint an opaque background by default. Leave
 	// one tone layer over the system material, including behind the sidebar.
 	c.Root().Background(ui.Transparent)
+	menuCollapsed := shellMenuCollapsed(c)
 	titlebarHeight, titlebarLeft, titlebarRight := titlebarLayout(c)
 	ui.Themed(c, &p.Theme).Fill().Background(background).Children(func() {
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).FillWidth().Height(titlebarHeight).Padding(0, titlebarRight, 0, titlebarLeft).AlignItems(ui.Center).Gap(18).Children(func() {
+				menuLabel := s.msg("shell.collapseMenu")
+				if *menuCollapsed {
+					menuLabel = s.msg("shell.expandMenu")
+				}
+				menuToggle := ui.ButtonBase(c.Key("toggle-module-menu")).Size(32, 30).Shrink(0).Padding(0).Center().Radius(6).
+					Label(menuLabel).Tooltip(menuLabel).Expanded(!*menuCollapsed)
+				_, menuColor := navigationColors(c, menuToggle, false)
+				menuToggle.Children(func() {
+					ui.Icon(c, presentation.Icon("sidebar")).Size(18, 18).TextColor(menuColor)
+				})
+				if menuToggle.Clicked() {
+					*menuCollapsed = !*menuCollapsed
+					c.Invalidate()
+				}
 				values := [2]string{"—", "—"}
 				memoryHint := "memoryUsageHint"
 				if s.Metrics != nil && time.Since(s.Metrics.SampledAt) <= 3*time.Second {
@@ -140,7 +168,7 @@ func (s *Shell) View(c *ui.Context) {
 			settings := s.Route == "/settings" && s.Sidebar != nil
 			compactSettings := settings && width <= 760
 			immersive := s.Route == "/farm" || strings.HasPrefix(s.Route, "/work-game/")
-			contentWidth := float32(width - presentation.SidebarWidth - 2*shellContentPaddingX)
+			contentWidth := width - shellNavigationWidth(c) - 2*shellContentPaddingX
 			if compactSettings {
 				contentWidth = float32(width - 2*shellContentPaddingX)
 			}
@@ -156,18 +184,20 @@ func (s *Shell) View(c *ui.Context) {
 			}
 			body.Children(func() {
 				s.activityBar(c, compactSettings)
-				sidebar := ui.Column(c).Width(presentation.SidebarMenuWidth).Shrink(0).MinHeight(0)
-				if compactSettings {
-					sidebar.FillWidth()
-				}
-				sidebar.Children(func() {
-					if s.Sidebar != nil {
-						s.Sidebar(c)
-						return
+				if !*menuCollapsed {
+					sidebar := ui.Column(c.Key("shell-sidebar")).Width(presentation.SidebarMenuWidth).Shrink(0).MinHeight(0)
+					if compactSettings {
+						sidebar.FillWidth()
 					}
-					s.moduleSidebar(c)
-				})
-				content := ui.Column(c).Grow(1).MinWidth(0).MinHeight(0)
+					sidebar.Children(func() {
+						if s.Sidebar != nil {
+							s.Sidebar(c)
+							return
+						}
+						s.moduleSidebar(c)
+					})
+				}
+				content := ui.Column(c.Key("shell-content")).Grow(1).MinWidth(0).MinHeight(0)
 				if compactSettings {
 					content.FillWidth()
 				}
