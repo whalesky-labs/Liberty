@@ -1,0 +1,1013 @@
+{
+  "version": 1,
+  "status": "pixel-actions-review-required",
+  "style": "volumetric-pixel",
+  "completedActions": [],
+  "generatedActions": [
+    "crush",
+    "defecate",
+    "drive",
+    "eat",
+    "gaming",
+    "pants",
+    "reading",
+    "rope",
+    "run",
+    "slack",
+    "sleep",
+    "snow",
+    "studying",
+    "toy",
+    "work"
+  ],
+  "blender": "4.5.17 LTS",
+  "generators": [
+    {
+      "file": "scripts/blender/build-libby-actions.py",
+      "sha256": "34ef190599aeffb94bd5bec0b0def85bdd1bd05d1050c7db8cc26d33f0fac467"
+    },
+    {
+      "file": "scripts/blender/libby_action_specs.py",
+      "sha256": "259416273652646a5989a94fcc3ae05e8ca9fa5a7cfdaa03d275dc5a2be86d7c"
+    },
+    {
+      "file": "scripts/blender/libby_voxel_mesh.py",
+      "sha256": "9eedb6b3b8a9cc07ea57b979c46b7e5dc3811312de55a0636534c13738087b22"
+    },
+    {
+      "file": "scripts/blender/measure-libby-motion.py",
+      "sha256": "b9f6ea3830ea83e4b173d5daca28f80e06e0f74c12247ef47adb0ec7c7349f82"
+    },
+    {
+      "file": "scripts/blender/libby_pose_volumes.py",
+      "sha256": "4bcb93ad2c6a235bf680c25f98d5cf12654ee0526ce6d996c4d4c0f877040660"
+    },
+    {
+      "file": "scripts/blender/libby_glb_pack.py",
+      "sha256": "5a86e6d08f1dc7cc44a1a31c1ae191a914a0936f65257d19d06b9cef2fa7a212"
+    }
+  ],
+  "actions": [
+    {
+      "id": "crush",
+      "title": [
+        "捧脸",
+        "Crush"
+      ],
+      "status": "visual-review-required",
+      "file": "crush.glb",
+      "sha256": "c2b536e4cca790d368f841ee50283dfbe62aeb21b72b15fe64662121745b4fe7",
+      "source": "../../source/pixel-actions/crush.blend",
+      "sourceSHA256": "67721c769fab1fb6b5d295faf00fde226dcef3902f73f3360b802bc361726eb9",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/crush/crush_01.png",
+          "sha256": "f9565b4d8b91fc92461b8704357dd962632607852c7257783ce0948fafec59a2"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/crush/crush_02.png",
+          "sha256": "815394cdb909d7c5e63eb1f7b7f9fa226d493d3d46d6ae300607369c8ab342ee"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/crush/crush_03.png",
+          "sha256": "af20bcad49005723a7498ec581d0773eb050070e8c95774a49ead1b19fea467a"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/crush/crush_04.png",
+          "sha256": "d1741ecf2ff4dc4679dae37b280c303b46c6d16f1b88683a2d050dc3fd33b60e"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/crush/crush_05.png",
+          "sha256": "126a91e16ee508d5e47e8bb0672f09524cd6309882ef7a1a139498163f2f76ab"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/crush/crush_06.png",
+          "sha256": "922a01572ed05493d0c2e936e25615dd0dfe3c9299757a6fc02cbdd5d2c4149f"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/crush/crush_07.png",
+          "sha256": "9457f7fe96b8a83065ab797ab5d433bb8deef3d7c175a76dfd7352d2662e9c4d"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/crush/crush_08.png",
+          "sha256": "37ae09251e82ecf3f338c00cac413ec992794c7b8d9f2b02d186ad84982d4e5e"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/crush/crush_09.png",
+          "sha256": "5c6d80b163a1ca3292a5fc09049ccd5924e4f84d1563fb912a5dfd45310bcf5d"
+        }
+      ],
+      "triangles": 96108,
+      "bones": 17,
+      "meshes": 15,
+      "bytes": 12753212,
+      "morphTargets": 120
+    },
+    {
+      "id": "defecate",
+      "title": [
+        "如厕",
+        "Restroom"
+      ],
+      "status": "visual-review-required",
+      "file": "defecate.glb",
+      "sha256": "d8cf1a91b74cfb3df6bb3b2b15d7ee78df08734ff4bbda37f09e087b6b45c0ed",
+      "source": "../../source/pixel-actions/defecate.blend",
+      "sourceSHA256": "90bb747e819283b7a1dc2eb113157b2aabed34b170e0c3af73f82009ce144ead",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/defecate/defecate_01.png",
+          "sha256": "36743b9dcd7780767b539deac1bcae1154f08dfc675b91f07d3e8b82c7af1e2c"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/defecate/defecate_02.png",
+          "sha256": "24eea75818e7facc214eaab8513b6a55687de3b78c54f023e54e1ec835eeaf6c"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/defecate/defecate_03.png",
+          "sha256": "39da729e1eff3e4352456c621cd1c3dfa678a035b6a07fb70e33abc200fea14a"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/defecate/defecate_04.png",
+          "sha256": "4f8ca3a8f8213e08603d369f054876b54e805daf49878e2d3bfaff13b4eaa673"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/defecate/defecate_05.png",
+          "sha256": "d8690d59128fef1038d2d36947be68368478082a1869b3a9db1c26335418f38b"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/defecate/defecate_06.png",
+          "sha256": "56c6cd5f67b09a5f73b19ff03e07c0707cb22a7a6a173aae1bd95570e9ec27c7"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/defecate/defecate_07.png",
+          "sha256": "f19ca77b1a08096e32fedc4369e4f272d52bbb6c40b90d6f42713b9acf2339e5"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/defecate/defecate_08.png",
+          "sha256": "c5a66187cf6c5dde6d9c2a8a37955ff860ee02af09d64e3f95512af2a9f93c28"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/defecate/defecate_09.png",
+          "sha256": "07feefbb57a0e319b927812996690de408fc9837bd0e3a81e4901a673bc61f73"
+        }
+      ],
+      "triangles": 106548,
+      "bones": 22,
+      "meshes": 17,
+      "bytes": 13891404,
+      "morphTargets": 136
+    },
+    {
+      "id": "drive",
+      "title": [
+        "开车",
+        "Drive"
+      ],
+      "status": "visual-review-required",
+      "file": "drive.glb",
+      "sha256": "2a0e72975a2203c17fb0ab55c29c4c5725036b7bc27d3bac766ce0f94a700a0e",
+      "source": "../../source/pixel-actions/drive.blend",
+      "sourceSHA256": "6b97b8e5c712b00930bd6fe5535186ec19f989d497f253475a36bcc5aef97cbc",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/drive/drive_01.png",
+          "sha256": "19f9752cb0290dbf59879814ded9b67c40af9f72aee29db43b54fc6457835108"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/drive/drive_02.png",
+          "sha256": "1124af31a93d7ad41fba9bf11e2f78d319222a2230024619caef854a2de9db8d"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/drive/drive_03.png",
+          "sha256": "e0e70ae5df217c6c4fcfa85bd72848adb433f98f186cf1c1de3dd7ddb6a6a750"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/drive/drive_04.png",
+          "sha256": "50808dc34ef0afdc39773d68609aee3237ffdae8b0f37787651a55fd0f292900"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/drive/drive_05.png",
+          "sha256": "e85e1c3d8a0c33a2a67ef19542e69f0337fdb24175b18872ab48b9b9785bae9a"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/drive/drive_06.png",
+          "sha256": "54824417f7f14e51d226f99ae663038a8a3c7da864cd037374f7636443afd22c"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/drive/drive_07.png",
+          "sha256": "1c676a9ebf5b4ab0c5be22308d4adb7a0b76f471709237f285487e57e55599f4"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/drive/drive_08.png",
+          "sha256": "b6b339971d856fae0816c5c2ecb733e330fec1a19b1a1de3d0428011dc8f82e4"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/drive/drive_09.png",
+          "sha256": "6f48de2e9fdbd6ebd4ef2c1b1971a3d62b4bb0d45c855576d6785f7b9a6052e9"
+        }
+      ],
+      "triangles": 132348,
+      "bones": 22,
+      "meshes": 18,
+      "bytes": 17129236,
+      "morphTargets": 144
+    },
+    {
+      "id": "eat",
+      "title": [
+        "吃饭",
+        "Eat"
+      ],
+      "status": "visual-review-required",
+      "file": "eat.glb",
+      "sha256": "639ad1f16afc82d3b474298e07e67531585ebc135634cb6a2a9c3a8504a40e35",
+      "source": "../../source/pixel-actions/eat.blend",
+      "sourceSHA256": "5b61616db9934a0bac21d0379a0744edb7145f10d28423817000993cc94c1200",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/eat/eat_01.png",
+          "sha256": "890d9c582423dfd82173152e3cbc15257c9fc60e3d5d817ba048eeeffd7e63c4"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/eat/eat_02.png",
+          "sha256": "678006fc0b7ea8c2c9ddefd361aa0f31abfb4bfe8e8c9a4dc5c8e2897dbaf79f"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/eat/eat_03.png",
+          "sha256": "6ae1e72c9b01b6359933b96af7faede63ad911fbf8f9e52cf9e0e6c6eb657676"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/eat/eat_04.png",
+          "sha256": "9df702bb8cc875c9c08cdc211f622317d622df6a33642b7c8f48c5e82d8e3eac"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/eat/eat_05.png",
+          "sha256": "a75a885cfd2cb3599df12a4361196e31c95fd9cb6b56fc93e360f37056700bf0"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/eat/eat_06.png",
+          "sha256": "856b53aac8482b80e7eaeaa1b0ef236afb624e00cde89d92d9a1ca31bfed1a92"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/eat/eat_07.png",
+          "sha256": "f477f6be6133b796dba21e075aa7e37f12fef4e2e2b90e32440508e24d8fd904"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/eat/eat_08.png",
+          "sha256": "491d9c2a68f9117499a0f4898775f44767756affde28ecb7ec7df3e06383c1a0"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/eat/eat_09.png",
+          "sha256": "eeb36e4b56e46391e16532fa1525cadb8ef884c54029b8a4dd6d7d2b08503011"
+        }
+      ],
+      "triangles": 90612,
+      "bones": 19,
+      "meshes": 16,
+      "bytes": 12031876,
+      "morphTargets": 128
+    },
+    {
+      "id": "gaming",
+      "title": [
+        "游戏",
+        "Gaming"
+      ],
+      "status": "visual-review-required",
+      "file": "gaming.glb",
+      "sha256": "12b657ed816c95512c4ca039cdea8e472cec389e3cce7ca40c2966735e5c0b11",
+      "source": "../../source/pixel-actions/gaming.blend",
+      "sourceSHA256": "08e3bce63f824f4f4c2c2dc2a78d9a543bc7d4297269e8bcbfb26f92f11ee436",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/gaming/gaming_01.png",
+          "sha256": "a2285b99bfd263dac2add7051dc013f91c6e8f14061c54d64bd62346e176f0d8"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/gaming/gaming_02.png",
+          "sha256": "6d065758aac76703275b7cde2df555d09d98a4de8fb3abd69ac494d5dc26d03b"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/gaming/gaming_03.png",
+          "sha256": "b3db753cf6a71bd36ede6879171ccc57da98d01d3bb4f9e73a7ecb982250ab3c"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/gaming/gaming_04.png",
+          "sha256": "57fb3f2f58665cfb0401c9dec91e1f0e77a91516fbc442975edf6ad46af6794d"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/gaming/gaming_05.png",
+          "sha256": "7148ceb170040348f9f091deac9604acefaee65d20d5bdd4d151e668db208ca7"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/gaming/gaming_06.png",
+          "sha256": "15a923cc3b723f7351f9048d67ebfd5d6cfaccf6e39f09fd2e496731e8d7fd28"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/gaming/gaming_07.png",
+          "sha256": "624e198e488e0e80349a67790b5606ef52b94b127b4b1d28326b82626a898cd4"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/gaming/gaming_08.png",
+          "sha256": "94fe88edb35b457992f7e42182356ca40f4f72c9b37f166b7c32d617d791615f"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/gaming/gaming_09.png",
+          "sha256": "6b2bbe3a6c53d498ba2e717d03197bfaacc809cb8de7d246eea67e59f7853263"
+        }
+      ],
+      "triangles": 80676,
+      "bones": 21,
+      "meshes": 16,
+      "bytes": 10607744,
+      "morphTargets": 128
+    },
+    {
+      "id": "pants",
+      "title": [
+        "整理裤子",
+        "Shorts"
+      ],
+      "status": "visual-review-required",
+      "file": "pants.glb",
+      "sha256": "99d5be919ef984461e61f93c461d178ff8d5a1d303d865a4c4a2d6d0d25d7390",
+      "source": "../../source/pixel-actions/pants.blend",
+      "sourceSHA256": "d886f4e3293e7ba1b3f7e78bee3844303be5ef38f0a1d6406e56d7034f02fe21",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/pants/pants_01.png",
+          "sha256": "d055e8c61d537639ff9bc1901dd4fb7b7f320a8a5e3b206d66172e4d5b2d39ce"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/pants/pants_02.png",
+          "sha256": "58deb4d26a006d0ed0c289334ccafba590658559849fb0173e30e5abc2c7a949"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/pants/pants_03.png",
+          "sha256": "a6d0ba17c0849da1e7051cb8c2aa1a0cca320ce7f0316ac42cba8064d4d699b6"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/pants/pants_04.png",
+          "sha256": "7f1511fad5ecff949d9e6793fd2b6299381fdbfc0014a9441c5b54005d2ee607"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/pants/pants_05.png",
+          "sha256": "55aae5cf1f691e634d36964772b56ec7e6cbe45e9c5237abe6ff9b33bdb2d782"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/pants/pants_06.png",
+          "sha256": "33a46adb2b92ceca5fcc4ca75073e4367423321accf635016b7bc3e2d1b3ba43"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/pants/pants_07.png",
+          "sha256": "9c9c0824cdf2f083e50d1cb97305e872c2d01ea30325ddc008c7e6e99670a4ed"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/pants/pants_08.png",
+          "sha256": "77cc5abccfd1be7ca1f3ea8b1a34bf37d695e4e91b5faedb107534c427e842d1"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/pants/pants_09.png",
+          "sha256": "d89687be40700e51952b46e6831c21271b8e15874fb1fe4b5ecdafb78ae28bc2"
+        }
+      ],
+      "triangles": 107304,
+      "bones": 19,
+      "meshes": 16,
+      "bytes": 13996356,
+      "morphTargets": 128
+    },
+    {
+      "id": "reading",
+      "title": [
+        "阅读",
+        "Reading"
+      ],
+      "status": "visual-review-required",
+      "file": "reading.glb",
+      "sha256": "d37abd6fa7ae1c277bb1ac68cbd1b4b2bf654a371b20cf7d03c9aeca388fbc90",
+      "source": "../../source/pixel-actions/reading.blend",
+      "sourceSHA256": "e50eda993aaa768d7d7c6a96a838436b7f1ee6241be1edf851f80cd626b6c849",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/reading/reading_01.png",
+          "sha256": "ee89c85aaf058a8ab949b876c798db4408e6df0f17d42c5910b9514789c777a6"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/reading/reading_02.png",
+          "sha256": "e524d734058928443b05295f79ce39bb3e307a0fc05215f833d3345f14119fc9"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/reading/reading_03.png",
+          "sha256": "76423ca14e95b6f1f5ce212cfc9c5e7fdae2723fde5708de4f22cf70f3546a6b"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/reading/reading_04.png",
+          "sha256": "bdabade41441fcd64e72c28a9961fde3c2d3f4b931838f3cf3d4e21a6968a6f6"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/reading/reading_05.png",
+          "sha256": "cfe97a810ff345afb7da04752c8bce9748a0ff5ef95767393d6fc7c70590325e"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/reading/reading_06.png",
+          "sha256": "af405eca694b7ed623bd2bb3c00ffda48ec03c843387e895630d5801e8713be1"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/reading/reading_07.png",
+          "sha256": "5c8bcb77d599ae4fd100ac614ad661aba86a0b2a7a884e2fa1eb6f65c11033a6"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/reading/reading_08.png",
+          "sha256": "7f2c33cc9a8f9f0fc18946fca4af2a90218223d7e52157a39297cb7d9946d364"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/reading/reading_09.png",
+          "sha256": "db2738a73b30df2feb21ffddafd974e918834b4bc399bbae681157b4364ffc17"
+        }
+      ],
+      "triangles": 88776,
+      "bones": 19,
+      "meshes": 17,
+      "bytes": 11589964,
+      "morphTargets": 136
+    },
+    {
+      "id": "rope",
+      "title": [
+        "跳绳",
+        "Jump rope"
+      ],
+      "status": "visual-review-required",
+      "file": "rope.glb",
+      "sha256": "f4beb7a7f8477c5926884cef893fb98bc24389e2094e51cbdcf40ad26c9a48dd",
+      "source": "../../source/pixel-actions/rope.blend",
+      "sourceSHA256": "ea231a38db9b145b3c2350521b9b25e570ca3ea6ce297985eb7d6c5c2a4c3bbe",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/rope/rope_01.png",
+          "sha256": "ce05d34d08ffa16068c5e9a0a3abdd502d4128fc6d2ffdb80f4d47c495680bf1"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/rope/rope_02.png",
+          "sha256": "473a3aa459b5311ea39a79802fdf5916044a67154c7398f0feb24c3504e07f0a"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/rope/rope_03.png",
+          "sha256": "18b684489e9e9d0ed9f8c94a2eb52e0fc37c7edf283772e180117dc98d21506f"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/rope/rope_04.png",
+          "sha256": "7f7ef4654942591118b31869eeb4d91d98e8ee2ccc5d728776b12dcc94e30025"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/rope/rope_05.png",
+          "sha256": "6f3cda49441d07f3757d5218f5726a3b8855c1d9f853febeb6da7e30e27b8216"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/rope/rope_06.png",
+          "sha256": "2b3bf8822977de5231ddce8a2b9a3ea7744e6ad9879bb224fc95660579c01d81"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/rope/rope_07.png",
+          "sha256": "a4fc970fcf6403d0d534841df9b8a006d2e4a3b474010e46717e24ba3c590ef8"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/rope/rope_08.png",
+          "sha256": "76baef2c9a3cf9d72fc56691f42dbfe846c03a0ed4411f8cf7f5ba13eabed4b3"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/rope/rope_09.png",
+          "sha256": "fe746858a4ebae5dff3a5dba25dc582b76a75627fba29f2095562decaacdc200"
+        }
+      ],
+      "triangles": 62004,
+      "bones": 18,
+      "meshes": 16,
+      "bytes": 8192952,
+      "morphTargets": 128
+    },
+    {
+      "id": "run",
+      "title": [
+        "跑步",
+        "Run"
+      ],
+      "status": "visual-review-required",
+      "file": "run.glb",
+      "sha256": "3cf0894c5810ffdb3823328cf2f6099a2eb02321ee56123d47c9c67fef499bff",
+      "source": "../../source/pixel-actions/run.blend",
+      "sourceSHA256": "df4b7d305e9f53b937af9f753aa783fa0c8875bbd5a66a8e7390d8df86130a1d",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/run/run_01.png",
+          "sha256": "ad5c58621b6af6fd7b2d941b3dbd9d6f793b285ce78f20d564eec094b5d17b72"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/run/run_02.png",
+          "sha256": "bb5e3a74ce9a0ecd2422710115346c0619d32d8d73e0b68fdce9e4850767c2ac"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/run/run_03.png",
+          "sha256": "cf25be5d2fed9537b85d23e535907ae36be5c046f74bb073835e3d0e73a822af"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/run/run_04.png",
+          "sha256": "9b52af62f0827cf347e03078c5ddf875b9c54869582dd0fdb3f45c96bb431c8a"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/run/run_05.png",
+          "sha256": "fd557f8a2a4ce2c56529c8cb40b1fa15168bcb7c3d4259aea005416c4d88192a"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/run/run_06.png",
+          "sha256": "553e003583980172baf5d0b737623b004154fd5ab689b691c900f4b4f80d8527"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/run/run_07.png",
+          "sha256": "7f88276b9d19e70917aa9ef9d980363fc680c978ba16dfa320720888d590c26d"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/run/run_08.png",
+          "sha256": "444740dfe26d280308ee8ad4628b233897fc5a616b75a569a78ff6b931db761a"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/run/run_09.png",
+          "sha256": "92e2deae212db8fda0e3d8c95e8e76428e896cb191768102238a841d10338914"
+        }
+      ],
+      "triangles": 83448,
+      "bones": 17,
+      "meshes": 14,
+      "bytes": 11027020,
+      "morphTargets": 112
+    },
+    {
+      "id": "slack",
+      "title": [
+        "搞怪",
+        "Goof around"
+      ],
+      "status": "visual-review-required",
+      "file": "slack.glb",
+      "sha256": "b2a071b77c552024c0461031f8ffe7289090d4faeeb8d374ab92ef7fdf172630",
+      "source": "../../source/pixel-actions/slack.blend",
+      "sourceSHA256": "7d70c76b984d9acc8a556f4a4ca4594d0e2174ecbc11f1ab166f8997d19c30cd",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/slack/slack_01.png",
+          "sha256": "75c4834ce9c18c2c69a099ab3b25dd7445e19710f36d2a1526b09e0138711926"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/slack/slack_02.png",
+          "sha256": "13c66cc97508d849752ce31d9fc24d32c198243527c7c93807012e189dce2b0e"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/slack/slack_03.png",
+          "sha256": "c632c4a92e351b77b80f99dd0bb508f675af936b1fc0ef11b6c8891a823a10e8"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/slack/slack_04.png",
+          "sha256": "2f479f2f243d510b3efd97a8c6a7cdb859f3beb1168026226ee4942915c3da15"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/slack/slack_05.png",
+          "sha256": "e9616cd7c55263a6d6f965c716ab67b09e264474ba304ce0fc7ddc52141818ad"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/slack/slack_06.png",
+          "sha256": "06d33ae3d94e8918b19c89826e92c93c044effda0cec16e2df0e30a817674e0e"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/slack/slack_07.png",
+          "sha256": "c9fd6b7058dccc56e3e8f7ba3c131edea5e543e92b6e815f1500df329de3ce4d"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/slack/slack_08.png",
+          "sha256": "6fc5062de479aca17408c510f7fde9e1a700e2c05e4067c478289b783b712c44"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/slack/slack_09.png",
+          "sha256": "5ebb7f3d14a5cfbcb0d253b9b01a8e1b3883c8dd62e16bb99200600653383be4"
+        }
+      ],
+      "triangles": 91620,
+      "bones": 17,
+      "meshes": 15,
+      "bytes": 12193612,
+      "morphTargets": 120
+    },
+    {
+      "id": "sleep",
+      "title": [
+        "睡觉",
+        "Sleep"
+      ],
+      "status": "visual-review-required",
+      "file": "sleep.glb",
+      "sha256": "9970850140397e67d193bb53918d80f3d1b7ee3b63f4c47cadbe943349ca2e4e",
+      "source": "../../source/pixel-actions/sleep.blend",
+      "sourceSHA256": "14d6ced4b353d164313068e1dbb0c0b8d5335b332bea44f035ae078158d5bf8b",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/sleep/sleep_01.png",
+          "sha256": "9ab2d23586412a3300fcf5dff327ba33e0bdc79e1255c89219274e7b43c0a564"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/sleep/sleep_02.png",
+          "sha256": "1c701adf3e076442af11aba516d290752982236bc0192ed119afd2c99bcfdd3b"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/sleep/sleep_03.png",
+          "sha256": "1cd1c862e927f978d0d87be109f200f0487532aa0d8cf3ccc8d08584292e994f"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/sleep/sleep_04.png",
+          "sha256": "654485456f3f1acade81952c016d18973e1a4ef3e8a166135ccc2fb16517e816"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/sleep/sleep_05.png",
+          "sha256": "9d8835b7d925b187e9b6092bd2fb5b2356fb79d281fb8def5296db16202647b9"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/sleep/sleep_06.png",
+          "sha256": "eb7d0d4f61a0aa6ed7d5a20af4ebfc9c60a6d02bd155678b37af901b1ae543f9"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/sleep/sleep_07.png",
+          "sha256": "cdf1ade38f94dc485c1e812aeda72e78726e7690482f86871dba0e3782d10e8a"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/sleep/sleep_08.png",
+          "sha256": "ca6076de8ee4181384ad423a56f6bd4766352f441901f9c92dd3a165d454bfed"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/sleep/sleep_09.png",
+          "sha256": "5ad8567a2812398f32d087bee8c465e51d4ab67e2f46f7ded690e1c6845139ae"
+        }
+      ],
+      "triangles": 92700,
+      "bones": 18,
+      "meshes": 15,
+      "bytes": 12405796,
+      "morphTargets": 120
+    },
+    {
+      "id": "snow",
+      "title": [
+        "皇冠饮料",
+        "Crown & drink"
+      ],
+      "status": "visual-review-required",
+      "file": "snow.glb",
+      "sha256": "5554db9d69917933e426b80b494c275b1dd9829f175726d558e8eb0783a4893e",
+      "source": "../../source/pixel-actions/snow.blend",
+      "sourceSHA256": "5ae1ee9d166d33dd7ca97942fecd58ff86b231971f745ff239ede34a721dc512",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/snow/snow_01.png",
+          "sha256": "26aac2a50c7c7a6e330b28f28a14032ea700b94e47598d4da9df5f088ae81285"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/snow/snow_02.png",
+          "sha256": "bc175b15d6edb24efdf79546c7d22c86ee6422fd8dd25fa7b39a56350c50f6c5"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/snow/snow_03.png",
+          "sha256": "74810615c897ddfe094cb19136308ec79d9370396f173e195c5ca48b3835e847"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/snow/snow_04.png",
+          "sha256": "1453bd101fbf8e59445e97fb63bf8f82c4047df0a4f72fb2cd42a652598c6044"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/snow/snow_05.png",
+          "sha256": "eae266ade5331658e2a3f96a8daf90c24e1ea61aa8bb1add6c2f8afd27e54907"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/snow/snow_06.png",
+          "sha256": "ef0ae039062938c6c6779bf77fcc255353ce2b168f65dd712f0483fb309bbf07"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/snow/snow_07.png",
+          "sha256": "466d38c9dd713e07c59c950e01e7d461b64408c04935bfdeb176413d10d765ce"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/snow/snow_08.png",
+          "sha256": "357fe2b48d5ca7f386ef24ac796225a7464ba7b965c2d3658b2be91346716505"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/snow/snow_09.png",
+          "sha256": "f9c7ba5542e364a15a39cc63788e27c8f5abb77906e3f863c7f06b7d2c5a75c7"
+        }
+      ],
+      "triangles": 96144,
+      "bones": 20,
+      "meshes": 18,
+      "bytes": 12689328,
+      "morphTargets": 144
+    },
+    {
+      "id": "studying",
+      "title": [
+        "写字",
+        "Studying"
+      ],
+      "status": "visual-review-required",
+      "file": "studying.glb",
+      "sha256": "18a878981de0b01983091591d5a9dc9a967859e2179a0e26afb9e2584a2daf17",
+      "source": "../../source/pixel-actions/studying.blend",
+      "sourceSHA256": "b83a2a12562fd42d1e7f959027e122ad6faeeb879d657dd571686a29c9ba6f96",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/studying/studying_01.png",
+          "sha256": "3a4781e24a7201ca157f3dcbe6c03e3cd8165dd73c60cef595d33a14791dcefe"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/studying/studying_02.png",
+          "sha256": "6945995c046cc43c169d668d3e8b0a93a80403abd08c4d1c451b76c6fefc8d1c"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/studying/studying_03.png",
+          "sha256": "db250a78dbc240f798243b11837575089ba293e72d078024867949bb9dbccee5"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/studying/studying_04.png",
+          "sha256": "c2fa67ea8bb4fc5168b965bf58d400d92423fa47c8ef2d7153eb25a985e430c2"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/studying/studying_05.png",
+          "sha256": "b3527e1b6221b8f16c6b0f347c3909fda08f99a0b693453ade8eecaa98539eb1"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/studying/studying_06.png",
+          "sha256": "03fc2805f7e5f3610a0db0f5571e674b66aa01330b0e62ce6016339c6da98221"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/studying/studying_07.png",
+          "sha256": "e72bb9811a26b2c2bd92ea606d87d633f8b3bb2163d989ce3e5ad1f955825bba"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/studying/studying_08.png",
+          "sha256": "3b64380ac6d091de2f72a3235e05b1ec6893ccbf4f2fadff336671345b80ce74"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/studying/studying_09.png",
+          "sha256": "67e4024f6e94fcdb0f5450978f6f859bf4015e20ec7c05be12403de9d18a6240"
+        }
+      ],
+      "triangles": 99204,
+      "bones": 21,
+      "meshes": 17,
+      "bytes": 13043188,
+      "morphTargets": 136
+    },
+    {
+      "id": "toy",
+      "title": [
+        "玩积木",
+        "Toy blocks"
+      ],
+      "status": "visual-review-required",
+      "file": "toy.glb",
+      "sha256": "ac83c0f1d628a9d039a309691f4837293bfcd0d9fb40e3a73922cb5251e6b71b",
+      "source": "../../source/pixel-actions/toy.blend",
+      "sourceSHA256": "9786925b6c655a43f952f7b88eebf2629d035804700a39f1b51f3868c20e8b35",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/toy/toy_01.png",
+          "sha256": "ce0b6be29c5289055fb83280c42b2946a5ad2ea67ebf43c15c71cf77e9a9a7dc"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/toy/toy_02.png",
+          "sha256": "7f05ff687d16f9709899f8e92506cd16098a156506a95dbde61751f5e2950c84"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/toy/toy_03.png",
+          "sha256": "bb86165e315f37e5ddc541d5b206151f337717545b9686a5af3edc3232005c41"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/toy/toy_04.png",
+          "sha256": "4ea2ca118f25db494ba75c79cea579352cd08decdc0583c7d7b77dd4efd9e6cc"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/toy/toy_05.png",
+          "sha256": "6fd3d1f183fe1041385e358b02f7028d29a990fa6b19ccc758d6c115d1832f46"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/toy/toy_06.png",
+          "sha256": "e8f1653c3700342a231773942ec8ce848bf12587c5ac77d5542479fe64afd42e"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/toy/toy_07.png",
+          "sha256": "527a14fde0123d33a488b14790558e79c8bd606b47495869c966d6711629cef6"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/toy/toy_08.png",
+          "sha256": "8443db9a47c572ca7dfebe0f4536e7b5692692844d68d8ba8cf5b814e7235b74"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/toy/toy_09.png",
+          "sha256": "251f0ef649d15436785fd285278842af6456e6fe60908fdfc499170fe7c08ba4"
+        }
+      ],
+      "triangles": 100236,
+      "bones": 21,
+      "meshes": 19,
+      "bytes": 13215760,
+      "morphTargets": 152
+    },
+    {
+      "id": "work",
+      "title": [
+        "打工",
+        "Work"
+      ],
+      "status": "visual-review-required",
+      "file": "work.glb",
+      "sha256": "27118ad06d7cd892fa568f4fcb7ff6a1f3fea57aff31f34191bec62bba769854",
+      "source": "../../source/pixel-actions/work.blend",
+      "sourceSHA256": "495cd90592523a676955e54301c49cb661c4cf9b49369f4b35db6253824be2ce",
+      "references": [
+        {
+          "frame": 1,
+          "file": "images/pet/action/work/work_01.png",
+          "sha256": "7842005f8d81417788714c82702264f305fb7bae44feeb774755a6d982bed4f0"
+        },
+        {
+          "frame": 2,
+          "file": "images/pet/action/work/work_02.png",
+          "sha256": "8ed29f9d66dfbb4d635517c307f2c0ef0545ab5a66df49c8d2ccd9109f9cde46"
+        },
+        {
+          "frame": 3,
+          "file": "images/pet/action/work/work_03.png",
+          "sha256": "dde4d29c3a138c9282ff87a80477507e541ba6afc540b9a77c21514bd6483843"
+        },
+        {
+          "frame": 4,
+          "file": "images/pet/action/work/work_04.png",
+          "sha256": "53bbd55852a7c5ca3dbaac6e2236bf429102b276fdf69e6279dcd4af372c9ff2"
+        },
+        {
+          "frame": 5,
+          "file": "images/pet/action/work/work_05.png",
+          "sha256": "d019d783e24dac3c05f6e2110f2d2115f3c2a9ba5558a39ae2b58dacc95753c6"
+        },
+        {
+          "frame": 6,
+          "file": "images/pet/action/work/work_06.png",
+          "sha256": "4cb25c9d415f92649af4bf449a0139c6580dfe2c27915bbb75e5341eebb20fa9"
+        },
+        {
+          "frame": 7,
+          "file": "images/pet/action/work/work_07.png",
+          "sha256": "039122ddc8f0ad6a42a55f9247968ec272f75b94cd4ce2c063dfd02e34fa0c5d"
+        },
+        {
+          "frame": 8,
+          "file": "images/pet/action/work/work_08.png",
+          "sha256": "fe045bded276416b740050b8c44a8265342bc598ecd7e69e42d99f64c0360481"
+        },
+        {
+          "frame": 9,
+          "file": "images/pet/action/work/work_09.png",
+          "sha256": "6037034c924af1a769105ccb04e2615242e15b9755951dc4490d1db4011a44c0"
+        }
+      ],
+      "triangles": 127080,
+      "bones": 20,
+      "meshes": 18,
+      "bytes": 16532696,
+      "morphTargets": 144
+    }
+  ],
+  "scope": "All 15 original action scenes generated with closed components, actual skins and geometric facial morphs. Exact likeness, contacts and inferred sides require visual review."
+}

@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "status": "voxel-study-unapproved",
+  "style": "volumetric-pixel",
+  "action": "crush",
+  "completedActions": [],
+  "source": "../../source/libby-voxel.blend",
+  "sourceSHA256": "3860d36fae05557a4be106ff38f5654f66a2aa5e1fa4f0b8cd57edf918c70850",
+  "file": "libby-voxel.glb",
+  "sha256": "505fa796b2b5852416aff52eb8f4f2bf7bcfcfa73bdafd099a08f99cad7ea87a",
+  "generator": "scripts/blender/build-libby-voxel.py",
+  "generatorSHA256": "e14e319bd8364a4b9b8916792bff5a9d706be6a12c6b3d5c6b365d3d132a7456",
+  "blender": "4.5.17 LTS",
+  "triangles": 46228,
+  "bones": 19,
+  "skinnedMeshes": 37,
+  "morphTargets": 21,
+  "bytes": 4501252,
+  "references": [
+    {
+      "frame": 1,
+      "file": "images/pet/action/crush/crush_01.png",
+      "sha256": "f9565b4d8b91fc92461b8704357dd962632607852c7257783ce0948fafec59a2"
+    },
+    {
+      "frame": 2,
+      "file": "images/pet/action/crush/crush_02.png",
+      "sha256": "815394cdb909d7c5e63eb1f7b7f9fa226d493d3d46d6ae300607369c8ab342ee"
+    },
+    {
+      "frame": 3,
+      "file": "images/pet/action/crush/crush_03.png",
+      "sha256": "af20bcad49005723a7498ec581d0773eb050070e8c95774a49ead1b19fea467a"
+    },
+    {
+      "frame": 4,
+      "file": "images/pet/action/crush/crush_04.png",
+      "sha256": "d1741ecf2ff4dc4679dae37b280c303b46c6d16f1b88683a2d050dc3fd33b60e"
+    },
+    {
+      "frame": 5,
+      "file": "images/pet/action/crush/crush_05.png",
+      "sha256": "126a91e16ee508d5e47e8bb0672f09524cd6309882ef7a1a139498163f2f76ab"
+    },
+    {
+      "frame": 6,
+      "file": "images/pet/action/crush/crush_06.png",
+      "sha256": "922a01572ed05493d0c2e936e25615dd0dfe3c9299757a6fc02cbdd5d2c4149f"
+    },
+    {
+      "frame": 7,
+      "file": "images/pet/action/crush/crush_07.png",
+      "sha256": "9457f7fe96b8a83065ab797ab5d433bb8deef3d7c175a76dfd7352d2662e9c4d"
+    },
+    {
+      "frame": 8,
+      "file": "images/pet/action/crush/crush_08.png",
+      "sha256": "37ae09251e82ecf3f338c00cac413ec992794c7b8d9f2b02d186ad84982d4e5e"
+    },
+    {
+      "frame": 9,
+      "file": "images/pet/action/crush/crush_09.png",
+      "sha256": "5c6d80b163a1ca3292a5fc09049ccd5924e4f84d1563fb912a5dfd45310bcf5d"
+    }
+  ],
+  "scope": "Bone and geometric facial animation study; not accepted as 1:1; sides and rear inferred.",
+  "pending": [
+    "likeness acceptance",
+    "remaining 14 actions",
+    "native skin/morph rendering",
+    "CPU and memory acceptance",
+    "macOS Intel and Windows verification"
+  ]
+}
