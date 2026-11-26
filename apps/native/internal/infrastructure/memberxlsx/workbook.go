@@ -316,9 +316,6 @@ func Decode(data []byte) ([]domain.MeetingMember, error) {
 	if err != nil {
 		return nil, err
 	}
-	if domain.ValidateMemberImport(values) != nil {
-		return nil, ErrWorkbook
-	}
 	return values, nil
 }
 func cellColumn(reference string) (int, error) {

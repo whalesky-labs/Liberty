@@ -481,3 +481,73 @@ func TestLivePersistenceRejectsLateRevisionAndRecoversInterruptedSession(t *test
 		t.Fatal("terminal session accepted late ASR")
 	}
 }
+
+func TestHistoryExportPublicationKeepsNewRecordingResponsive(t *testing.T) {
+	var accepted atomic.Int32
+	service, _, capture, _, budget, _ := newLiveFixture(t, liveASRFixture{accepted: &accepted})
+	ctx := context.Background()
+	request := liveRequest()
+	request.Translate = false
+	history, err := service.Start(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitLive(t, service, func(v domain.LiveSnapshot) bool { return v.Session.State == "listening" })
+	if err := service.Control(ctx, history.ID, "stop"); err != nil {
+		t.Fatal(err)
+	}
+	awaitLive(t, service, func(v domain.LiveSnapshot) bool { return v.Session.State == "completed" && !budget.reserved.Load() })
+	current, err := service.Start(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitLive(t, service, func(v domain.LiveSnapshot) bool { return v.Session.State == "listening" })
+	entered, release := make(chan struct{}), make(chan struct{})
+	finished := make(chan error, 1)
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	go func() {
+		finished <- service.Export(ctx, history.ID, "txt", func([]byte) error { close(entered); <-release; return nil })
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("publisher did not start")
+	}
+	// More than the capture queue can hold, while publication is still blocked.
+	for range 35 {
+		select {
+		case capture.frames <- make([]byte, domain.LiveFrameBytes):
+		case <-time.After(time.Second):
+			t.Fatal("capture stopped during history export")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for accepted.Load() < 35 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if accepted.Load() != 35 {
+		t.Fatal("history publication blocked audio processing", accepted.Load())
+	}
+	stop := make(chan error, 1)
+	go func() { stop <- service.Control(ctx, current.ID, "stop") }()
+	select {
+	case err := <-stop:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("history publication blocked stop")
+	}
+	close(release)
+	released = true
+	if err := <-finished; err != nil {
+		t.Fatal(err)
+	}
+	awaitLive(t, service, func(v domain.LiveSnapshot) bool { return v.Session.State == "completed" && !budget.reserved.Load() })
+}

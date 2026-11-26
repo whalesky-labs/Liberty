@@ -45,7 +45,7 @@ type ResourceRepository interface {
 	Members(context.Context) ([]domain.MeetingMember, error)
 	SaveMember(context.Context, domain.MeetingMember) error
 	RemoveMember(context.Context, string) error
-	ImportMembers(context.Context, []domain.MeetingMember) (domain.MemberImportResult, error)
+	ImportMembers(context.Context, domain.MemberImport) (domain.MemberImportResult, error)
 	RememberCredential(context.Context, CredentialCleanup) error
 	PendingCredentials(context.Context) ([]CredentialCleanup, error)
 	CredentialReferenced(context.Context, string) (bool, error)
@@ -266,7 +266,7 @@ func (s *Resources) SaveModel(ctx context.Context, value domain.AIModel, update 
 	if err != nil {
 		return domain.AIModel{}, MutationOutcome{}, err
 	}
-	// Mirror useAiStore.normalizeDefaultModel before publishing the target.
+	// An explicit enabled default wins; otherwise retain the existing fallback.
 	records, listErr := s.repository.Models(ctx)
 	if listErr != nil {
 		_ = s.recoverAfterOperation()
@@ -284,6 +284,9 @@ func (s *Resources) SaveModel(ctx context.Context, value domain.AIModel, update 
 		}
 	}
 	defaultID, firstEnabled := "", ""
+	if value.Enabled && value.IsDefault {
+		defaultID = value.ID
+	}
 	for _, m := range current {
 		if m.Enabled {
 			if firstEnabled == "" {
@@ -538,19 +541,18 @@ func (s *Resources) ImportMembers(ctx context.Context, values []domain.MeetingMe
 	if s.closed {
 		return domain.MemberImportResult{}, ErrWindowScope
 	}
-	if err := domain.ValidateMemberImport(values); err != nil {
-		return domain.MemberImportResult{}, err
-	}
 	values = append([]domain.MeetingMember(nil), values...)
 	now := domain.PersistedUTC(s.now())
 	for i := range values {
 		values[i].ID = resourceID("member")
 		values[i].CreatedAt = now
 		values[i].UpdatedAt = now
-		values[i].Name = strings.TrimSpace(values[i].Name)
-		values[i].Department = strings.TrimSpace(values[i].Department)
 	}
-	return s.repository.ImportMembers(ctx, values)
+	batch, err := domain.NewMemberImport(values)
+	if err != nil {
+		return domain.MemberImportResult{}, err
+	}
+	return s.repository.ImportMembers(ctx, batch)
 }
 
 // Close waits for all credential publication and cleanup before profile ownership ends.

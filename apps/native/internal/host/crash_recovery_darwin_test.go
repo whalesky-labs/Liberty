@@ -50,7 +50,7 @@ func hostCrashInstallRunner(t *testing.T, owner *Profile, runtime *hostCrashRunt
 		t.Fatal("synthetic host could not drain its unused scheduler")
 	}
 	owner.scheduler = application.NewScheduler(application.NewExecutor(owner.store, &execution.Runner{Files: owner.files, Runtime: runtime}, time.Now, owner.Pet), 1)
-	owner.Deleter = application.NewDeleter(owner.store, owner.files, execution.Processes{}, owner.scheduler)
+	owner.Deleter = application.NewDeleter(owner.store, owner.files, execution.Processes{}, owner.scheduler, owner.Summary)
 	owner.recovery = application.NewRecovery(owner.store, owner.Deleter, execution.Processes{}, owner.scheduler)
 }
 

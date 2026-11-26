@@ -69,6 +69,16 @@ func (s *SummaryService) Delete(ctx context.Context, jobID, runID string) error 
 	return nil
 }
 
+// CancelJob is called only after the deletion tombstone is durable. Sharing
+// Start's lock closes the acceptance/cancellation gap without a second registry.
+func (s *SummaryService) CancelJob(jobID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if worker := s.active[jobID]; worker != nil {
+		worker.cancel()
+	}
+}
+
 // Resolve credentials under the same lock used for replacement/retirement.
 // Child-window options contain no secret, reference or provider address.
 func (s *Resources) SummaryModel(ctx context.Context, id string) (SummaryModel, error) {

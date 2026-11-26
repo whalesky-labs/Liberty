@@ -76,7 +76,10 @@ func ensurePetStore(ctx context.Context, tx *sql.Tx, now string) error {
 	if err := upsertPetInventory(ctx, tx, item, 1, true, "default", now); err != nil {
 		return err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT cosmetic_key,unlocked_at,equipped FROM pet_cosmetic_unlocks WHERE pet_id='default-pet'`)
+	// Existing inventory owns equipment choices; old unlocks only supply an initial value.
+	rows, err := tx.QueryContext(ctx, `SELECT u.cosmetic_key,u.unlocked_at,COALESCE(i.equipped,u.equipped)
+ FROM pet_cosmetic_unlocks u LEFT JOIN pet_inventory i ON i.pet_id=u.pet_id AND i.item_key=u.cosmetic_key
+ WHERE u.pet_id='default-pet'`)
 	if err != nil {
 		return ErrDatabase
 	}

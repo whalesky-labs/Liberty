@@ -231,9 +231,6 @@ func (s *Store) Members(ctx context.Context) ([]domain.MeetingMember, error) {
 	return values, nil
 }
 func saveMember(ctx context.Context, tx *sql.Tx, v domain.MeetingMember) error {
-	if err := v.Validate(); err != nil {
-		return err
-	}
 	if v.IsRecorder {
 		if err := execute(ctx, tx, `UPDATE meeting_members SET is_recorder=0,updated_at=? WHERE id<>? AND is_recorder<>0`, v.UpdatedAt, v.ID); err != nil {
 			return err
@@ -243,6 +240,9 @@ func saveMember(ctx context.Context, tx *sql.Tx, v domain.MeetingMember) error {
  ON CONFLICT(id) DO UPDATE SET name=excluded.name,department=excluded.department,sort_order=excluded.sort_order,is_recorder=excluded.is_recorder,updated_at=excluded.updated_at`, v.ID, strings.TrimSpace(v.Name), strings.TrimSpace(v.Department), v.SortOrder, v.IsRecorder, v.CreatedAt, v.UpdatedAt)
 }
 func (s *Store) SaveMember(ctx context.Context, v domain.MeetingMember) error {
+	if err := v.Validate(); err != nil {
+		return err
+	}
 	return s.transaction(ctx, func(tx *sql.Tx) error { return saveMember(ctx, tx, v) })
 }
 func (s *Store) RemoveMember(ctx context.Context, id string) error {
@@ -252,11 +252,9 @@ func (s *Store) RemoveMember(ctx context.Context, id string) error {
 	}
 	return nil
 }
-func (s *Store) ImportMembers(ctx context.Context, values []domain.MeetingMember) (domain.MemberImportResult, error) {
+func (s *Store) ImportMembers(ctx context.Context, batch domain.MemberImport) (domain.MemberImportResult, error) {
 	result := domain.MemberImportResult{}
-	if err := domain.ValidateMemberImport(values); err != nil {
-		return result, err
-	}
+	values := batch.Members()
 	err := s.transaction(ctx, func(tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `SELECT id,name,created_at FROM meeting_members`)
 		if err != nil {

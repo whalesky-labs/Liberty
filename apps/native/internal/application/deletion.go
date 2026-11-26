@@ -16,16 +16,18 @@ type DeletionFiles interface {
 	Purge(string) error
 }
 type ProcessTerminator interface{ Terminate(*uint32, *string) error }
+type SummaryCanceler interface{ CancelJob(string) }
 
 type Deleter struct {
 	store     DeletionStore
 	files     DeletionFiles
 	processes ProcessTerminator
 	scheduler *Scheduler
+	summaries SummaryCanceler
 }
 
-func NewDeleter(store DeletionStore, files DeletionFiles, processes ProcessTerminator, scheduler *Scheduler) *Deleter {
-	return &Deleter{store: store, files: files, processes: processes, scheduler: scheduler}
+func NewDeleter(store DeletionStore, files DeletionFiles, processes ProcessTerminator, scheduler *Scheduler, summaries SummaryCanceler) *Deleter {
+	return &Deleter{store: store, files: files, processes: processes, scheduler: scheduler, summaries: summaries}
 }
 func (d *Deleter) Delete(ctx context.Context, id string) error {
 	reservation, err := d.scheduler.Reserve(ctx, id)
@@ -70,6 +72,11 @@ func (d *Deleter) Recover(ctx context.Context) error {
 func (d *Deleter) resume(ctx context.Context, operation domain.JobDeletion) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	// The durable tombstone now blocks new summary acceptance/publication.
+	// Cancel an already accepted provider request before deleting its rows.
+	if d.summaries != nil {
+		d.summaries.CancelJob(operation.JobID)
 	}
 	if operation.Phase == "prepared" {
 		if err := d.store.AdvanceDeletion(ctx, operation, "fenced"); err != nil {

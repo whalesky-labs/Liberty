@@ -35,16 +35,6 @@ function setState(patch: Partial<AiState>) {
   }
 }
 
-function normalizeDefaultModel(models: AiModelConfig[]) {
-  const enabledModels = models.filter((model) => model.enabled);
-  const defaultModel = enabledModels.find((model) => model.isDefault) ?? enabledModels[0];
-
-  return models.map((model) => ({
-    ...model,
-    isDefault: defaultModel ? model.id === defaultModel.id : false,
-  }));
-}
-
 async function reloadState() {
   await Promise.all([reloadModels(), reloadTemplates()]);
 }
@@ -79,24 +69,16 @@ function createModel() {
 
 async function saveModelOperation(input: AiModelSaveInput) {
   const { credential, ...model } = input;
-  const existingModel = state.models.find((item) => item.id === model.id);
-  const nextModel = {
-    ...model,
-    credentialPresent: credential.action === "set"
-      ? true
-      : credential.action === "clear"
-        ? false
-        : existingModel?.credentialPresent ?? false,
-    updatedAt: new Date().toISOString(),
-  } satisfies AiModelConfig;
+  const nextModel = { ...model, updatedAt: new Date().toISOString() };
   const current = state.models.some((item) => item.id === model.id)
     ? state.models.map((item) => (item.id === model.id ? nextModel : item))
     : [nextModel, ...state.models];
-  const normalized = normalizeDefaultModel(current);
-  const target = normalized.find((item) => item.id === nextModel.id) ?? nextModel;
-  const { credentialPresent: _credentialPresent, ...targetMetadata } = target;
+  const enabled = current.filter((item) => item.enabled);
+  const defaultModel = nextModel.enabled && nextModel.isDefault
+    ? nextModel
+    : enabled.find((item) => item.isDefault) ?? enabled[0];
 
-  await aiService.saveModel({ ...targetMetadata, credential });
+  await aiService.saveModel({ ...nextModel, isDefault: defaultModel?.id === nextModel.id, credential });
   await reloadModels();
 }
 

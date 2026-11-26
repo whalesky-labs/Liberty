@@ -50,7 +50,7 @@ func (f *deletionFixture) Terminate(*uint32, *string) error {
 func TestDeletionPreservesCompensationAfterFilesystemFailure(t *testing.T) {
 	fixture := &deletionFixture{operation: domain.JobDeletion{ID: "delete-synthetic", JobID: "job-1700000000000-1", TrashName: "synthetic-trash", Phase: "prepared"}, failPurge: true}
 	scheduler := NewScheduler(&blockingExecutor{}, 1)
-	deleter := NewDeleter(fixture, fixture, fixture, scheduler)
+	deleter := NewDeleter(fixture, fixture, fixture, scheduler, nil)
 	if deleter.Delete(context.Background(), fixture.operation.JobID) == nil {
 		t.Fatal("purge failure hidden")
 	}
@@ -71,7 +71,7 @@ func TestDeletionPreservesCompensationAfterFilesystemFailure(t *testing.T) {
 }
 func TestDeletionCannotMoveFilesBeforeVerifiedTermination(t *testing.T) {
 	fixture := &deletionFixture{operation: domain.JobDeletion{JobID: "job-1700000000000-1", Phase: "prepared"}, terminationErr: domain.ErrTerminationUnverified}
-	deleter := NewDeleter(fixture, fixture, fixture, NewScheduler(&blockingExecutor{}, 1))
+	deleter := NewDeleter(fixture, fixture, fixture, NewScheduler(&blockingExecutor{}, 1), nil)
 	if err := deleter.Delete(context.Background(), fixture.operation.JobID); !errors.Is(err, domain.ErrTerminationUnverified) {
 		t.Fatal("termination failure hidden")
 	}

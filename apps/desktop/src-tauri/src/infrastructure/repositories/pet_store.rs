@@ -142,9 +142,10 @@ pub fn ensure_store_defaults_tx(tx: &Transaction<'_>, now: &str) -> LocalResult<
     )?;
     for row in tx
         .prepare(
-            "SELECT cosmetic_key, unlocked_at, equipped
-             FROM pet_cosmetic_unlocks
-             WHERE pet_id = ?1",
+            "SELECT u.cosmetic_key, u.unlocked_at, COALESCE(i.equipped, u.equipped)
+             FROM pet_cosmetic_unlocks u LEFT JOIN pet_inventory i
+               ON i.pet_id = u.pet_id AND i.item_key = u.cosmetic_key
+             WHERE u.pet_id = ?1",
         )
         .map_err(|err| err.to_string())?
         .query_map(params![PET_ID], |row| {
@@ -1670,6 +1671,36 @@ mod tests {
     use rusqlite::Connection;
 
     use super::*;
+
+    #[test]
+    fn imported_growth_accessory_does_not_override_user_equipment() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE pet_wallets(pet_id TEXT,currency_key TEXT,balance INTEGER,lifetime_earned INTEGER,lifetime_spent INTEGER,updated_at TEXT,UNIQUE(pet_id,currency_key));
+            CREATE TABLE pet_inventory(id TEXT,pet_id TEXT,item_key TEXT,item_type TEXT,slot TEXT,quantity INTEGER,equipped INTEGER,source TEXT,purchased_at TEXT,updated_at TEXT,UNIQUE(pet_id,item_key));
+            CREATE TABLE pet_cosmetic_unlocks(pet_id TEXT,cosmetic_key TEXT,unlocked_at TEXT,equipped INTEGER);
+            INSERT INTO pet_cosmetic_unlocks VALUES('default-pet','clover-bow','2026-11-26T00:00:00Z',1);").unwrap();
+        let tx = conn.transaction().unwrap();
+        ensure_store_defaults_tx(&tx, "2026-11-26T00:00:00Z").unwrap();
+        let equipped: bool = tx
+            .query_row(
+                "SELECT equipped FROM pet_inventory WHERE item_key='clover-bow'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(equipped);
+        unequip_slot_tx(&tx, "accessory", "2026-11-26T00:00:01Z").unwrap();
+        ensure_store_defaults_tx(&tx, "2026-11-26T00:00:02Z").unwrap();
+        let state: (bool, String) = tx
+            .query_row(
+                "SELECT equipped,updated_at FROM pet_inventory WHERE item_key='clover-bow'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert!(!state.0, "old unlock overrode the user's equipment choice");
+        tx.commit().unwrap();
+    }
 
     fn test_profile(level: i64, stage: &str) -> PetProfile {
         let experience = crate::local_db::pet_leveling::total_required_exp_for_level(level);

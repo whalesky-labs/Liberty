@@ -89,7 +89,7 @@ func modified(t *testing.T, edit func(map[string][]byte)) []byte {
 }
 func TestMemberWorkbookRejectsInvalidRowsAndExternalSheets(t *testing.T) {
 	for _, item := range []struct{ name, from, to string }{
-		{"duplicate", "=SUM(1,2)", "合成人员"}, {"multiple recorders", ">否<", ">是<"}, {"decimal sort", ">-7<", ">1.2<"}, {"missing header", ">姓名<", ">Unknown<"}, {"missing name", ">合成人员<", "><"}, {"invalid recorder", ">否<", ">maybe<"},
+		{"decimal sort", ">-7<", ">1.2<"}, {"missing header", ">姓名<", ">Unknown<"}, {"invalid recorder", ">否<", ">maybe<"},
 	} {
 		t.Run(item.name, func(t *testing.T) {
 			data := modified(t, func(parts map[string][]byte) {
