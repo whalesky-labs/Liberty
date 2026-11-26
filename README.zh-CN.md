@@ -12,7 +12,7 @@ Liberty 将本地转写、说话人分离、AI 总结、会议纪要和结果导
 
 ## 当前重构状态
 
-**v2.0.0-alpha.1** 原生预发行已于 2026-11-24 公开，提供 macOS Apple Silicon、macOS Intel 和 Windows x64 候选归档；发布说明、候选资料边界和已知限制见 [alpha 说明](docs/releases/2.0.0-alpha.1.md)。
+当前源码版本为 **v2.0.0-alpha.2**，面向 macOS Apple Silicon、macOS Intel 和 Windows x64 的原生候选归档；变化、资料升级与已知限制见 [alpha.2 说明](docs/releases/2.0.0-alpha.2.md)，公开发行状态以 [GitHub Release](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.2) 为准。
 
 截至 2026-11-25，**新版实现位于 `apps/native`，采用 Go + MyGo，是日常开发、验证和启动入口；正式生产发布入口暂时仍为 `apps/desktop`。** `pnpm start` 启动已打包的原生候选，不编译源码。原生端仍是候选，完整 UI 验收与生产切换均未完成。旧 React/Tauri 只在迁移期间冻结为生产入口和对照实现；Native 门禁全部通过后，在一次可审查的切换变更中删除旧端及其发布链。启动、资料和恢复边界见[原生模块说明](apps/native/README.md)。
 

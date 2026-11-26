@@ -12,7 +12,7 @@ Liberty brings local transcription, speaker diarization, AI summaries, meeting m
 
 ## Refactor Status
 
-The **v2.0.0-alpha.1** Native prerelease was published on 2026-11-24 with candidate archives for macOS Apple Silicon, macOS Intel and Windows x64. See the [alpha notes](docs/releases/2.0.0-alpha.1.md) for scope, profile isolation and known limitations.
+This source is **v2.0.0-alpha.2**, targeting Native candidate archives for Apple Silicon Macs, Intel Macs and Windows x64. See the [alpha.2 notes](docs/releases/2.0.0-alpha.2.md) for changes, profile upgrades and known limitations; publication status is recorded in the [GitHub Release](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.2).
 
 As of 2026-11-25, **the new implementation is Go + MyGo under `apps/native`; `pnpm start` (equivalent to `pnpm native:launch`) starts an already packaged native candidate without compiling source.** The table below describes the current migration roles; the native client remains a candidate, and neither full UI acceptance nor production cutover is complete. The React/Tauri client is frozen only as a temporary production and migration reference. Once the Native gates close, one reviewed cutover retires and deletes that client and its release chain.
 

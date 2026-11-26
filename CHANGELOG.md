@@ -2,12 +2,35 @@
 
 ## Unreleased
 
-- 新增原生麦克风中英文实时转写、自动切换方向的内置离线中英互译（无需 API Key）、会话历史、定稿编辑、失败补译与双语 SRT/VTT/TXT 导出；会话复用模型并限制缓冲，暂停释放采集、结束终止子进程。共享 schema v12 保存会话、定稿和自动语言模式，既有资料按顺序升级并保留原翻译方向。 / Added native live Chinese/English microphone transcription, built-in offline bilingual translation with automatic direction switching and no API keys, session history, caption editing, retries and bilingual SRT/VTT/TXT exports. Sessions reuse models with bounded queues; pause releases capture and finish reaps children. Shared schema v12 stores sessions, finalized captions and automatic-language mode, preserving the direction of older sessions.
-- 新增固定 FunASR 1.4.29 的 `funasr-upgrade` 隔离候选、可复现元数据补丁和三平台依赖锁；默认运行时仍保留既有版本。 / Added an isolated, pinned FunASR 1.4.29 upgrade candidate, reproducible metadata patch and three-platform dependency locks; the default runtime remains unchanged.
-- 新增未签名原生便携包的隔离交互验收入口，验证包替换、失败回退、资料快照恢复和旧原生版本重开；签名公证按当前交付范围移出切换前置条件，可选签名安装器仍强制校验凭据。 / Added isolated interactive acceptance for unsigned Native package replacement, failed-update rollback, snapshot restore and reopening the previous Native version; signing/notarization follows the current delivery scope while optional signed installers retain certificate checks.
-- 删除已由当前 Transformers 版本解决的 11 项历史漏洞例外，保留 Torch 例外的原到期日。 / Removed 11 historical vulnerability exceptions resolved by the current Transformers version, retaining the original Torch exception deadline.
-- 补齐原生菜单的标准关闭窗口操作及快捷键，沿用未保存草稿与设置保存保护；菜单标题随界面语言切换。 / Added the native Close Window menu action and standard shortcut, retaining unsaved-draft and settings-save guards; menu headings follow the interface language.
-- 修复原生客户端切换语言后，已打开的结果工作台、AI 总结和会议纪要系统窗口标题仍显示旧语言的问题；异步打开结果窗口时采用当前语言。 / Fixed native result, AI-summary and meeting-notes window titles retaining the previous language after a locale change; asynchronously opened result windows now use the current locale.
+后续变更待补充。 / Future changes will be recorded here.
+
+## 2.0.0-alpha.2 - 2026-11-26
+
+本次为 Go + MyGo 原生客户端的第二个 2.0 alpha，使用独立候选资料目录，提供 macOS Apple Silicon、macOS Intel 和 Windows x64 的未签名候选归档，不代表生产入口切换。数据库升级到 v12；回退旧版本须使用升级前备份。实时识别与翻译质量、跨设备麦克风和完整无障碍验收仍有未完成项。 / This is the second 2.0 alpha of the Go + MyGo native client, with a separate candidate profile and unsigned archives for Apple Silicon Macs, Intel Macs and Windows x64. It does not switch the production entry. The database advances to v12; reverting to an older binary requires a pre-upgrade backup. Speech/translation quality, microphone behavior across devices and full accessibility acceptance remain incomplete.
+
+### 中文
+
+- 新增原生麦克风中英文实时转写、自动切换方向的内置离线中英互译（无需 API Key）、会话历史、定稿编辑、失败补译与双语 SRT/VTT/TXT 导出；会话复用模型并限制缓冲，暂停释放采集、结束终止子进程。共享 schema v12 保存会话、定稿和自动语言模式，既有资料按顺序升级并保留原翻译方向。
+- 新增固定 FunASR 1.4.29 的 `funasr-upgrade` 隔离候选、可复现元数据补丁和三平台依赖锁；默认运行时仍保留既有版本。
+- 新增未签名原生便携包的隔离交互验收入口，验证包替换、失败回退、资料快照恢复和旧原生版本重开；签名公证按当前交付范围移出切换前置条件，可选签名安装器仍强制校验凭据。
+- 删除已由当前 Transformers 版本解决的 11 项历史漏洞例外，保留 Torch 例外的原到期日。
+- 补齐原生菜单的标准关闭窗口操作及快捷键，沿用未保存草稿与设置保存保护；菜单标题随界面语言切换。
+- 修复原生客户端切换语言后，已打开的结果工作台、AI 总结和会议纪要系统窗口标题仍显示旧语言的问题；异步打开结果窗口时采用当前语言。
+- 调整原生两级导航、系统语义配色与窗口材质，统一设置布局；为实时翻译页面加入固定来源的 bloub 动画与随包许可证。
+- 优化会议队列分页、结果修订缓存、后台轮询、商店虚拟列表与图片缓存；进程树 CPU 和内存改用平台实际采样，隐藏窗口暂停采样。
+- 新增 15 组可编辑 3D 伙伴动作、哈希与播放姿态校验，以及 macOS MyGo/Metal 原生预览。此功能为开发预览，发行客户端继续使用原桌宠，Windows 渲染与完整性能验收未完成。
+
+### English
+
+- Added native live Chinese/English microphone transcription, built-in offline bilingual translation with automatic direction switching and no API keys, session history, caption editing, retries and bilingual SRT/VTT/TXT exports. Sessions reuse models with bounded queues; pause releases capture and finish reaps children. Shared schema v12 stores sessions, finalized captions and automatic-language mode, preserving the direction of older sessions.
+- Added an isolated, pinned FunASR 1.4.29 upgrade candidate, reproducible metadata patch and three-platform dependency locks; the default runtime remains unchanged.
+- Added isolated interactive acceptance for unsigned Native package replacement, failed-update rollback, snapshot restore and reopening the previous Native version; signing/notarization follows the current delivery scope while optional signed installers retain certificate checks.
+- Removed 11 historical vulnerability exceptions resolved by the current Transformers version, retaining the original Torch exception deadline.
+- Added the native Close Window menu action and standard shortcut, retaining unsaved-draft and settings-save guards; menu headings follow the interface language.
+- Fixed native result, AI-summary and meeting-notes window titles retaining the previous language after a locale change; asynchronously opened result windows now use the current locale.
+- Refined native module navigation, system colors, window materials and Settings layouts; added pinned bloub animations and bundled notices to the live-translation page.
+- Optimized paged meeting reads, result revision caching, background polling, virtualized store rows and image caches; process-tree CPU and memory use platform measurements and pause sampling while hidden.
+- Added fifteen editable 3D companion actions, hash and playback-pose checks, and a macOS MyGo/Metal preview. This is a development preview; shipped clients retain the existing companion, with Windows rendering and full performance acceptance pending.
 
 ## 2.0.0-alpha.1 - 2026-11-24
 
