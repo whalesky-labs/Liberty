@@ -37,6 +37,7 @@ venv*/
 .ruff_cache/
 coverage/
 target/
+apps/native/.mygo/
 apps/*/src-tauri/target/
 apps/*/src-tauri/target-check/
 apps/*/src-tauri/.cargo-home/
