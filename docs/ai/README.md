@@ -49,6 +49,8 @@
 
 | 记录 | 状态与范围 |
 | --- | --- |
+| [2026-11-25 桌宠互动与 3D 升级方案](designs/2026-11-25-native-companion-interaction-3d.md) | 已授权执行；像素同步播放获确认，15 组已接入 macOS 原生预览；135 姿态／GPU／资源释放检查通过，正式接入、P0 互动与长期性能仍未完成 |
+| [2026-11-25 FunASR 升级与边听边译方案](designs/2026-11-25-funasr-upgrade-live-translation.md) | 已确认；1.4.29 隔离候选与离线实时翻译已实现，本机两小时稳定性通过，质量/跨平台门槛未完成 |
 | [2026-11-23 Liberty 分层 CI/CD 方案](designs/2026-11-23-layered-ci-cd.md) | 已实施；2026-11-24 完整 CI 通过，含三平台与安全；文档通道和服务端规则按实际 SHA/API 核实 |
 | [2026-11-19 Liberty 原生重构中的小游戏体验工作线](designs/2026-11-19-native-gameplay-experience-design.md) | 已确认，执行中；P5-G0 已实现，P5-G1 玩法校准未完成 |
 | [2026-11-16 Liberty Go + MyGo 原生桌面重构方案](designs/2026-11-16-native-desktop-refactor.md) | 已确认，执行中。阶段证据截至 2026-11-17，后续验收见实施记录。 |
@@ -63,6 +65,7 @@
 
 | 记录 | 状态与范围 |
 | --- | --- |
+| [2026-11-25 Intel macOS 更新运行时的隔离验证](research/2026-11-25-intel-runtime-replacement.md) | Rosetta 下固定新版 Torch 的两种 Runner 模式及 Python 无例外扫描通过；整套 Conda 依赖存在许可证阻塞，生产替换未完成 |
 | [2026-11-20 原生人员 Excel 导入持久化验收](research/2026-11-20-native-member-import-persistence.md) | 本项持久化回归通过；全量原生验收未完成 |
 | [2026-11-19 原生迁移运行时安全候选隔离验证](research/2026-11-19-native-runtime-security-candidate.md) | 2026-11-19 试验快照；2026-11-20 后续已隔离接入候选 manifest，生产切换仍阻断 |
 | [2026-11-19 原生读取投影分配复核](research/2026-11-19-native-read-allocation.md) | 局部优化已验证，整体性能验收未完成 |
@@ -72,5 +75,8 @@
 
 | 记录 | 状态与范围 |
 | --- | --- |
+| [2026-11-26 本地边听边译实施与验收](reviews/2026-11-26-local-live-translation-acceptance.md) | 本机功能、禁网链路及两小时稳定性通过；1175 段保存，质量/跨平台与生产切换未完成 |
+| [2026-11-25 原生客户端 CPU 与内存审查](reviews/2026-11-25-native-performance-audit.md) | macOS 空闲、切页、长逐字稿与真实转写基线；后续整改见复核，完整性能验收未完成 |
+| [2026-11-25 原生客户端 CPU 与内存整改复核](reviews/2026-11-25-native-performance-remediation.md) | 刷新、分页、虚拟商店与图片预算整改；完整检查、兼容回放、相关 race 与局部基准通过，整应用占用复测未完成 |
 | [2026-11-20 原生重构后的项目文档整理](reviews/2026-11-20-documentation-refresh.md) | 文档同步已完成；不代表生产切换 |
 | [2026-11-20 原生模块说明整理前快照](reviews/2026-11-20-native-module-reference-snapshot.md) | 历史快照 |

@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-后续变更待补充。 / Future changes will be recorded here.
+- 新增原生麦克风中英文实时转写、自动切换方向的内置离线中英互译（无需 API Key）、会话历史、定稿编辑、失败补译与双语 SRT/VTT/TXT 导出；会话复用模型并限制缓冲，暂停释放采集、结束终止子进程。共享 schema v12 保存会话、定稿和自动语言模式，既有资料按顺序升级并保留原翻译方向。 / Added native live Chinese/English microphone transcription, built-in offline bilingual translation with automatic direction switching and no API keys, session history, caption editing, retries and bilingual SRT/VTT/TXT exports. Sessions reuse models with bounded queues; pause releases capture and finish reaps children. Shared schema v12 stores sessions, finalized captions and automatic-language mode, preserving the direction of older sessions.
+- 新增固定 FunASR 1.4.29 的 `funasr-upgrade` 隔离候选、可复现元数据补丁和三平台依赖锁；默认运行时仍保留既有版本。 / Added an isolated, pinned FunASR 1.4.29 upgrade candidate, reproducible metadata patch and three-platform dependency locks; the default runtime remains unchanged.
+- 新增未签名原生便携包的隔离交互验收入口，验证包替换、失败回退、资料快照恢复和旧原生版本重开；签名公证按当前交付范围移出切换前置条件，可选签名安装器仍强制校验凭据。 / Added isolated interactive acceptance for unsigned Native package replacement, failed-update rollback, snapshot restore and reopening the previous Native version; signing/notarization follows the current delivery scope while optional signed installers retain certificate checks.
+- 删除已由当前 Transformers 版本解决的 11 项历史漏洞例外，保留 Torch 例外的原到期日。 / Removed 11 historical vulnerability exceptions resolved by the current Transformers version, retaining the original Torch exception deadline.
+- 补齐原生菜单的标准关闭窗口操作及快捷键，沿用未保存草稿与设置保存保护；菜单标题随界面语言切换。 / Added the native Close Window menu action and standard shortcut, retaining unsaved-draft and settings-save guards; menu headings follow the interface language.
+- 修复原生客户端切换语言后，已打开的结果工作台、AI 总结和会议纪要系统窗口标题仍显示旧语言的问题；异步打开结果窗口时采用当前语言。 / Fixed native result, AI-summary and meeting-notes window titles retaining the previous language after a locale change; asynchronously opened result windows now use the current locale.
 
 ## 2.0.0-alpha.1 - 2026-11-24
 

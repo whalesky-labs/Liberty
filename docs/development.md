@@ -81,12 +81,15 @@ PR 和 main 的 `quality.yml` 按改动范围选择检查，未知或高风险�
 | `pnpm native:runtime:acceptance` | 默认生产配置的全新哈希锁安装、vendor 重建、四模型验证、真实 Runner/host 两种说话人模式、持久化重开、安装库存与真实扫描；使用合成音频和忽略目录，需固定 OSV 扫描器 |
 | `pnpm native:runtime:candidate:acceptance --runtime-input-directory <绝对目录>` | 验证固定候选输入、安装库存及扫描；不采用生产资料 |
 | `pnpm native:meeting:acceptance` | macOS 原生交互验收；需先完成运行时验收，使用合成资料、回环 AI 和临时凭据 |
+| `pnpm native:portable:acceptance --previous-archive <绝对旧包路径> --candidate-archive <绝对新包路径>` | 在匹配目标主机校验两份不同版本的候选归档，在全新临时安装/资料目录交互验证包替换、失败回退、SQLite 快照恢复及旧版本重开；不操作现有应用或用户资料，不证明 MSI 或其他主机通过 |
 | `pnpm native:remote:acceptance` | 外部测试服务的只读验收；环境中指定 URL、凭据引用、合成任务 ID |
 | `pnpm native:bench:reads` | 在冻结合成库上测量 Go 读取与分配；不运行 Rust 对照，不代替整应用性能验收 |
 
 生产配置的运行时验收和会议 GUI 验收在 `target/native/runtime-acceptance/` 下共用缓存，按目标平台、运行时版本、模型集版本和模型 profile 区分。切换运行时或模型集后先跑 `pnpm native:runtime:acceptance`，再开始会议 GUI 验收。安全候选在 `target/native/runtime-candidate-acceptance/` 下单独缓存，目录键还包括已验证的随包输入摘要。两者均保留旧缓存。
 
 远端验收变量为 `LIBERTY_REMOTE_ACCEPTANCE_URL`、`LIBERTY_REMOTE_ACCEPTANCE_CREDENTIAL_REF` 和 `LIBERTY_REMOTE_ACCEPTANCE_JOB_ID`。凭据引用指向系统凭据库中的测试条目，不在命令或文档中填写 Token。真实媒体 ASR 基准的输入和证据要求见 [benchmarks/asr](../benchmarks/asr/README.md)。
+
+便携包验收需人工或桌面自动化操作四个阶段：旧原生候选查看 `Portable baseline` 后正常退出；新候选将该人员改名为 `Portable upgraded` 并保存退出；确认恢复完成提示；回退到旧原生候选，复核 `Portable baseline` 后退出。脚本还核对失败替换没有改动数据库、恢复前安全副本仍保存升级后的记录、每次退出释放资料锁。成功时清理本轮临时目录，失败时保留现场；不要将旧 Tauri 包作为 `--previous-archive`。归档内清单、逐文件摘要、确切文件集、目标架构及实际版本输出均须通过，档案摘要随日志输出；该过程不自动证明发行源码归因、旧 schema 迁移或未来版本兼容。
 
 ## 生成源与发布
 
@@ -99,3 +102,17 @@ PR 和 main 的 `quality.yml` 按改动范围选择检查，未知或高风险�
 独立复核已生成的候选资产（输出目录须为空）使用 `node scripts/check-native-release-policy.mjs verify-artifacts --target <manifest平台ID> --commit <40位Git提交> --output <输出目录>`。该命令不重新编译、不启动 GUI；候选文件清单与归档任一不一致均失败。
 
 提交、推送、标签和发布不是构建命令的后续默认动作。版本一致性包括两个 `package.json`、Tauri 配置、`Cargo.toml`、`Cargo.lock` 与 Go `host.Version`；发布变更同时维护双语 CHANGELOG。
+
+### 本地实时翻译验收
+
+用户流程、离线模型与候选构建见[实时翻译](live-translation.md)。真实链路回放使用已准备的隔离 `funasr-upgrade` 目录及固定公开音频，不能指向生产资料。隔离目录必须带有 `.native-funasr-upgrade-acceptance` 标记，内容为 `isolated-funasr-upgrade-v1` 加换行；该标记只用于专门准备的测试目录。基础运行时与流式模型先由 `managed/upgrade_acceptance_test.go` 验证并安装。
+
+```sh
+GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly \
+LIBERTY_NATIVE_UPGRADE_ROOT=/absolute/isolated-upgrade \
+LIBERTY_NATIVE_UPGRADE_MODEL_SEED=/absolute/verified-stream-model \
+go -C apps/native test -tags=runtime_acceptance ./internal/application \
+  -run '^TestRealLiveASROfflineTranslationPersistenceAndSubtitleExport$' -count=1 -v
+```
+
+另设 `LIBERTY_NATIVE_LIVE_SOAK_SECONDS=7200` 并添加 `-timeout=130m` 可执行两小时按墙钟回放；在 macOS 可用 `caffeinate -i` 包裹测试进程防止空闲休眠。该测试生成的临时音频来自固定公开样例，不涉及用户录音；结果写入隔离缓存的 `live-soak-result.json`，包含测试进程及子进程的 CPU、物理内存/working set 和字幕延迟，不是完整 GUI 或通用质量基准。退出码、持续时间、定稿持久化与停止释放均需通过，不能只检查结果文件存在。

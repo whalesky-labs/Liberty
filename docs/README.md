@@ -14,6 +14,7 @@
 | 按改动范围执行 CI、手动全量与候选构建 | [CI/CD 操作规则](architecture/ci-cd.md) |
 | v2.0.0-alpha.1 范围、资产与已知限制 | [原生 alpha 发布说明](releases/2.0.0-alpha.1.md) |
 | 宠物、LP、商店、福利、农场和打工 | [宠物系统](pet-system.md) |
+| 麦克风实时转写、翻译与升级候选 | [实时翻译](live-translation.md) |
 | 图片来源、生成与原生同步 | [素材说明](images/README.md) |
 | 变更记录 | [CHANGELOG](../CHANGELOG.md)，未发布工作只写 Unreleased |
 | Agent 修改与验证约束 | [AGENTS](../AGENTS.md) |

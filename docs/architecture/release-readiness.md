@@ -1,6 +1,6 @@
 # Release Readiness
 
-Last verified: 2026-11-24 against the current checkout, root `package.json` scripts and pinned dependency scanners. Security-scan findings below retain their stated scan dates.
+Last verified: 2026-11-25 against the current checkout, root `package.json` scripts and pinned dependency scanners. Security-scan findings below retain their stated scan dates.
 
 Use the [documentation index](../README.md), [development guide](../development.md)
 and [native architecture](native-desktop-architecture.md) for navigation and
@@ -43,6 +43,16 @@ permanent compatibility promise.
 
 ## Cutover and Retirement
 
+On 2026-11-25, the project owner excluded code signing and notarization from
+the current refactor closeout. Its delivery scope is unsigned candidate
+archives. Missing signing certificates or notarization credentials therefore
+do not block this closeout, and signing is not a condition for its eventual
+cutover. This scope decision does not establish production readiness or waive
+business, accessibility, platform, dependency-security, data-recovery or
+upgrade/rollback acceptance. The optional signed DMG/MSI commands below still
+require their certificates and verification; no signing check is bypassed and
+no archive may claim to be signed or notarized.
+
 The old React/Tauri client is retained only until the Native cutover gates are
 closed. It must not become a second production track or an excuse to leave
 unverified behavior in the migration. Before switching, move every required
@@ -53,7 +63,7 @@ fixture package. A clean checkout must regenerate and pass the Native checks
 without reading the old client as a source.
 
 After all business, UI/accessibility, platform, security, data-recovery,
-installer upgrade/rollback, signing, notarization, and production-observation
+upgrade/rollback for the selected distribution format, and production-observation
 gates pass, perform one reviewed cutover change that:
 
 1. switches the default production entry and release workflow to Native;
@@ -478,6 +488,104 @@ the saved resources and single reward records. The widened English Encourage
 button was visibly verified in the later candidate; normal quit completed.
 This bounded page sample does not establish every state, IME composition,
 screen-reader behavior or gameplay calibration.
+
+### 2026-11-25 Native Closeout
+
+This local verification used the `c8c6d4c3` checkout plus the uncommitted Native
+window-title correction. Changing language now updates the open workbench,
+summary and notes window titles; a result window opened after an asynchronous
+lookup uses the current language. No commit, tag, release or production cutover
+was performed. Signing/notarization is outside this closeout's scope, as recorded
+under Cutover and Retirement.
+
+| Check | Observed result and boundary |
+| --- | --- |
+| `pnpm check` | Passed again after the UI correction, including Native, Python, temporary legacy, release and CI policy checks. Existing external-filesystem cache-copy and web bundle-size warnings remain. |
+| `pnpm native:compat` | Passed the frozen migration, business, profile-lock, XLSX and DOCX compatibility replay, including SQLite reopen and credential recovery. |
+| `pnpm native:build:matrix` | Passed again after the correction; main and test binaries compiled for macOS ARM, Intel and Windows x64. This is not target GUI execution. |
+| Go race checks | All internal packages and the CLI passed. The first desktop-package run hit the command's default 10-minute timeout during rasterized UI tests, without a reported data race; the corrected package passed with CI's existing `-timeout=30m` (477.019 seconds). No CI timeout or test coverage was relaxed. |
+| `pnpm native:credentials:acceptance` | Passed five isolated macOS system-store tests, including rotation, SQLite restore, retained snapshots and eventual reclamation. |
+| `pnpm native:runtime:acceptance` | Passed using the existing isolated production runtime cache: four fixed models, both Runner and host speaker modes, results/rewards after reopen, and the 82-distribution installed inventory. This rerun does not claim a fresh installation. |
+| `pnpm native:meeting:acceptance` | Passed on macOS ARM with synthetic speech, system file selection, four transcript segments and verified speaker results, one local fixture summary, notes viewing, full-result export and normal quit. The test reopened SQLite, verified result/export content and exactly one of each workflow reward, then removed only its temporary database and attachments. |
+| `pnpm security:check` and `pnpm licenses:check` | Passed with pinned OSV Scanner 2.5.0 and cargo-deny 0.20.2, whose local binaries were checked against upstream release assets. No exception was expanded or extended. |
+| `pnpm native:package` | Built and verified the local ARM candidate archive; its executable reported `Liberty Native 2.0.0-alpha.1 (candidate)`. It remains unsigned, unnotarized and `productionReady:false`. |
+| Runtime download endpoints | All six production Python/FFmpeg official URLs returned HTTP 200 to HEAD probes; this does not prove Intel/Windows installation or future availability. |
+| `pnpm native:bench:reads` | Completed the frozen-data read benchmarks. Other checks were active, so this is a diagnostic sample, not an isolated performance comparison or 8 GiB ASR acceptance. |
+| `pnpm asr:fixtures:check` | Blocked: the controlled local media/annotation manifest is absent. No synthetic substitute was counted as human ASR quality evidence. |
+
+The three production lock inventories and the installed ARM inventory passed
+the current security policy. Each unfiltered scan still reported the same
+20 Torch 2.2.2 vulnerability groups / 24 records; these overlapping inventories
+must not be summed. The exception deadline remains 2026-11-30. Fresh checks of
+the [Torch](https://pypi.org/pypi/torch/json) and
+[Torchaudio](https://pypi.org/pypi/torchaudio/json) release inventories found
+2.2.2 was still their newest stable, non-yanked CPython 3.11 macOS x86_64 or
+universal2 wheel. A supported Intel runtime replacement therefore needs its
+own implementation and acceptance; updating a version field or extending the
+exception does not resolve this gate.
+
+The same isolated native UI session verified required-field focus, Chinese
+member text via paste, keyboard Tab navigation, resource save/readback, and
+cancel/discard behavior for an unsaved editor. English/dark and Chinese/light
+preferences were exercised with the result, summary and notes windows open;
+the system Window menu showed all three titles updating in both directions
+while retaining their meeting title. This verifies the title correction in
+real native windows. Direct automation of Chinese keystrokes did not produce
+text, whereas paste did; no conclusion about IME composition or screen-reader
+speech is inferred from that automation or the accessibility tree.
+
+Intel/Windows native interaction and managed ASR, complete IME/screen-reader
+coverage, an external remote test service, controlled ASR media/annotations,
+distribution upgrade/rollback and production observation remain open. The old
+client has not been retired. The public alpha was independently confirmed as a
+non-draft prerelease with 13 assets, including three Native archives; this
+metadata check did not repeat full public-asset download verification.
+
+The subsequent 2026-11-25 portable exercise passed on macOS ARM using Native
+1.1.24 and the corrected 2.0.0-alpha.1 archive. It executed both versions in the
+same disposable install location, retained the previous application before a
+replacement, verified a failed replacement left the database bytes intact,
+saved a resource through the upgraded GUI, restored the initial SQLite snapshot
+through the candidate CLI and native result dialog, and reopened the prior
+version with the restored resource. The pre-restore safety snapshot still held
+the post-upgrade resource. Both inputs used schema v10; this is not an old-schema
+migration, MSI transaction, quarantine/Gatekeeper or other-device result.
+The new `native:portable:acceptance` command makes this exercise repeatable on
+matching hosts. Successful runs remove only their own temporary installation
+and profile; failed runs retain them for diagnosis.
+
+The same run verified the repaired native Close Window shortcut: Cmd+W
+prompted for an unsaved resource, Cancel retained the draft, saving followed
+by Cmd+W closed without another discard prompt, and discarded changes did not
+replace the saved row. The optional signed installer commands still enforce
+certificate verification; their shared promotion metadata now follows the
+unsigned-closeout scope instead of requiring signing/notarization. Other
+production and security gates remain in force.
+
+A further isolated macOS ARM input session used native key events with the
+configured Pinyin input source. It visibly showed marked composition, committed
+`ceshi` to `测试` with Space, cancelled an appended `bumen` composition with
+Escape without changing the committed name, and entered `部门` in the next
+field. After saving and normal exit, SQLite contained exactly those name and
+department values. The application menu headings also changed between Chinese
+and English, and the File menu exposed Close Window. This closes this basic
+macOS Pinyin path; multiline composition, other input methods, screen-reader
+speech and Intel/Windows interactions remain separate acceptance work.
+
+Security policy was narrowed after the rerun: 11 unused Transformers exception
+entries were removed. Fresh full dependency scans passed with the remaining
+20 Torch entries, all still expiring on 2026-11-30. The unfiltered three-platform
+results retain 20 Torch vulnerability groups / 24 records. Historical references
+to 31 exceptions above describe the earlier policy and are not current counts.
+
+An isolated replacement experiment found a newer Intel path through conda-forge:
+Torch 2.14.1 with the current pinned FunASR models ran both speaker modes under
+Rosetta, and all 93 Python inventory identities passed an unfiltered OSV scan.
+The solved environment includes `readline` with a license denied by current
+project policy, and the Python scan does not cover every native Conda library.
+No production runtime inputs changed. Exact versions, hashes and the remaining
+integration/license/device boundaries are recorded in the
+[Intel runtime experiment](../ai/research/2026-11-25-intel-runtime-replacement.md).
 
 ## Manual Desktop Workflow Checks
 

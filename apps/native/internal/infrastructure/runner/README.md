@@ -16,6 +16,12 @@ V1 分段的 `id`、`startMs`、`endMs` 和 `text` 必须存在且非 null；时
 
 V2 继续由共享 JSON Schema 验证字段、版本、事件类型及状态组合。stdout 普通日志仍会触发协议错误，诊断文本由 stderr 与结构化事件提供。
 
+## 实时 ASR v1
+
+`live.go` 与 `live_runner.py` 实现独立的 `liberty-live-asr` v1 双向 JSON Lines；它不改变文件 Runner v2。严格校验版本、序号、重复键和时间区间，PCM 帧及事件行有大小上限；`ready` 后才启动采集，`stop` 刷尾块并等待 `stopped`，异常 EOF 不算成功。平台进程组或 Windows Job Object 随结束、失败和取消回收，stdout 不接受普通诊断文本。
+
+`CapturePCM` 仅供已验证的工具路径使用，原始帧不写日志或媒体文件；设备枚举与平台参数在 `liveaudio`，预算/持久化在应用层。[实时翻译说明](../../../../../docs/live-translation.md)记录用户流程和边界。
+
 ## 验证
 
 在 `apps/native` 下运行：
@@ -30,3 +36,5 @@ GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly go test -race ./internal/infrastructu
 `v1_persistence_test.go` 使用真实测试子进程、生产 `execution.Runner`、应用执行器和临时 SQLite。失败原因后附空的大小写别名仍应失败，重开后无逐字稿和完成事件；显式重试提升 attempt，成功时仅持久化正式文本，完成事件只产生一次。失败和成功分别执行两次关闭重开。所有文件和输出均为合成数据，不访问用户媒体、生产资料、系统凭据或实际 ASR 模型。
 
 这些检查不代表全部 JSON 接受范围、其他操作系统实机或真实 Python/FunASR 运行时已经重新验收。
+
+`translation.go` 与 `translation_runner.py` 使用独立 `liberty-local-translation` v1 协议。仅加载受校验的本地 CTranslate2/Argos 文件；固定 CPU int8、单线程，单段有长度/时间上限。异常序号、重复或大小写别名字段、截断、取消及超时均失败关闭并回收 worker；一个会话复用一个翻译进程，结束后释放。无需 HTTP 或凭据。
