@@ -14,18 +14,26 @@ func palette(c *ui.Context) presentation.Palette {
 }
 
 // Main and settings navigation share the same theme colors and state styling.
-func navigationContent(c *ui.Context, button ui.Element, icon, label string, active bool) {
+func navigationColors(c *ui.Context, button ui.Element, active bool) (ui.Color, ui.Color) {
 	color, iconColor := c.Theme().Text, c.Theme().TextMuted
+	p := palette(c)
 	if active {
-		p := palette(c)
-		button.Background(p.Selected)
-		color, iconColor = p.NavAccent, p.NavAccent
+		button.Background(p.NavSelected)
+		iconColor = color
 	} else if button.Hovered() {
-		button.Background(c.Theme().Accent.Alpha(0.09))
+		button.Background(p.NavHover)
 	}
+	return color, iconColor
+}
+
+func navigationContent(c *ui.Context, button ui.Element, icon, label string, active bool) {
+	color, iconColor := navigationColors(c, button, active)
 	button.Children(func() {
 		ui.Icon(c, presentation.Icon(icon)).Size(16, 16).TextColor(iconColor)
-		ui.Text(c, label).FontSize(13).TextColor(color).SingleLine()
+		text := ui.Text(c, label).FontSize(13).TextColor(color).SingleLine()
+		if active {
+			text.FontWeight(650)
+		}
 	})
 }
 

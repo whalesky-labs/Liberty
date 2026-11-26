@@ -9,6 +9,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"liberty.local/liberty/internal/domain"
 )
 
 func TestCompareReleaseReadLatency(t *testing.T) {
@@ -65,11 +67,20 @@ func BenchmarkReadProjection(benchmark *testing.B) {
 		benchmark.Fatal(err)
 	}
 	benchmark.Cleanup(func() { _ = reader.Close() })
-	for _, operation := range []string{"queue", "transcript"} {
+	for _, operation := range []string{"queue", "queue-page", "transcript", "revision"} {
 		benchmark.Run(operation, func(benchmark *testing.B) {
 			benchmark.ReportAllocs()
 			for range benchmark.N {
 				switch operation {
+				case "queue-page":
+					page, err := reader.QueryJobs(ctx, domain.QueueQuery{Source: "local", Page: 1})
+					if err != nil || page.Total != 1000 || len(page.Items) != domain.QueuePageSize {
+						benchmark.Fatal("paged queue", err)
+					}
+				case "revision":
+					if revision, err := reader.ReadRevision(ctx); err != nil || revision == 0 {
+						benchmark.Fatal("revision", err)
+					}
 				case "queue":
 					jobs, err := reader.ListJobs(ctx)
 					if err != nil || len(jobs) != 1000 {

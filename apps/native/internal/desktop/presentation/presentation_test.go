@@ -32,12 +32,12 @@ func TestOriginalAnimationRetainsAllFramesAndTiming(t *testing.T) {
 		}
 	}
 }
-func TestThemeAndAccentContrastMatchOriginalPreferences(t *testing.T) {
+func TestThemeAndAccentContrastFollowAppearancePreferences(t *testing.T) {
 	p := domain.DefaultUIPreferences()
 	p.ThemeMode = "dark"
 	p.AccentColor = "#f0e0a0"
 	got := PreferenceColors(false, p)
-	if !got.Theme.Dark || got.Content != ui.Hex("#1c1c1e") || got.Theme.AccentText != ui.Hex("#14151a") {
+	if !got.Theme.Dark || got.Content != systemColors(true).TextBackground || got.Theme.AccentText != ui.Hex("#14151a") {
 		t.Fatal("dark/custom accent preferences lost")
 	}
 	p.ThemeMode = "light"

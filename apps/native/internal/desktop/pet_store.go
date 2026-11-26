@@ -43,7 +43,7 @@ func (v *PetView) store(c *ui.Context) {
 			ui.Text(c, title).FillWidth().TextColor(c.Theme().Success).Role(ui.RoleStatus)
 		})
 	}
-	width, _ := c.Size()
+	width, height := c.Size()
 	layout := ui.Row(c).FillWidth().Gap(14).AlignItems(ui.Start)
 	mainWidth := max(1, shellContentWidth(c)-16-288-14)
 	if width <= 1080 {
@@ -95,11 +95,18 @@ func (v *PetView) store(c *ui.Context) {
 				ui.Text(c, v.text("当前分类暂无内容。", "No items in this category yet.")).FillWidth().Padding(30).Role(ui.RoleStatus)
 			}
 			columns := max(1, int((mainWidth+12)/(148+12)))
-			ui.Grid(c).FillWidth().Columns(columns).Gap(12).Children(func() {
-				for _, item := range items {
-					v.storeCard(c, item)
-				}
-			})
+			filter := fmt.Sprintf("%s:%s:%d", v.section, v.category, columns)
+			if filter != v.storeGridFilter {
+				v.storeGrid, v.storeGridFilter = ui.ListState{}, filter
+			}
+			v.storeGrid.Key = func(row int) any { return items[row*columns].Item.ItemKey }
+			ui.List(c, &v.storeGrid, (len(items)+columns-1)/columns, func(row int) {
+				ui.Grid(c).FillWidth().Columns(columns).Gap(12).Children(func() {
+					for i := row * columns; i < min(len(items), (row+1)*columns); i++ {
+						v.storeCard(c, items[i])
+					}
+				})
+			}).FillWidth().Height(max(400, min(850, height-300))).Gap(12).Label(v.text("商品列表", "Products"))
 		})
 		sidebar := ui.Column(c).Width(288).Shrink(0).Gap(12)
 		if width <= 1080 {

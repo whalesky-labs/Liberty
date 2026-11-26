@@ -10,20 +10,18 @@ import (
 )
 
 type NotesView struct {
-	Client         *client.ResultController
-	Preferences    domain.UIPreferences
-	Close          func()
-	retrying       bool
-	retryingResult *domain.Result
+	Client      *client.ResultController
+	Preferences domain.UIPreferences
+	Close       func()
+	retrying    bool
 }
 
 func (v *NotesView) View(c *ui.Context) {
 	locale := v.Preferences.Locale
 	p := presentation.PreferenceColors(c.Theme().Dark, v.Preferences)
 	m := func(key string) string { return presentation.Message(locale, "notes."+key) }
-	if v.Client.ResultError != nil || v.Client.SelectedID == "" || (v.retrying && v.Client.Result != v.retryingResult) {
+	if v.Client.ResultError != nil || v.Client.SelectedID == "" || (v.retrying && !v.Client.Refreshing()) {
 		v.retrying = false
-		v.retryingResult = nil
 	}
 	loading := v.Client.LoadingResult || v.retrying
 	ui.Themed(c, &p.Theme).Fill().Children(func() {
@@ -61,7 +59,6 @@ func (v *NotesView) View(c *ui.Context) {
 						ui.Text(c.Key("load-error"), presentation.Message(locale, "workbench.loadFailed")).TextColor(c.Theme().Danger).Role(ui.RoleAlert)
 						if textButton(c, presentation.Message(locale, "common.retry")).Disabled(v.retrying).Clicked() {
 							v.retrying = v.Client.SelectedID != ""
-							v.retryingResult = v.Client.Result
 							v.Client.Refresh()
 						}
 						if v.Client.Result == nil {
@@ -130,12 +127,12 @@ func (w *Workspace) openNotes(parent *application.JobWindow, id, title string) {
 	view := &NotesView{Client: controller, Preferences: w.preferences}
 	window = mygo.NewWindow(mygo.WindowOptions{Title: presentation.Format(w.preferences.Locale, "windows.meetingNotesTitle", map[string]any{"title": title}), Width: 1120, Height: 860, MinWidth: 920, MinHeight: 720, Content: ui.View(view.View)})
 	view.Close = window.Close
-	w.notes, w.notesView = window, view
+	w.notes, w.notesView, w.notesTitle = window, view, title
 	window.OnClosed(func() {
 		controller.Close()
 		grant.Close()
 		if w.notes == window {
-			w.notes, w.notesView = nil, nil
+			w.notes, w.notesView, w.notesTitle = nil, nil, ""
 		}
 	})
 	controller.Select(id)

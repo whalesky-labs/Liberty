@@ -5,6 +5,7 @@ package client
 import (
 	"context"
 	"errors"
+	"reflect"
 	"time"
 
 	"liberty.local/liberty/internal/domain"
@@ -28,6 +29,23 @@ type SourceResultReader interface {
 
 type SourceJobReader interface {
 	JobForSource(context.Context, string, string) (domain.Result, error)
+}
+
+type resultRevisionReader interface {
+	ResultRevision(context.Context, string) (uint64, error)
+}
+type sourceResultRevisionReader interface {
+	ResultRevisionForSource(context.Context, string, string) (uint64, error)
+}
+
+func (r mainDetailReader) ResultRevisionForSource(ctx context.Context, source, id string) (uint64, error) {
+	if reader, ok := r.Meetings.(sourceResultRevisionReader); ok {
+		return reader.ResultRevisionForSource(ctx, source, id)
+	}
+	if reader, ok := r.Meetings.(resultRevisionReader); ok {
+		return reader.ResultRevision(ctx, id)
+	}
+	return 0, nil
 }
 
 // The main window reads job details, while independent workbenches receive a
@@ -66,6 +84,7 @@ type Controller struct {
 	closed       bool
 	query        domain.QueueQuery
 	polling      bool
+	lastPoll     time.Time
 }
 
 func New(service Meetings, dispatch func(func()), changed func()) *Controller {
@@ -89,7 +108,15 @@ func (c *Controller) StartPolling() {
 			case <-c.ctx.Done():
 				return
 			case <-ticker.C:
-				c.dispatch(c.Poll)
+				c.dispatch(func() {
+					interval := 5 * time.Second
+					if c.Page.Counts.Processing > 0 || c.ListError != nil {
+						interval = time.Second
+					}
+					if time.Since(c.lastPoll) >= interval {
+						c.Poll()
+					}
+				})
 			}
 		}
 	}()
@@ -103,6 +130,7 @@ func (c *Controller) refresh(query domain.QueueQuery, background bool) {
 	if c.closed {
 		return
 	}
+	c.lastPoll = time.Now()
 	previousSource := c.query.Source
 	if previousSource == "" {
 		previousSource = c.Source
@@ -126,8 +154,11 @@ func (c *Controller) refresh(query domain.QueueQuery, background bool) {
 	c.listCancel = cancel
 	c.listRevision++
 	revision := c.listRevision
-	c.LoadingJobs, c.ListError = true, nil
-	c.changed()
+	c.LoadingJobs = true
+	if !background {
+		c.ListError = nil
+		c.changed()
+	}
 	go func() {
 		page, err := c.service.Queue(ctx, query)
 		if err == nil {
@@ -148,6 +179,7 @@ func (c *Controller) refresh(query domain.QueueQuery, background bool) {
 				c.Source = page.Source
 				c.ResultController.source = page.Source
 			}
+			notify := !background || !sameError(c.ListError, err) || err == nil && !reflect.DeepEqual(c.Page, page)
 			c.LoadingJobs, c.ListError = false, err
 			if err == nil {
 				c.Page, c.Jobs = page, page.Items
@@ -165,7 +197,9 @@ func (c *Controller) refresh(query domain.QueueQuery, background bool) {
 					}
 				}
 			}
-			c.changed()
+			if notify {
+				c.changed()
+			}
 		})
 	}()
 }
@@ -186,6 +220,7 @@ type ResultController struct {
 	querying       bool
 	polling        bool
 	source         string
+	dataRevision   uint64
 }
 
 // NewResult accepts only the bound result port. A child window never receives
@@ -203,6 +238,8 @@ func (c *ResultController) Refresh() {
 		c.selectResult(c.SelectedID, true)
 	}
 }
+
+func (c *ResultController) Refreshing() bool { return c.querying }
 func (c *ResultController) StartPolling() {
 	if c.closed || c.polling {
 		return
@@ -230,23 +267,43 @@ func (c *ResultController) selectResult(id string, background bool) {
 	}
 	c.resultRevision++
 	revision := c.resultRevision
+	previousError := c.ResultError
 	c.SelectedID, c.ResultError = id, nil
 	if !background {
 		c.Result = nil
+		c.ResultError = nil
+		c.dataRevision = 0
 	}
 	c.LoadingResult = id != "" && !background
 	c.querying = id != ""
-	c.changed()
+	if !background || previousError != nil {
+		c.changed()
+	}
 	if id == "" {
 		return
 	}
 	ctx, cancel := context.WithCancel(c.ctx)
 	c.resultCancel = cancel
 	source := c.source
+	previous, previousRevision := c.Result, c.dataRevision
 	go func() {
+		defer cancel()
 		var result domain.Result
 		var err error
+		var dataRevision uint64
 		if source != "" {
+			if reader, ok := c.service.(sourceResultRevisionReader); ok {
+				dataRevision, err = reader.ResultRevisionForSource(ctx, source, id)
+			}
+		} else if reader, ok := c.service.(resultRevisionReader); ok {
+			dataRevision, err = reader.ResultRevision(ctx, id)
+		}
+		// Active tasks also read progress files outside SQLite. They must keep
+		// refreshing even while the database revision is unchanged.
+		unchanged := err == nil && previous != nil && previousError == nil && dataRevision != 0 && dataRevision == previousRevision && !domain.IsProcessing(previous.Job.OverallStatus)
+		if err != nil || unchanged {
+			// Preserve the authorized snapshot; only the revision probe ran.
+		} else if source != "" {
 			if reader, ok := c.service.(SourceResultReader); ok {
 				result, err = reader.ResultForSource(ctx, source, id)
 			} else {
@@ -261,14 +318,39 @@ func (c *ResultController) selectResult(id string, background bool) {
 			}
 			c.LoadingResult, c.ResultError = false, err
 			c.querying = false
+			notify := !background || previousError != nil || err != nil
+			if unchanged {
+				return
+			}
 			if err == nil && (source == "" || result.Job.Source == source) && result.Job.ID == id {
-				c.Result = &result
+				c.dataRevision = dataRevision
+				if !reflect.DeepEqual(c.Result, &result) {
+					// A summary or job metadata change does not invalidate transcript
+					// search indexes. Published segment slices are immutable.
+					if c.Result != nil {
+						if reflect.DeepEqual(c.Result.Transcript, result.Transcript) {
+							result.Transcript = c.Result.Transcript
+						}
+						if reflect.DeepEqual(c.Result.Speakers, result.Speakers) {
+							result.Speakers = c.Result.Speakers
+						}
+					}
+					c.Result = &result
+					notify = true
+				}
 			} else if err == nil {
 				c.ResultError = ErrResultSourceMismatch
+				notify = true
 			}
-			c.changed()
+			if notify {
+				c.changed()
+			}
 		})
 	}()
+}
+
+func sameError(a, b error) bool {
+	return a == nil && b == nil || a != nil && b != nil && a.Error() == b.Error()
 }
 
 func (c *Controller) Close() {

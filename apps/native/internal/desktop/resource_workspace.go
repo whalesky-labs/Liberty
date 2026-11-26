@@ -53,6 +53,10 @@ func (w *Workspace) applyPreferences(preferences domain.UIPreferences) {
 	if w.closed {
 		return
 	}
+	if w.preferences.Locale != preferences.Locale {
+		mygo.App.SetMenu(ApplicationMenu(preferences.Locale))
+	}
+	appearanceChanged := w.preferences.LiquidGlassStyle != preferences.LiquidGlassStyle || w.preferences.ThemeMode != preferences.ThemeMode
 	w.preferences = preferences
 	switch preferences.ThemeMode {
 	case "light":
@@ -61,6 +65,9 @@ func (w *Workspace) applyPreferences(preferences domain.UIPreferences) {
 		mygo.Theme.SetSource(mygo.ThemeDark)
 	default:
 		mygo.Theme.SetSource(mygo.ThemeSystem)
+	}
+	if appearanceChanged {
+		applyWindowGlass(w.main, preferences)
 	}
 	w.view.Locale = preferences.Locale
 	w.dashboard.Locale = preferences.Locale
@@ -93,11 +100,13 @@ func (w *Workspace) applyPreferences(preferences domain.UIPreferences) {
 	if w.resultView != nil {
 		w.resultView.Preferences = preferences
 		w.resultView.Locale = preferences.Locale
+		w.result.SetTitle(resultWindowTitle(preferences.Locale))
 		w.result.Invalidate()
 	}
 	if w.summaryView != nil {
 		w.summaryView.Preferences = preferences
 		w.summaryView.Locale = preferences.Locale
+		w.summaryWindow.SetTitle(presentation.Format(preferences.Locale, "windows.aiSummaryTitle", map[string]any{"title": w.summaryTitle}))
 		w.summaryWindow.Invalidate()
 	}
 	for kind, view := range w.editorViews {
@@ -112,6 +121,7 @@ func (w *Workspace) applyPreferences(preferences domain.UIPreferences) {
 	w.main.Invalidate()
 	if w.notesView != nil {
 		w.notesView.Preferences = preferences
+		w.notes.SetTitle(presentation.Format(preferences.Locale, "windows.meetingNotesTitle", map[string]any{"title": w.notesTitle}))
 		w.notes.Invalidate()
 	}
 }

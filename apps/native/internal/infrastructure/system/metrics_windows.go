@@ -2,29 +2,26 @@ package system
 
 import (
 	"context"
-	"golang.org/x/sys/windows"
-	"liberty.local/liberty/internal/domain"
 	"os"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
+	"liberty.local/liberty/internal/domain"
 )
 
 var workingSetInfo = windows.NewLazySystemDLL("psapi.dll").NewProc("GetProcessMemoryInfo")
 
-type processTimes struct{ created, ticks uint64 }
-type MetricsSampler struct {
-	previous  map[int]processTimes
-	sampledAt time.Time
-}
+type MetricsSampler struct{ metricsHistory }
 
 func fileTicks(value windows.Filetime) uint64 {
 	return uint64(value.HighDateTime)<<32 | uint64(value.LowDateTime)
 }
 
-func readMetrics(pid int) (processTimes, uint64, bool) {
+func readMetrics(pid int) (processUsage, error) {
 	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_INFORMATION|windows.PROCESS_VM_READ, false, uint32(pid))
 	if err != nil {
-		return processTimes{}, 0, false
+		return processUsage{}, err
 	}
 	defer windows.CloseHandle(handle)
 	var created, exit, kernel, user windows.Filetime
@@ -34,17 +31,40 @@ func readMetrics(pid int) (processTimes, uint64, bool) {
 		Quotas                     [6]uintptr
 	}
 	counters.Size = uint32(unsafe.Sizeof(counters))
-	if windows.GetProcessTimes(handle, &created, &exit, &kernel, &user) != nil {
-		return processTimes{}, 0, false
+	if err := windows.GetProcessTimes(handle, &created, &exit, &kernel, &user); err != nil {
+		return processUsage{}, err
 	}
-	ok, _, _ := workingSetInfo.Call(uintptr(handle), uintptr(unsafe.Pointer(&counters)), uintptr(counters.Size))
-	return processTimes{created: fileTicks(created), ticks: fileTicks(kernel) + fileTicks(user)}, uint64(counters.WorkingSet), ok != 0
+	var exitCode uint32
+	if err := windows.GetExitCodeProcess(handle, &exitCode); err != nil {
+		return processUsage{}, err
+	}
+	const stillActive = 259
+	if exitCode != stillActive {
+		return processUsage{}, windows.ERROR_INVALID_PARAMETER
+	}
+	ok, _, err := workingSetInfo.Call(uintptr(handle), uintptr(unsafe.Pointer(&counters)), uintptr(counters.Size))
+	if ok == 0 {
+		return processUsage{}, err
+	}
+	return processUsage{started: time.Unix(0, created.Nanoseconds()), cpuNS: (fileTicks(kernel) + fileTicks(user)) * 100, memoryBytes: uint64(counters.WorkingSet)}, nil
 }
 
 func (sampler *MetricsSampler) Sample(ctx context.Context) (domain.ProcessMetrics, error) {
+	current, err := readProcessUsage(ctx)
+	if err != nil {
+		sampler.reset()
+		return domain.ProcessMetrics{}, err
+	}
+	return sampler.sample(os.Getpid(), time.Now(), current, domain.ProcessMemoryWorkingSet)
+}
+
+func readProcessUsage(ctx context.Context) (map[int]processUsage, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
-		return domain.ProcessMetrics{}, errProcessMetrics
+		return nil, errProcessMetrics
 	}
 	defer windows.CloseHandle(snapshot)
 	entry := windows.ProcessEntry32{}
@@ -54,33 +74,21 @@ func (sampler *MetricsSampler) Sample(ctx context.Context) (domain.ProcessMetric
 		parents[int(entry.ProcessID)] = int(entry.ParentProcessID)
 	}
 	if err != windows.ERROR_NO_MORE_FILES {
-		return domain.ProcessMetrics{}, errProcessMetrics
+		return nil, errProcessMetrics
 	}
-	current := map[int]processTimes{}
-	now := time.Now()
-	var ticks uint64
-	var result domain.ProcessMetrics
+	current := map[int]processUsage{}
 	for _, pid := range processTree(os.Getpid(), parents) {
-		if ctx.Err() != nil {
-			return result, ctx.Err()
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		value, rss, ok := readMetrics(pid)
-		if !ok {
-			continue
+		value, err := readMetrics(pid)
+		if err != nil {
+			if pid != os.Getpid() && err == windows.ERROR_INVALID_PARAMETER {
+				continue
+			}
+			return nil, errProcessMetrics
 		}
 		current[pid] = value
-		result.ResidentBytes += rss
-		if prev, found := sampler.previous[pid]; found && value.created == prev.created && value.ticks >= prev.ticks {
-			ticks += value.ticks - prev.ticks
-		}
 	}
-	if _, ok := current[os.Getpid()]; !ok {
-		return result, errProcessMetrics
-	}
-	if !sampler.sampledAt.IsZero() {
-		percent := float64(ticks) / 100000 / now.Sub(sampler.sampledAt).Seconds()
-		result.CPUPercent = &percent
-	}
-	sampler.sampledAt, sampler.previous = now, current
-	return result, nil
+	return current, ctx.Err()
 }

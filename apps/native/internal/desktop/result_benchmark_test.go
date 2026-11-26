@@ -47,3 +47,22 @@ func BenchmarkResultWorkbenchFrame(benchmark *testing.B) {
 		}
 	}
 }
+
+// Same scenario as the performance audit: a new result wrapper with unchanged
+// transcript storage (for example, an updated summary or export timestamp).
+func BenchmarkResultSnapshotRefresh(b *testing.B) {
+	view := resultParityView("en-US", 10000)
+	view.Actions = &client.ResultActionController{}
+	tester := ui.NewTester(view.View, 1280, 900)
+	view.query = "TRANSCRIPT"
+	tester.Frame()
+	if !tester.HasText("Synthetic transcript 0000") {
+		b.Fatal("missing transcript")
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		snapshot := *view.Client.Result
+		view.Client.Result = &snapshot
+		tester.Frame()
+	}
+}

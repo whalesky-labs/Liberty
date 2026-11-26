@@ -361,6 +361,45 @@ func (g *JobWindow) Result(ctx context.Context, id string) (domain.Result, error
 	return result, nil
 }
 
+// The revision probe uses the same grant fence as Result. Remote bindings must
+// still validate their connection and read through Result; zero disables reuse.
+func (g *JobWindow) ResultRevision(ctx context.Context, id string) (uint64, error) {
+	if g == nil || g.owner == nil {
+		return 0, ErrWindowScope
+	}
+	g.owner.mu.Lock()
+	allowed := g.authorized() && id == g.id
+	g.owner.mu.Unlock()
+	if !allowed {
+		return 0, ErrWindowScope
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	var revision uint64
+	var err error
+	if g.remote == nil {
+		if reader, ok := g.owner.reader.(interface {
+			ResultRevisionForSource(context.Context, string, string) (uint64, error)
+		}); ok {
+			revision, err = reader.ResultRevisionForSource(ctx, g.source, id)
+		} else if reader, ok := g.owner.reader.(interface {
+			ResultRevision(context.Context, string) (uint64, error)
+		}); ok {
+			revision, err = reader.ResultRevision(ctx, id)
+		}
+	}
+	g.owner.mu.Lock()
+	defer g.owner.mu.Unlock()
+	if !g.authorized() {
+		return 0, ErrWindowScope
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return revision, err
+}
+
 // RemoteCapabilities exposes only the service capability snapshot, through the
 // same source-bound grant as the result. It never exposes settings or secrets.
 // Switching the main window to local mode does not redirect this request.

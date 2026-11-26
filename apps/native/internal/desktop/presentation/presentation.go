@@ -1,6 +1,6 @@
-// Package presentation adapts the existing Liberty visual language to MyGo.
-// Generated messages, icons and images come from desktop-resources; layout values
-// below follow global.css's final cascade, not the toolkit's default style.
+// Package presentation supplies the native desktop's shared appearance.
+// Messages, icons and images come from desktop-resources; macOS colors come
+// from AppKit's semantic color roles in the selected appearance.
 package presentation
 
 import (
@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -58,39 +59,43 @@ func Format(locale, key string, values map[string]any) string {
 }
 
 const (
-	SidebarWidth    = 232
-	TitlebarHeight  = 42
-	StatusbarHeight = 26
-	WindowWidth     = 1440
-	WindowHeight    = 960
-	WindowMinWidth  = 1100
-	WindowMinHeight = 760
-	TrafficLightX   = 20
-	TrafficLightY   = 23
+	ActivityBarWidth = 52
+	SidebarMenuWidth = 232
+	SidebarWidth     = ActivityBarWidth + SidebarMenuWidth
+	TitlebarHeight   = 42
+	StatusbarHeight  = 26
+	WindowWidth      = 1440
+	WindowHeight     = 960
+	WindowMinWidth   = 1100
+	WindowMinHeight  = 760
+	TrafficLightX    = 20
+	TrafficLightY    = 23
 )
 
 type Palette struct {
 	Theme                                                            ui.Theme
 	Window, Content, Panel, Subpanel, Selected, NavAccent, Separator ui.Color
+	NavSelected, NavHover                                            ui.Color
 }
 
 func Colors(dark bool, accent ui.Color) Palette {
 	t := *ui.LightTheme()
-	p := Palette{Window: ui.Hex("#f5f5f7"), Content: ui.Hex("#fbfbfd"), Panel: ui.Hex("#fbfbfd"), Subpanel: ui.Hex("#f5f5f7"),
-		Selected: accent.Alpha(0.14), NavAccent: ui.Hex("#081225").Mix(accent, 0.78), Separator: ui.RGBA(60, 60, 67, 0.14)}
-	t.Text, t.TextMuted, t.Border = ui.Hex("#14151a"), ui.Hex("#6d7280"), ui.RGBA(60, 60, 67, 0.16)
-	t.Surface, t.SurfaceHover = ui.Hex("#ffffff"), ui.RGBA(60, 60, 67, 0.06)
-	t.Success, t.Warning, t.Danger = ui.Hex("#1f8f4d"), ui.Hex("#b86a0a"), ui.Hex("#de3b40")
 	if dark {
 		t = *ui.DarkTheme()
-		p.Window, p.Content, p.Panel, p.Subpanel = ui.Hex("#1e1e20"), ui.Hex("#1c1c1e"), ui.Hex("#2c2c2e"), ui.Hex("#252528")
-		p.Selected, p.NavAccent, p.Separator = accent.Alpha(0.22), ui.Hex("#ffffff").Mix(accent, 0.74), ui.RGBA(255, 255, 255, 0.1)
-		t.Text, t.TextMuted, t.Border = ui.Hex("#f5f5f7"), ui.Hex("#a1a1a6"), p.Separator
-		t.Surface, t.SurfaceHover = ui.Hex("#2c2c2e"), ui.RGBA(255, 255, 255, 0.06)
-		t.Success, t.Warning, t.Danger = ui.Hex("#5ccc88"), ui.Hex("#ffbf5f"), ui.Hex("#ff7e86")
 	}
+	native := systemColors(dark)
+	p := Palette{Window: native.Window, Content: native.TextBackground,
+		Panel: SolidSurface(native.SubtleFill, native.TextBackground), Subpanel: SolidSurface(native.Fill, native.TextBackground),
+		Selected: accent.Alpha(0.14), NavAccent: ui.Hex("#000000").Mix(accent, 0.78), Separator: native.Separator,
+		NavSelected: native.Selection, NavHover: native.Fill}
+	if dark {
+		p.Selected, p.NavAccent = accent.Alpha(0.22), ui.Hex("#ffffff").Mix(accent, 0.74)
+	}
+	t.Text, t.TextMuted, t.Border = native.Label, native.SecondaryLabel, native.Separator
+	t.Surface, t.SurfaceHover, t.SurfacePressed = p.Panel, p.Subpanel, native.Selection
+	t.Success, t.Warning, t.Danger = native.Green, native.Orange, native.Red
 	t.Background, t.Accent, t.Selection = p.Window, accent, p.Selected
-	t.AccentHover, t.AccentPressed = ui.Hex("#081225").Mix(accent, 0.78), ui.Hex("#081225").Mix(accent, 0.65)
+	t.AccentHover, t.AccentPressed = ui.Hex("#000000").Mix(accent, 0.78), ui.Hex("#000000").Mix(accent, 0.65)
 	t.AccentText = ui.Hex("#ffffff")
 	// Matches resolveAccentContrast in the original appearance adapter.
 	if (int(accent.R)*299+int(accent.G)*587+int(accent.B)*114)/1000 >= 160 {
@@ -102,18 +107,62 @@ func Colors(dark bool, accent ui.Color) Palette {
 	return p
 }
 
+// ChromeBackground exposes the system's frosted material without adding a
+// second translucent color wash. Reading surfaces remain opaque.
+func (p Palette) ChromeBackground(_ string, material bool, preferences ui.Preferences) ui.Color {
+	if !material || preferences.ReduceTransparency || preferences.HighContrast {
+		return p.Window
+	}
+
+	return ui.Transparent
+}
+
+// LiquidGlass is shared by the live window material and its settings preview.
+func LiquidGlass(style string, window ui.Color) glass.Glass {
+	if style == "tinted" {
+		return glass.Glass{Style: glass.Regular, Tint: window.Alpha(0.24)}
+	}
+	// The stored "transparent" value is retained for compatibility. It means
+	// standard untinted navigation glass, not the Clear style for media overlays.
+	return glass.Glass{Style: glass.Regular}
+}
+
 type NavItem struct{ Key, Path, Icon string }
 type NavSection struct {
-	Zh, En string
-	Items  []NavItem
+	Key, Icon string
+	Zh, En    string
+	Items     []NavItem
 }
 
 var Navigation = []NavSection{
-	{"工作", "Work", []NavItem{{"dashboard", "/", "dashboard"}, {"newJob", "/jobs/new", "plus"}, {"jobs", "/jobs", "tray"}}},
-	{"打工", "Work Games", []NavItem{{"workMarket", "/work-market", "market"}}},
-	{"资源", "Resources", []NavItem{{"models", "/models", "chip"}, {"templates", "/templates", "doc"}, {"members", "/members", "people"}}},
-	{"伙伴", "Companion", []NavItem{{"pet", "/pet", "pet"}, {"petStore", "/pet-store", "store"}}},
-	{"福利", "Benefits", []NavItem{{"redeemKey", "/redeem-key", "key"}, {"dailyCheckIn", "/daily-check-in", "check"}, {"dailyBlindBox", "/daily-blind-box", "gift"}}},
+	{"work", "dashboard", "工作", "Work", []NavItem{{"dashboard", "/", "dashboard"}, {"newJob", "/jobs/new", "plus"}, {"jobs", "/jobs", "tray"}, {"live", "/live", "microphone"}}},
+	{"games", "market", "打工", "Work Games", []NavItem{{"workMarket", "/work-market", "market"}}},
+	{"resources", "doc", "资源", "Resources", []NavItem{{"models", "/models", "chip"}, {"templates", "/templates", "doc"}, {"members", "/members", "people"}}},
+	{"companion", "pet", "伙伴", "Companion", []NavItem{{"pet", "/pet", "pet"}, {"petStore", "/pet-store", "store"}}},
+	{"benefits", "gift", "福利", "Benefits", []NavItem{{"redeemKey", "/redeem-key", "key"}, {"dailyCheckIn", "/daily-check-in", "check"}, {"dailyBlindBox", "/daily-blind-box", "gift"}}},
+}
+
+func (item NavItem) Active(route string) bool {
+	path, _, _ := strings.Cut(route, "?")
+	switch item.Path {
+	case "/work-market":
+		return path == item.Path || path == "/farm" || strings.HasPrefix(path, "/work-game/")
+	case "/jobs":
+		return path == item.Path || (strings.HasPrefix(path, "/jobs/") && path != "/jobs/new")
+	default:
+		return path == item.Path
+	}
+}
+
+func NavigationSection(route string) NavSection {
+	for _, section := range Navigation {
+		for _, item := range section.Items {
+			if item.Active(route) {
+				return section
+			}
+		}
+	}
+	return Navigation[0]
 }
 
 var accentPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)

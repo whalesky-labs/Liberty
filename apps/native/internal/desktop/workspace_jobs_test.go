@@ -161,8 +161,11 @@ func TestWorkspaceCreatedLocalDetailSurvivesRemoteSwitchDuringCreation(t *testin
 			workspace.controller.Poll()
 			workspace.detail.Client.ResultController.Refresh()
 			awaitWorkspaceJobs(t, callbacks, func() bool {
-				return !workspace.controller.LoadingJobs && workspace.controller.Result != queueResult && workspace.detail.Client.Result != detailResult
+				return !workspace.controller.LoadingJobs && !workspace.controller.ResultController.Refreshing() && !workspace.detail.Client.ResultController.Refreshing()
 			})
+			if workspace.controller.Result != queueResult || workspace.detail.Client.Result != detailResult {
+				t.Fatal("unchanged snapshots were not reused")
+			}
 			if workspace.detail.Client.Result.Job.Source != "local" || workspace.controller.Result.Job.Source != "remote" {
 				t.Fatal("background queue polling rebound the local detail")
 			}
@@ -199,8 +202,11 @@ func TestWorkspaceDetailKeepsItsSourceWhenQueueModeChanges(t *testing.T) {
 			previous := workspace.detail.Client.Result
 			workspace.detail.Client.ResultController.Refresh()
 			awaitWorkspaceJobs(t, callbacks, func() bool {
-				return !workspace.controller.LoadingJobs && workspace.detail.Client.Result != previous
+				return !workspace.controller.LoadingJobs && !workspace.detail.Client.ResultController.Refreshing()
 			})
+			if workspace.detail.Client.Result != previous {
+				t.Fatal("unchanged source-bound detail was not reused")
+			}
 			tester := ui.NewTester(workspace.View, 1180, 1500)
 			if workspace.detail.Client.Result.Job.Source != source || !tester.HasText(source+" synthetic detail") {
 				t.Fatal("detail did not retain its source after a processing-mode change")

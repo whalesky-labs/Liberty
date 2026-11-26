@@ -5,13 +5,12 @@ package presentation
 import (
 	"embed"
 	"github.com/egoist/mygo/ui"
-	"sync"
 	"time"
 )
 
 //go:embed pet-art/*
 var petArtFiles embed.FS
-var petArtCache sync.Map
+var petArtCache = newBitmapCache(8 * 1024 * 1024)
 var petFrames = map[string][]string{
 	"crush":    {"action-crush-1.png", "action-crush-2.png", "action-crush-3.png", "action-crush-4.png", "action-crush-5.png", "action-crush-6.png", "action-crush-7.png", "action-crush-8.png", "action-crush-9.png"},
 	"defecate": {"action-defecate-1.png", "action-defecate-2.png", "action-defecate-3.png", "action-defecate-4.png", "action-defecate-5.png", "action-defecate-6.png", "action-defecate-7.png", "action-defecate-8.png", "action-defecate-9.png"},
@@ -31,6 +30,24 @@ var petFrames = map[string][]string{
 }
 
 func PetArt(asset string) ui.ImageSource { return petBitmap("shop-" + asset + ".png") }
+
+// PetActionReference is a still frame for the isolated model-review tool.
+func PetActionReference(group string) ui.ImageSource {
+	frames := petFrames[group]
+	if len(frames) == 0 {
+		frames = petFrames["slack"]
+	}
+	return petBitmap(frames[len(frames)/2])
+}
+
+// PetActionPose follows the explicit pose clock of the native 3D review.
+func PetActionPose(group string, index int) ui.ImageSource {
+	frames := petFrames[group]
+	if len(frames) == 0 {
+		frames = petFrames["slack"]
+	}
+	return petBitmap(frames[max(0, min(index, len(frames)-1))])
+}
 func PetFrame(c *ui.Context, group string) ui.ImageSource {
 	frames := petFrames[group]
 	if len(frames) == 0 {
@@ -45,20 +62,10 @@ func PetFrame(c *ui.Context, group string) ui.ImageSource {
 	return petBitmap(frames[index])
 }
 func petBitmap(name string) ui.ImageSource {
-	if cached, ok := petArtCache.Load(name); ok {
-		return cached.(ui.ImageSource)
+	if file, err := petArtFiles.Open("pet-art/" + name); err != nil {
+		name = "shop-gift_box.png"
+	} else {
+		file.Close()
 	}
-	data, err := petArtFiles.ReadFile("pet-art/" + name)
-	if err != nil {
-		data, err = petArtFiles.ReadFile("pet-art/shop-gift_box.png")
-	}
-	if err != nil {
-		panic("missing embedded pet art")
-	}
-	image, err := ui.DecodeImage(data)
-	if err != nil {
-		panic("invalid embedded pet art")
-	}
-	actual, _ := petArtCache.LoadOrStore(name, image)
-	return actual.(ui.ImageSource)
+	return petArtCache.load(petArtFiles, "pet-art/"+name, 320)
 }

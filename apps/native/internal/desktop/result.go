@@ -36,7 +36,6 @@ type transcriptFilterOption struct {
 }
 
 type transcriptCache struct {
-	result       *domain.Result
 	locale       string
 	segmentData  *domain.Segment
 	segmentCount int
@@ -192,7 +191,7 @@ func (v *ResultView) Body(c *ui.Context) {
 		if job.DiarizationStatus == "legacy_unverified" && len(segments) > 0 && segments[0].Speaker != nil {
 			ui.Text(c, v.msg("legacySpeakerNotice")).FontSize(12).TextColor(c.Theme().Warning)
 		}
-		options, visible := v.transcriptData(r, segments)
+		options, visible := v.transcriptData(segments)
 		ui.Row(c).FillWidth().Gap(6).Wrap().Children(func() {
 			if segmentButton(c, fmt.Sprintf("%s %d", v.msg("allSpeakers"), len(segments)), v.speaker == "").MaxWidthPercent(100).MinWidth(0).Role(ui.RoleToggleButton).Checked(v.speaker == "").Clicked() {
 				v.speaker = ""
@@ -273,14 +272,14 @@ func (v *ResultView) speakerLabel(segment domain.Segment) string {
 	return presentation.Message(v.Locale, "common.unknownSpeaker")
 }
 
-func (v *ResultView) transcriptData(result *domain.Result, segments []domain.Segment) ([]transcriptFilterOption, []domain.Segment) {
+func (v *ResultView) transcriptData(segments []domain.Segment) ([]transcriptFilterOption, []domain.Segment) {
 	query := strings.ToLower(strings.TrimSpace(v.query))
 	var segmentData *domain.Segment
 	if len(segments) > 0 {
 		segmentData = &segments[0]
 	}
 	cache := &v.transcriptCache
-	if cache.result != result || cache.locale != v.Locale || cache.segmentData != segmentData || cache.segmentCount != len(segments) {
+	if cache.locale != v.Locale || cache.segmentData != segmentData || cache.segmentCount != len(segments) {
 		options := make([]transcriptFilterOption, 0, 4)
 		optionIndexes := make(map[string]int, 4)
 		for _, segment := range segments {
@@ -292,7 +291,7 @@ func (v *ResultView) transcriptData(result *domain.Result, segments []domain.Seg
 				options = append(options, transcriptFilterOption{label: label, count: 1})
 			}
 		}
-		*cache = transcriptCache{result: result, locale: v.Locale, segmentData: segmentData, segmentCount: len(segments), options: options}
+		*cache = transcriptCache{locale: v.Locale, segmentData: segmentData, segmentCount: len(segments), options: options}
 	}
 	if cache.valid && cache.query == query && cache.speaker == v.speaker {
 		return cache.options, cache.visible

@@ -2,6 +2,7 @@ export const navIconNames = {
   dashboard: "house",
   plus: "plus-circle",
   tray: "tray",
+  microphone: "mic",
   market: "rectangle-grid-2x2",
   chip: "cube-box",
   doc: "doc-text",

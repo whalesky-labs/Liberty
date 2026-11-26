@@ -1,7 +1,10 @@
 package desktop
 
 import (
+	"fmt"
+	"math"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -9,6 +12,53 @@ import (
 	"liberty.local/liberty/internal/desktop/presentation"
 	"liberty.local/liberty/internal/domain"
 )
+
+func TestShellCentersContentWhenResized(t *testing.T) {
+	for _, route := range []string{"/jobs", "/settings", "/farm"} {
+		for _, scroll := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/scroll=%v", route, scroll), func(t *testing.T) {
+				shell := Shell{
+					Locale: "en-US", Route: route, Preferences: domain.DefaultUIPreferences(),
+					Content: func(c *ui.Context) {
+						var root ui.Element
+						if scroll {
+							root = ui.Scroll(c).Fill()
+						} else {
+							root = ui.Column(c).Fill()
+						}
+						root.Children(func() {
+							ui.Row(c).FillWidth().Height(80).Label("Page content")
+						})
+					},
+				}
+				if route == "/settings" {
+					shell.Sidebar = settingsParityView("en-US", "appearance").Sidebar
+				}
+				tester := ui.NewTester(shell.View, 1100, 960)
+				for _, width := range []int{1100, 1440, 1920, 2560, 1100} {
+					tester.SetSize(width, 960)
+					content, ok := tester.Find("Page content")
+					available := float32(width - presentation.SidebarWidth - 24)
+					wantWidth := min(float32(1180), available)
+					if route == "/farm" {
+						wantWidth = available
+					}
+					left := float32(presentation.SidebarWidth+12) + (available-wantWidth)/2
+					if !ok || math.Abs(float64(content.W-wantWidth)) > 1 || math.Abs(float64(content.X-left)) > 1 || content.H < 79 {
+						t.Fatalf("page content did not stay centered at width %d: %+v, expected x=%.1f width=%.1f", width, content, left, wantWidth)
+					}
+				}
+				if route == "/settings" {
+					tester.SetSize(760, 960)
+					content, ok := tester.Find("Page content")
+					if !ok || math.Abs(float64(content.X-12)) > 1 || math.Abs(float64(content.W-736)) > 1 {
+						t.Fatal("compact settings lost its available content width", content)
+					}
+				}
+			})
+		}
+	}
+}
 
 func TestSettingsBackReturnsToPreviousApplicationPage(t *testing.T) {
 	for _, path := range []string{"/", "/work-market", "/farm", "/work-game/factory", "/members", "/pet-store", "/jobs/synthetic-id"} {
@@ -51,7 +101,7 @@ func TestShellLeavesRoomForNativeTitlebarControls(t *testing.T) {
 	for _, platform := range platforms {
 		for _, size := range sizes {
 			t.Run(platform.name+"/"+size.name, func(t *testing.T) {
-				shell := &Shell{Locale: "en-US", Preferences: domain.DefaultUIPreferences(), GraphicsMB: 123}
+				shell := &Shell{Locale: "en-US", Preferences: domain.DefaultUIPreferences(), Metrics: &domain.ProcessMetrics{MemoryBytes: 123 * 1024 * 1024, SampledAt: time.Now()}}
 				tester := ui.NewTester(shell.View, size.width, size.height)
 				tester.SetTitleBar(platform.bar)
 
@@ -62,13 +112,13 @@ func TestShellLeavesRoomForNativeTitlebarControls(t *testing.T) {
 				if !ok || metric.X < leftInset {
 					t.Fatalf("titlebar metrics overlap native controls: %+v, found %v", metric, ok)
 				}
-				graphics, ok := tester.Find("123M")
+				memory, ok := tester.Find("123 MiB")
 				if !ok {
-					t.Fatal("graphics metric is missing")
+					t.Fatal("memory metric is missing")
 				}
 				pet, ok := tester.Find(presentation.Message("en-US", "shell.petDisabled"))
-				if !ok || graphics.X+graphics.W > pet.X {
-					t.Fatalf("titlebar metrics overlap actions: graphics=%+v pet=%+v found=%v", graphics, pet, ok)
+				if !ok || memory.X+memory.W > pet.X {
+					t.Fatalf("titlebar metrics overlap actions: memory=%+v pet=%+v found=%v", memory, pet, ok)
 				}
 				github, ok := tester.Find(presentation.Message("en-US", "shell.github"))
 				if !ok || github.X+github.W > float32(size.width)-rightInset {
@@ -78,6 +128,32 @@ func TestShellLeavesRoomForNativeTitlebarControls(t *testing.T) {
 					t.Fatalf("titlebar content escaped the titlebar: metric=%+v github=%+v", metric, github)
 				}
 			})
+		}
+	}
+}
+
+func TestShellMetricsShowFreshSamplesAndNeverEstimateGraphics(t *testing.T) {
+	for _, locale := range []string{"zh-CN", "en-US"} {
+		cpu := 250.5
+		shell := &Shell{Locale: locale, Preferences: domain.DefaultUIPreferences()}
+		tester := ui.NewTester(shell.View, 1440, 960)
+		if tester.HasText(presentation.Message(locale, "shell.graphics")) || tester.HasText("0.0%") {
+			t.Fatal("unavailable metrics were presented as measured usage")
+		}
+		shell.Metrics = &domain.ProcessMetrics{CPUPercent: &cpu, MemoryBytes: 379 << 20, MemoryKind: domain.ProcessMemoryFootprint, SampledAt: time.Now()}
+		tester.Frame()
+		if !tester.HasText("250.5%") || !tester.HasText("379 MiB") {
+			t.Fatal("live process metrics were not rendered")
+		}
+		shell.Metrics.SampledAt = time.Now().Add(-4 * time.Second)
+		tester.Frame()
+		if tester.HasText("250.5%") || tester.HasText("379 MiB") {
+			t.Fatal("stale sample remained visible")
+		}
+		shell.Metrics = &domain.ProcessMetrics{MemoryBytes: 280 << 20, MemoryKind: domain.ProcessMemoryWorkingSet, SampledAt: time.Now()}
+		tester.Frame()
+		if !tester.HasText("280 MiB") || tester.HasText("0.0%") {
+			t.Fatal("first sample invented CPU or hid measured memory")
 		}
 	}
 }
@@ -140,7 +216,7 @@ func TestMainWindowGeometryAndPlatformChrome(t *testing.T) {
 			}
 			assertTrafficLightPosition(t, main.TrafficLightPosition, platform.trafficLightPosition)
 
-			workspace := workspaceWindowOptionsForPlatform(platform.name, func(*ui.Context) {})
+			workspace := workspaceWindowOptionsForPlatform(platform.name, domain.DefaultUIPreferences(), func(*ui.Context) {})
 			assertWindowGeometry(t, workspace)
 			if workspace.TitleBarStyle != platform.workspaceStyle || workspace.TitleBarHeight != platform.workspaceTitlebar {
 				t.Fatalf("unexpected %s workspace titlebar: %+v", platform.name, workspace)

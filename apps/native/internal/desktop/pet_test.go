@@ -35,6 +35,30 @@ func TestStoreCardsExposeDetailButtonsInAccessibilityTree(t *testing.T) {
 	}
 }
 
+func TestStoreVirtualizesRowsAndCanReachLastProduct(t *testing.T) {
+	store := &domain.PetStoreState{}
+	for _, item := range domain.PetCatalog() {
+		store.Catalog = append(store.Catalog, domain.PetStoreCatalogItemState{Item: item})
+	}
+	view := &PetView{Locale: "en-US", Route: "/pet-store", Client: &client.PetController{Store: store}, OpenItem: func(string) {}}
+	shell := &Shell{Locale: "en-US", Preferences: domain.DefaultUIPreferences(), Content: view.View}
+	tester := ui.NewTester(shell.View, 1100, 900)
+	tester.Frame()
+	first, last := store.Catalog[0].Item, store.Catalog[len(store.Catalog)-1].Item
+	if _, ok := tester.AccessByRole(ui.RoleGroup, first.NameEn); !ok {
+		t.Fatal("first product missing")
+	}
+	if _, ok := tester.AccessByRole(ui.RoleGroup, last.NameEn); ok {
+		t.Fatal("offscreen products were eagerly constructed")
+	}
+	view.storeGrid.ScrollToEnd()
+	tester.Frame()
+	tester.Frame()
+	if _, ok := tester.AccessByRole(ui.RoleGroup, last.NameEn); !ok {
+		t.Fatal("last product unreachable")
+	}
+}
+
 func TestStoreItemWindowReadsOnlySelectedItemInBothLocales(t *testing.T) {
 	for _, locale := range []string{"zh-CN", "en-US"} {
 		preferences := domain.DefaultUIPreferences()

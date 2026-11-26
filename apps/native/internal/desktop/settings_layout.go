@@ -28,20 +28,24 @@ func settingsSidebar(context *ui.Context, locale, section string, search *string
 	width, _ := context.Size()
 	compact := width <= 760
 	ui.Column(context).FillWidth().Grow(1).MinHeight(0).Children(func() {
-		ui.Column(context).FillWidth().Padding(16, 14, 10).Gap(10).Children(func() {
-			var header ui.Element
-			if compact {
-				header = ui.Row(context).FillWidth().Gap(12).AlignItems(ui.Center)
-			} else {
-				header = ui.Column(context).FillWidth().Gap(10)
+		ui.Column(context).FillWidth().Padding(12, 8, 6).Gap(14).Children(func() {
+			button := ui.ButtonBase(context).FillWidth().MinHeight(32).Padding(4, 6).Gap(5).Radius(7).Justify(ui.Start).Label(message("backToApp")).Disabled(back == nil)
+			color := context.Theme().TextMuted
+			if back != nil && button.Hovered() {
+				button.Background(context.Theme().Accent.Alpha(0.09))
+				color = context.Theme().Text
 			}
-			header.Children(func() {
-				if textButton(context, "‹ "+message("backToApp")).MinHeight(34).Padding(5, 8).Justify(ui.Start).TextColor(context.Theme().TextMuted).Disabled(back == nil).Clicked() {
-					back()
-				}
-				ui.Text(context, message("pageTitle")).Padding(2, 8, 4).FontSize(18).Bold().Role(ui.RoleHeading).Level(1)
+			button.Children(func() {
+				ui.Icon(context, presentation.Icon("back")).Size(16, 16).TextColor(color)
+				ui.Text(context, message("backToApp")).FontSize(13).TextColor(color)
 			})
-			ui.TextInput(context, search).FillWidth().MinHeight(38).Placeholder(message("searchPlaceholder")).Label(message("searchPlaceholder"))
+			if button.Clicked() {
+				back()
+			}
+			ui.Box(context).FillWidth().Height(34).Children(func() {
+				ui.TextInput(context, search).Fill().Padding(6, 10, 6, 34).FontSize(13).Radius(17).Placeholder(message("searchPlaceholder")).Label(message("searchPlaceholder"))
+				ui.Icon(context, presentation.Icon("search")).Absolute().Left(11).Top(10).Size(14, 14).TextColor(context.Theme().TextMuted)
+			})
 		})
 		var navigation ui.Element
 		if compact {
@@ -54,7 +58,7 @@ func settingsSidebar(context *ui.Context, locale, section string, search *string
 			if compact {
 				groups = ui.Row(context).Padding(0, 10, 9).Gap(4)
 			} else {
-				groups = ui.Column(context).FillWidth().Padding(8, 10, 14).Gap(18)
+				groups = ui.Column(context).FillWidth().Padding(8).Gap(14)
 			}
 			groups.Children(func() {
 				query := strings.ToLower(strings.TrimSpace(*search))
@@ -74,15 +78,15 @@ func settingsSidebar(context *ui.Context, locale, section string, search *string
 					if compact {
 						groupElement = ui.Row(context.Key(group.key)).Gap(4)
 					} else {
-						groupElement = ui.Column(context.Key(group.key)).FillWidth().Gap(3)
+						groupElement = ui.Column(context.Key(group.key)).FillWidth().Gap(2)
 					}
 					groupElement.Children(func() {
 						if !compact {
-							ui.Text(context, message(group.key)).Padding(7, 9, 5).FontSize(11).FontWeight(650).TextColor(context.Theme().TextMuted)
+							ui.Text(context, message(group.key)).Padding(6, 8, 3).FontSize(13).FontWeight(650).TextColor(context.Theme().TextMuted)
 						}
 						for _, item := range items {
 							active := item.key == section
-							button := ui.ButtonBase(context.Key(item.key)).MinHeight(38).Padding(7, 10).Gap(10).Radius(7).Justify(ui.Start).Label(message(item.key)).Description(message(settingsHintKey(item.key))).Selected(active).Disabled(selectSection == nil || available != nil && !available(item.key))
+							button := ui.ButtonBase(context.Key(item.key)).MinHeight(34).Padding(5, 8).Gap(8).Radius(7).Justify(ui.Start).Label(message(item.key)).Description(message(settingsHintKey(item.key))).Selected(active).Disabled(selectSection == nil || available != nil && !available(item.key))
 							if !compact {
 								button.FillWidth()
 							}
@@ -107,72 +111,52 @@ func settingsSidebar(context *ui.Context, locale, section string, search *string
 func settingsPage(context *ui.Context, locale, section string, content func()) {
 	message := func(key string) string { return presentation.Message(locale, "settings."+key) }
 	width, height := context.Size()
-	padding := min(float32(48), max(float32(16), width*.03))
-	gap, titleSize := float32(22), float32(25)
+	padding := min(float32(24), width*.015)
 	titlebarHeight, _, _ := titlebarLayout(context)
 	pageHeight := height - titlebarHeight - presentation.StatusbarHeight - 26
 	if width <= 760 {
-		padding, gap, titleSize = 14, 18, 22
-		pageHeight -= 157
+		padding = 8
+		pageHeight -= 146 + presentation.ActivityBarWidth
 	}
 	ui.Scroll(context.Key(section)).Fill().Children(func() {
 		ui.Column(context).FillWidth().AlignItems(ui.Center).Children(func() {
-			ui.Column(context).FillWidth().MaxWidth(1320).MinHeight(max(0, pageHeight)).Padding(8, padding, 6).Gap(gap).Children(func() {
-				ui.Column(context).FillWidth().Padding(8, 4, 17).Gap(5).BorderWidth(0, 0, 1, 0).BorderColor(palette(context).Separator).Children(func() {
-					ui.Text(context, message("pageTitle")).FontSize(11).FontWeight(650).TextColor(context.Theme().TextMuted)
-					ui.Text(context, message(section)).FillWidth().FontSize(titleSize).FontWeight(720).Role(ui.RoleHeading).Level(2)
-					ui.Text(context, message(settingsHintKey(section))).FillWidth().MaxWidth(680).FontSize(13).TextColor(context.Theme().TextMuted)
-				})
-				ui.Column(context).FillWidth().Grow(1).Gap(16).Children(content)
-				ui.Column(context).FillWidth().BorderWidth(1, 0, 0, 0).BorderColor(palette(context).Separator).Padding(18, 4, 6).Gap(5).Children(func() {
-					ui.Text(context, message("copyright")).FillWidth().FontSize(11).TextColor(context.Theme().TextMuted)
-					ui.Text(context, message("authorGithub")+" github.com/westng/Liberty").FillWidth().FontSize(11).TextColor(context.Theme().TextMuted)
+			ui.Column(context).FillWidth().MaxWidth(1168).MinHeight(max(0, pageHeight)).Padding(0, padding, 6).Gap(18).Children(func() {
+				ui.Text(context, message(section)).FillWidth().Padding(5, 14, 0).FontSize(24).FontWeight(720).Role(ui.RoleHeading).Level(1).Description(message(settingsHintKey(section)))
+				ui.Column(context).FillWidth().Grow(1).Gap(18).Children(content)
+				ui.Column(context).FillWidth().Padding(8, 14, 4).Gap(4).AlignItems(ui.Center).Children(func() {
+					ui.Text(context, message("copyright")).FontSize(11).TextColor(context.Theme().TextMuted)
+					if textButton(context, message("authorGithub")).Role(ui.RoleLink).Padding(0).TextColor(context.Theme().TextMuted).Clicked() {
+						context.OpenURL("https://github.com/westng/Liberty")
+					}
 				})
 			})
 		})
 	})
 }
 
-func settingsPanel(context *ui.Context) ui.Element {
-	return ui.Column(context).FillWidth().Radius(10).Border(1, palette(context).Separator).Background(palette(context).Panel)
+func settingsPanel(context *ui.Context, content func()) {
+	ui.Column(context).FillWidth().Padding(0, 14).Radius(10).Border(1, palette(context).Separator).Background(palette(context).Panel).Children(func() {
+		ui.Column(context).FillWidth().Gap(1).Dividers(1, palette(context).Separator).Children(content)
+	})
 }
 
 func settingsRow(context *ui.Context, label, hint string, control func()) {
+	settingsFormRow(context, label, hint, 336, control)
+}
+
+func settingsFormRow(context *ui.Context, label, hint string, controlWidth float32, control func()) {
 	width, _ := context.Size()
-	vertical, horizontal, gap := float32(18), float32(24), float32(36)
-	stacked := width <= 1180
-	if stacked {
-		vertical, horizontal, gap = 17, 20, 6
+	vertical, gap := float32(10), float32(24)
+	if width <= 980 {
+		gap = 10
 	}
-	if width <= 760 {
-		vertical, horizontal = 15, 16
-	}
-	var row ui.Element
-	if stacked {
-		row = ui.Column(context.Key(label)).FillWidth().MinHeight(82).Padding(vertical, horizontal).Gap(gap)
-	} else {
-		row = ui.Row(context.Key(label)).FillWidth().MinHeight(82).Padding(vertical, horizontal).Gap(gap).AlignItems(ui.Center)
-	}
-	row.Children(func() {
-		metadata := ui.Column(context).Gap(5)
-		if stacked {
-			metadata.FillWidth()
-		} else {
-			metadata.Grow(1).Basis(0).MinWidth(240)
-		}
-		metadata.Children(func() {
+	ui.Row(context.Key(label)).FillWidth().MinHeight(60).Padding(vertical, 0).Gap(gap).AlignItems(ui.Center).Children(func() {
+		ui.Column(context).Grow(1).Basis(0).MinWidth(140).Gap(5).Children(func() {
 			ui.Text(context, label).FillWidth().FontSize(14).FontWeight(650)
 			if hint != "" {
 				ui.Text(context, hint).FillWidth().MaxWidth(620).FontSize(12).TextColor(context.Theme().TextMuted)
 			}
 		})
-		controls := ui.Column(context).Gap(8).MinWidth(0)
-		if stacked {
-			controls.FillWidth().MaxWidth(560).AlignSelf(ui.End).AlignItems(ui.End)
-		} else {
-			controls.Grow(.9).Basis(0).MinWidth(320).MaxWidth(460).AlignItems(ui.End)
-		}
-		controls.Children(control)
+		ui.Row(context).Grow(1).Basis(0).MinWidth(controlWidth).MaxWidth(max(460, controlWidth)).Gap(8).AlignItems(ui.Center).Justify(ui.End).Children(control)
 	})
-	ui.Row(context).FillWidth().Padding(0, horizontal).Children(func() { separator(context) })
 }

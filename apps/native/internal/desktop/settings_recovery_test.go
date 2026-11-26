@@ -88,7 +88,8 @@ func TestProcessingModeRemainsActiveUntilSaveRetrySucceeds(t *testing.T) {
 	failedSave := receiveSettingsClose(t, fixture.service.saves)
 	tester.Frame()
 	saving := presentation.Format("en-US", "settings.runtimeModeSaving", map[string]any{"mode": presentation.Message("en-US", "shell.localMode")})
-	if !tester.HasText(saving) || workspace.view.Source != "local" {
+	control, _ = tester.AccessByRole(ui.RolePopUpButton, view.msg("runtimeMode"))
+	if control.Description != saving || workspace.view.Source != "local" {
 		t.Fatal("saving a different mode changed the active state before commit")
 	}
 
@@ -96,7 +97,8 @@ func TestProcessingModeRemainsActiveUntilSaveRetrySucceeds(t *testing.T) {
 	fixture.dispatch(t)
 	tester.Frame()
 	failed := presentation.Format("en-US", "settings.runtimeModeSaveFailed", map[string]any{"mode": presentation.Message("en-US", "shell.localMode")})
-	if !tester.HasText(failed) || workspace.view.Source != "local" || !fixture.controller.SaveFailed() {
+	control, _ = tester.AccessByRole(ui.RolePopUpButton, view.msg("runtimeMode"))
+	if control.Description != failed || workspace.view.Source != "local" || !fixture.controller.SaveFailed() {
 		t.Fatal("failed mode save was not visible or changed the active mode")
 	}
 
@@ -109,7 +111,8 @@ func TestProcessingModeRemainsActiveUntilSaveRetrySucceeds(t *testing.T) {
 	retried.reply <- settingsCloseReply{value: saved}
 	fixture.dispatch(t)
 	tester.Frame()
-	if workspace.view.Source != "remote" || fixture.controller.SaveFailed() || fixture.controller.Dirty() || !tester.HasText(view.msg("remoteStatusIdle")) {
+	control, _ = tester.AccessByRole(ui.RolePopUpButton, view.msg("runtimeMode"))
+	if workspace.view.Source != "remote" || fixture.controller.SaveFailed() || fixture.controller.Dirty() || control.Description != view.msg("remoteStatusIdle") {
 		t.Fatal("successful retry did not apply and settle the remote mode", workspace.view.Source)
 	}
 }
@@ -166,7 +169,8 @@ func TestProcessingModeTracksCommittedSaveWhenQueuedSaveFails(t *testing.T) {
 					}
 					if revertMode {
 						failed := presentation.Format(locale, "settings.runtimeModeSaveFailed", map[string]any{"mode": presentation.Message(locale, "shell."+nextMode+"Mode")})
-						if !tester.HasText(failed) {
+						control, _ := tester.AccessByRole(ui.RolePopUpButton, view.msg("runtimeMode"))
+						if control.Description != failed {
 							t.Fatal("mode failure did not identify the successfully committed active mode")
 						}
 					}

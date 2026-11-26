@@ -361,6 +361,9 @@ func TestSummarySelectedHistoryRetainsReadableThemeText(t *testing.T) {
 				t.Fatal("history title is missing", title)
 			}
 			readablePixels := 0
+			// AppKit label colors carry alpha; compare the rendered foreground
+			// after compositing over the selected row, not its unblended RGB.
+			foreground := presentation.SolidSurface(colors.Theme.Text, presentation.SolidSurface(colors.Selected, colors.Panel))
 			matches := func(actual, expected uint8) bool {
 				difference := int(actual) - int(expected)
 				return difference >= -16 && difference <= 16
@@ -369,7 +372,7 @@ func TestSummarySelectedHistoryRetainsReadableThemeText(t *testing.T) {
 			for row := int(title.Y); row < int(title.Y+title.H); row++ {
 				for column := int(title.X); column < int(title.X+title.W); column++ {
 					pixel := image.RGBAAt(column, row)
-					if matches(pixel.R, colors.Theme.Text.R) && matches(pixel.G, colors.Theme.Text.G) && matches(pixel.B, colors.Theme.Text.B) {
+					if matches(pixel.R, foreground.R) && matches(pixel.G, foreground.G) && matches(pixel.B, foreground.B) {
 						readablePixels++
 					}
 				}
