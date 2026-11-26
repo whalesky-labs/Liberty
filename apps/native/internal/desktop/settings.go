@@ -190,7 +190,17 @@ func (v *SettingsView) glassPreview(c *ui.Context, style string) ui.Element {
 		ui.Box(c).Absolute().Left(0).Top(0).Size(38, 56).Background(p.Subpanel)
 		ui.Box(c).Absolute().Left(16).Top(12).Size(62, 8).Radius(4).Background(p.Theme.TextMuted)
 		ui.Box(c).Absolute().Left(26).Top(31).Size(64, 12).Radius(4).Background(p.Theme.TextMuted)
-		ui.Box(c).Absolute().Fill().Radius(7).Material(presentation.LiquidGlass(style, p.Window)).Children(func() {
+		backing := p.ChromeBackground(style, true, c.Preferences())
+		pane := ui.Box(c).Absolute().Fill().Radius(7)
+		if backing.A == 255 {
+			pane.Background(backing)
+		} else {
+			pane.Material(presentation.LiquidGlass(style, p.Window))
+		}
+		pane.Children(func() {
+			if backing.A != 255 {
+				ui.Box(c).Absolute().Fill().Radius(7).Background(backing)
+			}
 			ui.Box(c).Absolute().Left(8).Right(8).Top(8).Height(8).Radius(4).Background(p.Theme.TextMuted)
 			ui.Box(c).Absolute().Left(8).Right(8).Bottom(8).Height(18).Radius(4).Background(p.Panel)
 		})

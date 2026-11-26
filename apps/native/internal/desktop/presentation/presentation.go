@@ -107,14 +107,16 @@ func Colors(dark bool, accent ui.Color) Palette {
 	return p
 }
 
-// ChromeBackground exposes the system's frosted material without adding a
-// second translucent color wash. Reading surfaces remain opaque.
-func (p Palette) ChromeBackground(_ string, material bool, preferences ui.Preferences) ui.Color {
-	if !material || preferences.ReduceTransparency || preferences.HighContrast {
+// ChromeBackground keeps the main window visually stable over the desktop.
+// Native glass alone can reveal large wallpaper shapes: the transparent style
+// admits only a faint hint through the frost, while tinted is fully opaque.
+// The settings preview uses the same backing over its glass material.
+func (p Palette) ChromeBackground(style string, material bool, preferences ui.Preferences) ui.Color {
+	if style == "tinted" || !material || preferences.ReduceTransparency || preferences.HighContrast {
 		return p.Window
 	}
 
-	return ui.Transparent
+	return p.Window.Alpha(0.96)
 }
 
 // LiquidGlass is shared by the live window material and its settings preview.
@@ -122,8 +124,8 @@ func LiquidGlass(style string, window ui.Color) glass.Glass {
 	if style == "tinted" {
 		return glass.Glass{Style: glass.Regular, Tint: window.Alpha(0.24)}
 	}
-	// The stored "transparent" value is retained for compatibility. It means
-	// standard untinted navigation glass, not the Clear style for media overlays.
+	// "Transparent" uses frosted navigation glass beneath ChromeBackground,
+	// not the highly translucent Clear material intended for media overlays.
 	return glass.Glass{Style: glass.Regular}
 }
 

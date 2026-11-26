@@ -48,3 +48,32 @@ func TestSystemAppearanceAndExplicitOverrideStayDistinct(t *testing.T) {
 		preferences.ThemeMode = "auto"
 	}
 }
+
+func TestGlassStylesBoundDesktopInfluence(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		p := Colors(dark, ui.Hex("#f062a8"))
+		for _, style := range []string{"transparent", "tinted"} {
+			backing := p.ChromeBackground(style, true, ui.Preferences{})
+			red := SolidSurface(backing, ui.Hex("#ff0000"))
+			blue := SolidSurface(backing, ui.Hex("#0000ff"))
+			if style == "tinted" {
+				if red != p.Window || blue != p.Window {
+					t.Fatal("tinted chrome leaks the desktop", dark, red, blue)
+				}
+				continue
+			}
+			if red == blue {
+				t.Fatal("transparent chrome lost its subtle backdrop")
+			}
+			for _, result := range []ui.Color{red, blue} {
+				for index, channel := range []uint8{result.R, result.G, result.B} {
+					base := []uint8{p.Window.R, p.Window.G, p.Window.B}[index]
+					difference := int(channel) - int(base)
+					if difference < -12 || difference > 12 {
+						t.Fatal("background overwhelms the window's neutral tone", dark, result)
+					}
+				}
+			}
+		}
+	}
+}

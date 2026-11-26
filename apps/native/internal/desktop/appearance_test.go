@@ -57,7 +57,7 @@ func assertGlassTint(t *testing.T, tint string, expected ui.Color) {
 	}
 }
 
-func TestShellGlassRevealsMaterialAndKeepsReadingSurfaceOpaque(t *testing.T) {
+func TestShellGlassLimitsBackdropAndKeepsReadingSurfaceOpaque(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		for _, locale := range []string{"zh-CN", "en-US"} {
 			t.Run(fmt.Sprintf("%s/dark=%v", locale, dark), func(t *testing.T) {
@@ -85,14 +85,14 @@ func TestShellGlassRevealsMaterialAndKeepsReadingSurfaceOpaque(t *testing.T) {
 				assertOpaqueChrome()
 				tester.SetVibrancy(true)
 				transparent := tester.Image().RGBAAt(2, 2)
-				if transparent.A != 0 {
-					t.Fatal("shell paints an extra color wash over the native material", transparent)
+				if transparent.A < 240 || transparent.A == 255 {
+					t.Fatal("transparent chrome must admit only a subtle background hint", transparent)
 				}
-				// The system material is the only chrome background; its blur and
-				// vibrancy cannot be represented by the headless RGBA screenshot.
+				// Every chrome region uses the same restrained backing. The native
+				// blur itself is verified separately in a real window.
 				for _, point := range [][2]int{{2, 80}, {1098, 758}} {
 					if pixel := tester.Image().RGBAAt(point[0], point[1]); pixel != transparent {
-						t.Fatal("sidebar or status bar covered the material", point, pixel, transparent)
+						t.Fatal("chrome regions use different background strengths", point, pixel, transparent)
 					}
 				}
 				assertReadingSurface()
@@ -101,18 +101,16 @@ func TestShellGlassRevealsMaterialAndKeepsReadingSurfaceOpaque(t *testing.T) {
 				shell.Preferences.LiquidGlassStyle = "tinted"
 				tester.Frame()
 				tinted := tester.Image().RGBAAt(2, 2)
-				if tinted.A != 0 {
-					t.Fatal("tinted glass added a fake opacity layer", tinted)
-				}
-				assertReadingSurface()
+				assertOpaqueChrome()
 				captureParity(t, tester, fmt.Sprintf("glass-tinted-%s-%v", locale, dark))
 
 				for _, system := range []ui.Preferences{{ReduceTransparency: true}, {HighContrast: true}} {
+					shell.Preferences.LiquidGlassStyle = "transparent"
 					tester.SetPreferences(system)
 					assertOpaqueChrome()
 				}
 				tester.SetPreferences(ui.Preferences{})
-				if pixel := tester.Image().RGBAAt(2, 2); pixel != tinted {
+				if pixel := tester.Image().RGBAAt(2, 2); pixel != transparent {
 					t.Fatal("turning off accessibility fallback did not restore glass", pixel, tinted)
 				}
 				tester.SetVibrancy(false)
@@ -132,8 +130,9 @@ func TestSettingsGlassPreviewFollowsSystemTransparencyPreference(t *testing.T) {
 				}, 100, 56, ui.TesterOptions{Dark: dark})
 				glass := bytes.Clone(tester.Image().Pix)
 				tester.SetPreferences(ui.Preferences{ReduceTransparency: true})
-				if bytes.Equal(glass, tester.Image().Pix) {
-					t.Fatal("glass preview remained a static picture instead of following Reduce Transparency")
+				changed := !bytes.Equal(glass, tester.Image().Pix)
+				if changed != (style == "transparent") {
+					t.Fatal("preview must remove Clear's subtle backdrop while Tinted stays opaque", style)
 				}
 				tester.SetPreferences(ui.Preferences{})
 				if !bytes.Equal(glass, tester.Image().Pix) {
