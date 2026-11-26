@@ -1,6 +1,6 @@
 # Release Readiness
 
-Last verified: 2026-11-25 against the current checkout, root `package.json` scripts and pinned dependency scanners. Security-scan findings below retain their stated scan dates.
+Last verified: 2026-11-26 against the current checkout, root `package.json` scripts and pinned dependency scanners. Security-scan findings below retain their stated scan dates.
 
 Use the [documentation index](../README.md), [development guide](../development.md)
 and [native architecture](native-desktop-architecture.md) for navigation and
@@ -10,12 +10,12 @@ approve cutover; subsequent scan runs are dated below.
 
 ## Native Migration Candidate
 
-The `2.0.0-alpha.2` release uses Native candidate archives and a GitHub
+The `2.0.0-alpha.3` release uses Native candidate archives and a GitHub
 prerelease with `make_latest=false`. It retains candidate identity and does not
 declare production cutover. The old Tauri publishing workflow accepts only stable
 1.x tags and rejects any 2.x/prerelease manual publication before reserving a
 Release. Alpha notes and asset expectations are in the
-[version notes](../releases/2.0.0-alpha.2.md). Building candidates does not itself
+[version notes](../releases/2.0.0-alpha.3.md). Building candidates does not itself
 create a tag or publish a Release. The separate `release-native.yml` workflow
 is explicitly dispatched from main and publishes through the Actions bot.
 
