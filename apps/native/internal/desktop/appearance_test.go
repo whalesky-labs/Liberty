@@ -1,0 +1,146 @@
+package desktop
+
+import (
+	"bytes"
+	"fmt"
+	"image/color"
+	"testing"
+
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
+	"liberty.local/liberty/internal/desktop/presentation"
+	"liberty.local/liberty/internal/domain"
+)
+
+func TestWorkspaceStartsWithSavedGlassAppearance(t *testing.T) {
+	for _, platform := range []string{"darwin", "windows", "linux"} {
+		for _, style := range []string{"transparent", "tinted", "invalid"} {
+			t.Run(platform+"/"+style, func(t *testing.T) {
+				preferences := domain.DefaultUIPreferences()
+				preferences.LiquidGlassStyle, preferences.AccentColor = style, "#f062a8"
+				options := workspaceWindowOptionsForPlatform(platform, preferences, func(*ui.Context) {})
+				if options.Transparent {
+					t.Fatal("unsupported desktop materials must retain an opaque backing")
+				}
+				if platform == "linux" {
+					if options.Vibrancy != mygo.VibrancyNone || options.VibrancyTint != "" {
+						t.Fatal("unsupported platform requested a window material")
+					}
+					return
+				}
+				if options.Vibrancy != mygo.VibrancyGlass {
+					t.Fatal("navigation must use the regular system glass", options.Vibrancy)
+				}
+				if style == "tinted" {
+					assertGlassTint(t, options.VibrancyTint, presentation.PreferenceColors(false, preferences).Window)
+				} else if options.VibrancyTint != "" {
+					t.Fatal("standard glass retained an artificial tint")
+				}
+			})
+		}
+	}
+	preferences := domain.DefaultUIPreferences()
+	preferences.LiquidGlassStyle, preferences.AccentColor = "tinted", "invalid"
+	for _, dark := range []bool{false, true} {
+		_, tint := windowGlass(preferences, dark)
+		assertGlassTint(t, tint, presentation.PreferenceColors(dark, preferences).Window)
+	}
+}
+
+func assertGlassTint(t *testing.T, tint string, expected ui.Color) {
+	t.Helper()
+	var r, g, b int
+	var alpha float64
+	count, err := fmt.Sscanf(tint, "rgba(%d, %d, %d, %f)", &r, &g, &b, &alpha)
+	if err != nil || count != 4 || [3]int{r, g, b} != [3]int{int(expected.R), int(expected.G), int(expected.B)} || alpha < 0.23 || alpha > 0.25 {
+		t.Fatal("glass tint must strengthen the semantic window tone, independently of the accent", tint, err)
+	}
+}
+
+func TestShellGlassRevealsMaterialAndKeepsReadingSurfaceOpaque(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		for _, locale := range []string{"zh-CN", "en-US"} {
+			t.Run(fmt.Sprintf("%s/dark=%v", locale, dark), func(t *testing.T) {
+				preferences := domain.DefaultUIPreferences()
+				preferences.Locale = locale
+				shell := &Shell{Locale: locale, Preferences: preferences}
+				tester := ui.NewTesterWith(shell.View, 1100, 760, ui.TesterOptions{Dark: dark})
+				colors := presentation.PreferenceColors(dark, preferences)
+				assertReadingSurface := func() {
+					t.Helper()
+					pixel := tester.Image().RGBAAt(presentation.SidebarWidth+40, 100)
+					if pixel != (color.RGBA{R: colors.Content.R, G: colors.Content.G, B: colors.Content.B, A: 255}) {
+						t.Fatal("glass changed the reading surface", pixel)
+					}
+				}
+				assertOpaqueChrome := func() {
+					t.Helper()
+					pixel := tester.Image().RGBAAt(2, 2)
+					if pixel != (color.RGBA{R: colors.Window.R, G: colors.Window.G, B: colors.Window.B, A: 255}) {
+						t.Fatal("fallback left translucent chrome", pixel)
+					}
+					assertReadingSurface()
+				}
+
+				assertOpaqueChrome()
+				tester.SetVibrancy(true)
+				transparent := tester.Image().RGBAAt(2, 2)
+				if transparent.A != 0 {
+					t.Fatal("shell paints an extra color wash over the native material", transparent)
+				}
+				// The system material is the only chrome background; its blur and
+				// vibrancy cannot be represented by the headless RGBA screenshot.
+				for _, point := range [][2]int{{2, 80}, {1098, 758}} {
+					if pixel := tester.Image().RGBAAt(point[0], point[1]); pixel != transparent {
+						t.Fatal("sidebar or status bar covered the material", point, pixel, transparent)
+					}
+				}
+				assertReadingSurface()
+				captureParity(t, tester, fmt.Sprintf("glass-transparent-%s-%v", locale, dark))
+
+				shell.Preferences.LiquidGlassStyle = "tinted"
+				tester.Frame()
+				tinted := tester.Image().RGBAAt(2, 2)
+				if tinted.A != 0 {
+					t.Fatal("tinted glass added a fake opacity layer", tinted)
+				}
+				assertReadingSurface()
+				captureParity(t, tester, fmt.Sprintf("glass-tinted-%s-%v", locale, dark))
+
+				for _, system := range []ui.Preferences{{ReduceTransparency: true}, {HighContrast: true}} {
+					tester.SetPreferences(system)
+					assertOpaqueChrome()
+				}
+				tester.SetPreferences(ui.Preferences{})
+				if pixel := tester.Image().RGBAAt(2, 2); pixel != tinted {
+					t.Fatal("turning off accessibility fallback did not restore glass", pixel, tinted)
+				}
+				tester.SetVibrancy(false)
+				assertOpaqueChrome()
+			})
+		}
+	}
+}
+
+func TestSettingsGlassPreviewFollowsSystemTransparencyPreference(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		for _, style := range []string{"transparent", "tinted"} {
+			t.Run(fmt.Sprintf("%s/dark=%v", style, dark), func(t *testing.T) {
+				view := &SettingsView{}
+				tester := ui.NewTesterWith(func(c *ui.Context) {
+					ui.Column(c).Width(100).Children(func() { view.glassPreview(c, style) })
+				}, 100, 56, ui.TesterOptions{Dark: dark})
+				glass := bytes.Clone(tester.Image().Pix)
+				tester.SetPreferences(ui.Preferences{ReduceTransparency: true})
+				if bytes.Equal(glass, tester.Image().Pix) {
+					t.Fatal("glass preview remained a static picture instead of following Reduce Transparency")
+				}
+				tester.SetPreferences(ui.Preferences{})
+				if !bytes.Equal(glass, tester.Image().Pix) {
+					t.Fatal("glass preview did not restore its material")
+				}
+				captureParity(t, tester, fmt.Sprintf("glass-preview-%s-%v", style, dark))
+			})
+		}
+	}
+}

@@ -31,6 +31,8 @@ type Manifest struct {
 	Platforms         []Platform                  `json:"platforms"`
 	CandidateProfiles map[string]CandidateProfile `json:"candidateProfiles,omitempty"`
 	ProductionInputs  *ProductionInputs           `json:"productionInputs,omitempty"`
+	LiveASR           *LiveModel                  `json:"liveASR,omitempty"`
+	LiveTranslation   *LocalTranslation           `json:"liveTranslation,omitempty"`
 }
 type ProductionInputs struct {
 	Builder RuntimeInputFile   `json:"builder"`
@@ -80,6 +82,7 @@ type ModelPin struct {
 const (
 	ProductionRuntimeProfile = "production"
 	SecurityCandidateProfile = "security-candidate"
+	FunASRUpgradeProfile     = "funasr-upgrade"
 )
 
 var revisionPattern = regexp.MustCompile(`^[a-fA-F0-9]{40}$`)
@@ -89,17 +92,21 @@ func runtimeProfileID(profileID string) (string, error) {
 	switch profileID {
 	case "", ProductionRuntimeProfile:
 		return ProductionRuntimeProfile, nil
-	case SecurityCandidateProfile:
+	case SecurityCandidateProfile, FunASRUpgradeProfile:
 		return profileID, nil
 	default:
 		return "", ErrManifest
 	}
 }
 
-func runtimeInputNames() []string {
+func runtimeInputNames(profile ...string) []string {
+	wheel := "funasr-1.3.9+liberty.local2-py3-none-any.whl"
+	if len(profile) > 0 && profile[0] == FunASRUpgradeProfile {
+		wheel = "funasr-1.4.29+liberty.local1-py3-none-any.whl"
+	}
 	return []string{
 		"requirements-lock-darwin-aarch64.txt", "requirements-lock-darwin-x64.txt", "requirements-lock-windows-x64.txt",
-		"funasr-1.3.9+liberty.local2-py3-none-any.whl", "METADATA.patch", "recipe.json", "provenance.json", "source.cdx.json",
+		wheel, "METADATA.patch", "recipe.json", "provenance.json", "source.cdx.json",
 	}
 }
 
@@ -121,6 +128,12 @@ func LoadManifest() (Manifest, error) {
 func parseManifest(data []byte) (Manifest, error) {
 	var m Manifest
 	if json.Unmarshal(data, &m) != nil || m.RuntimeVersion == "" || m.PythonVersion == "" || m.ModelSetVersion == "" || m.ModelProfile == "" || len(m.Platforms) == 0 {
+		return m, ErrManifest
+	}
+	if m.LiveASR != nil && !validLiveModel(*m.LiveASR) {
+		return m, ErrManifest
+	}
+	if m.LiveTranslation != nil && !validLocalTranslation(*m.LiveTranslation) {
 		return m, ErrManifest
 	}
 	seen := map[string]bool{}
@@ -159,7 +172,7 @@ func parseManifest(data []byte) (Manifest, error) {
 		seen[s.ID] = true
 	}
 	for profileID, candidate := range m.CandidateProfiles {
-		if profileID != SecurityCandidateProfile || !safeName(candidate.RuntimeVersion) || candidate.RuntimeVersion == m.RuntimeVersion || !pythonReleasePattern.MatchString(candidate.PythonVersion) || len(candidate.Platforms) != 3 || len(candidate.Files) != len(runtimeInputNames()) {
+		if (profileID != SecurityCandidateProfile && profileID != FunASRUpgradeProfile) || !safeName(candidate.RuntimeVersion) || candidate.RuntimeVersion == m.RuntimeVersion || !pythonReleasePattern.MatchString(candidate.PythonVersion) || len(candidate.Platforms) != 3 || len(candidate.Files) != len(runtimeInputNames(profileID)) {
 			return m, ErrManifest
 		}
 		platforms := map[string]bool{}
@@ -191,7 +204,7 @@ func parseManifest(data []byte) (Manifest, error) {
 			}
 			files[file.Name] = true
 		}
-		for _, name := range runtimeInputNames() {
+		for _, name := range runtimeInputNames(profileID) {
 			if !files[name] {
 				return m, ErrManifest
 			}

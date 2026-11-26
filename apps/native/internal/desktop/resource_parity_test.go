@@ -28,7 +28,7 @@ func resourceParityView(kind application.ResourceKind, locale string, count int)
 func TestResourceCardsUseAvailablePaneWidthAndKeepLastRowColumns(t *testing.T) {
 	for _, locale := range []string{"zh-CN", "en-US"} {
 		for _, kind := range []application.ResourceKind{application.Models, application.Templates} {
-			for _, sample := range []struct{ width, columns int }{{1440, 3}, {1100, 2}, {760, 1}, {720, 1}} {
+			for _, sample := range []struct{ width, columns int }{{2560, 3}, {1920, 3}, {1440, 3}, {1100, 2}, {760, 1}, {720, 1}} {
 				t.Run(fmt.Sprintf("%s-%s-%d", kind, locale, sample.width), func(t *testing.T) {
 					view := resourceParityView(kind, locale, 4)
 					shell := Shell{Locale: locale, Preferences: domain.DefaultUIPreferences(), Content: view.View}
@@ -37,7 +37,8 @@ func TestResourceCardsUseAvailablePaneWidthAndKeepLastRowColumns(t *testing.T) {
 					if !ok || first.Offscreen {
 						t.Fatal("resource list lost its first card", first)
 					}
-					wantWidth := (float32(sample.width) - presentation.SidebarWidth - 24 - 16 - float32(sample.columns-1)*16) / float32(sample.columns)
+					paneWidth := min(float32(1180), float32(sample.width)-presentation.SidebarWidth-24)
+					wantWidth := (paneWidth - 16 - float32(sample.columns-1)*16) / float32(sample.columns)
 					for index := 0; index < 4; index++ {
 						card, ok := tester.AccessByRole(ui.RoleListItem, fmt.Sprintf("Synthetic resource %02d", index))
 						wantX := first.Bounds.X + float32(index%sample.columns)*(wantWidth+16)

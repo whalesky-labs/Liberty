@@ -4,6 +4,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { assertGoLockHasIntegrity, assertNodeLockHasIntegrity, assertPythonLockHasHashes, nativeNodeDependencies, parseGoModules, PYTHON_LOCK_FILES } from "./lib/dependency-governance.mjs";
 import { loadRuntimeInputManifest, readProductionRuntimeScanInputs } from "./lib/native-runtime-inputs.mjs";
+import { translationComponents } from "./lib/live-translation-inputs.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 let native = false;
@@ -80,6 +81,17 @@ for (const upstream of upstreamSBOM.components) {
 const vendorRecipe = JSON.parse(productionSources.get("recipe.json").toString("utf8"));
 const localPurl = `pkg:pypi/funasr@${encodeURIComponent(vendorRecipe.output.version)}`;
 components.get(`pypi:funasr@${vendorRecipe.output.version}`).hashes = [{ alg: "SHA-256", content: vendorRecipe.output.sha256 }];
+for (const component of translationComponents(await loadRuntimeInputManifest(repositoryRoot))) components.set(`pypi:${component.name}@${component.version}`, component);
+const bloubSourcePath = "packages/desktop-resources/presentation/bloub/source.json";
+const bloub = JSON.parse(await readFile(path.join(repositoryRoot, bloubSourcePath), "utf8"));
+components.set(`generic:bloub@${bloub.commit}`, {
+  type: "library", name: "bloub", version: bloub.commit,
+  purl: `pkg:generic/bloub@${bloub.commit}`,
+  "bom-ref": `pkg:generic/bloub@${bloub.commit}`,
+  licenses: [{ license: { id: "MIT" } }],
+  externalReferences: [{ type: "vcs", url: `${bloub.repository}/tree/${bloub.commit}` }],
+  properties: [{ name: "liberty:source-lock", value: bloubSourcePath }, { name: "liberty:dependency-role", value: "native-animation-build-source" }],
+});
 
 const document = {
   bomFormat: "CycloneDX",
@@ -98,7 +110,7 @@ const document = {
     properties: [
       { name: "liberty:sbom:node-version", value: process.version },
       { name: "liberty:sbom:source-locks", value: native ? ["pnpm-lock.yaml", "apps/native/go.mod", "apps/native/go.sum", ...pythonLocks, sourceSBOMPath].join(",") : `Cargo.lock,pnpm-lock.yaml,requirements-lock-*,apps/native/go.mod,apps/native/go.sum,${sourceSBOMPath}` },
-      ...(native ? [{ name: "liberty:sbom:scope", value: "Lock inventory: Native Go modules, production Python dependencies across three runtime targets including the local FunASR wheel and its authenticated upstream identity, Python development tools, and transitive root pnpm build tools (including optional dependencies). Excludes other pnpm importers, Rust, candidate runtime inputs, interpreter/toolchain binaries, FFmpeg and model assets. Not an installed or packaged inventory." }] : []),
+      ...(native ? [{ name: "liberty:sbom:scope", value: "Lock inventory: Native Go modules, production Python dependencies across three runtime targets including the local FunASR wheel and its authenticated upstream identity, optional CTranslate2 wheels, Python development tools, and transitive root pnpm build tools. Excludes other pnpm importers, Rust, candidate runtime inputs, interpreter/toolchain binaries, FFmpeg, native libraries embedded in Python wheels and model assets. Not an installed or packaged inventory." }] : []),
     ],
   },
   components: [...components.values()].sort((left, right) => left.purl.localeCompare(right.purl)),

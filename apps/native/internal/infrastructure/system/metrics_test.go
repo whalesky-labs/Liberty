@@ -23,7 +23,7 @@ func TestProcessMetricsReadCurrentProcess(t *testing.T) {
 	sampler := &MetricsSampler{}
 	for index := 0; index < 2; index++ {
 		value, err := sampler.Sample(context.Background())
-		if err != nil || value.ResidentBytes == 0 || index == 1 && (value.CPUPercent == nil || *value.CPUPercent < 0) {
+		if err != nil || value.MemoryBytes == 0 || value.SampledAt.IsZero() || index == 1 && (value.CPUPercent == nil || *value.CPUPercent < 0) {
 			t.Fatal("invalid live process sample", err)
 		}
 	}

@@ -160,3 +160,6 @@ func (a *animation) Frame(c *ui.Context) ui.ImageSource {
 	}
 	return frame
 }
+
+// Idle chrome does not need to wake and redraw the entire workspace.
+func (a *animation) Still() ui.ImageSource { return a.frames[0].bitmap }

@@ -33,7 +33,7 @@ func TestPreparedProfileInitializesOriginalServicesAndRetainsOwnership(t *testin
 		t.Fatal("implicit creation accepted")
 	}
 	store, result, err := OpenPrepared(ctx, path, nil, true)
-	if err != nil || result.Version != 10 {
+	if err != nil || result.Version != 12 {
 		t.Fatal(result, err)
 	}
 	defer store.Close()

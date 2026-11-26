@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://liberty.local/schemas/translation/v1/input.schema.json",
+  "title": "LocalTranslationInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "version", "sequence", "text"],
+  "properties": {
+    "protocol": {"const": "liberty-local-translation"},
+    "version": {"type": "integer", "const": 1},
+    "sequence": {"type": "integer", "minimum": 1},
+    "text": {"type": "string", "minLength": 1, "maxLength": 8192}
+  }
+}

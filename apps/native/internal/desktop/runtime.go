@@ -43,7 +43,7 @@ func (v *RuntimeView) View(c *ui.Context) {
 		}
 		status := panel.Overview
 		unsupported := status.Status == "unsupported"
-		settingsPanel(c).Children(func() {
+		settingsPanel(c, func() {
 			v.row(c, "managedRuntime", "managedRuntimeHint", func() {
 				ui.Text(c, v.msg(runtimeOverviewKey(status.Status))).FontSize(12).Padding(4, 10).Radius(14).Background(palette(c).Selected).Role(ui.RoleStatus).Busy(v.Client.Busy || v.Client.Refreshing() || status.Python.Operation.Active() || status.FFmpeg.Operation.Active() || status.Models.Operation.Active())
 			})
@@ -65,7 +65,7 @@ func (v *RuntimeView) View(c *ui.Context) {
 						selected = label
 					}
 				}
-				if ui.Select(c, &selected, labels).Width(190).MinHeight(40).Label(v.msg("runtimeDownloadSource")).Disabled(v.Client.Busy || unsupported).Changed() {
+				if ui.Select(c, &selected, labels).Width(240).MinHeight(40).Label(v.msg("runtimeDownloadSource")).Disabled(v.Client.Busy || unsupported).Changed() {
 					for j, label := range labels {
 						if selected == label && ids[j] != "" {
 							v.Client.SelectDownloadSource(ids[j])
@@ -87,8 +87,8 @@ func (v *RuntimeView) View(c *ui.Context) {
 					v.Client.InstallAll()
 				}
 			})
-			ui.Column(c).FillWidth().Padding(18, 24).Gap(10).Children(func() {
-				ui.Row(c).FillWidth().Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+			ui.Column(c).FillWidth().Padding(14, 0).Gap(10).Children(func() {
+				ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, v.msg("runtimeInstallLog")).Grow(1).Bold()
 					if segmentButton(c, localized(v.Locale, "全部", "All"), v.logComponent == "").Clicked() {
 						v.logComponent = ""
@@ -127,8 +127,8 @@ func (v *RuntimeView) row(c *ui.Context, label, hint string, control func()) {
 	settingsRow(c, v.msg(label), hint, control)
 }
 func (v *RuntimeView) component(c *ui.Context, s domain.RuntimeComponent, source string, unsupported bool) {
-	v.row(c, runtimeNameKey(s.Component), "", func() {
-		ui.Row(c).FillWidth().Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
+	settingsFormRow(c, v.msg(runtimeNameKey(s.Component)), "", 520, func() {
+		ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Center).Children(func() {
 			busy := v.Client.Busy || v.Client.Refreshing() || s.Operation.Active()
 			if s.Component != "model" {
 				labels := []string{v.msg("runtimeResourceManaged"), v.msg("runtimeResourceSystem")}
@@ -136,7 +136,7 @@ func (v *RuntimeView) component(c *ui.Context, s domain.RuntimeComponent, source
 				if s.SourceName() == "system" {
 					selected = labels[1]
 				}
-				if ui.Select(c, &selected, labels).Width(135).MinHeight(40).Label(v.msg(runtimeNameKey(s.Component)) + " " + v.msg("runtimeResourceSource")).Disabled(busy || unsupported).Changed() {
+				if ui.Select(c, &selected, labels).Width(160).MinHeight(40).Label(v.msg(runtimeNameKey(s.Component)) + " " + v.msg("runtimeResourceSource")).Disabled(busy || unsupported).Changed() {
 					next := "managed"
 					if selected == labels[1] {
 						next = "system"
@@ -144,11 +144,10 @@ func (v *RuntimeView) component(c *ui.Context, s domain.RuntimeComponent, source
 					v.Client.SwitchSource(s.Component, next)
 				}
 			}
-			ui.Column(c).Grow(1).MinWidth(140).Gap(6).Children(func() {
-				percent, indeterminate := runtimeProgress(s)
-				label := v.msg(runtimeComponentKey(s, source))
-				runtimeProgressBar(c, percent, label, indeterminate)
-				ui.Text(c, label).FontSize(11).TextColor(c.Theme().TextMuted)
+			percent, indeterminate := runtimeProgress(s)
+			status := v.msg(runtimeComponentKey(s, source))
+			ui.Box(c).Grow(1).MinWidth(80).MinHeight(40).Center().Tooltip(status).Children(func() {
+				runtimeProgressBar(c, percent, status, indeterminate)
 			})
 			label := "runtimeResourceDownload"
 			if s.Ready() {

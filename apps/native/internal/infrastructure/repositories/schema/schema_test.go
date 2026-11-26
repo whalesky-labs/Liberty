@@ -109,7 +109,7 @@ func TestFreshDatabaseAndRepeatKeepCustomData(t *testing.T) {
 	db, path := database(t)
 	ctx := context.Background()
 	r, err := Apply(ctx, db, path, nil)
-	if err != nil || r.FromVersion != 0 || r.Version != 10 || r.Backup != "" {
+	if err != nil || r.FromVersion != 0 || r.Version != 12 || r.Backup != "" {
 		t.Fatal(r, err)
 	}
 	if scalar(t, db, "PRAGMA integrity_check") != "ok" || scalar(t, db, "SELECT COUNT(*) FROM ai_summary_templates WHERE builtin=1") != "5" {
@@ -119,7 +119,7 @@ func TestFreshDatabaseAndRepeatKeepCustomData(t *testing.T) {
  INSERT INTO ai_summary_templates(id,name,description,prompt,created_at,updated_at) VALUES('custom','Custom','Description','Original prompt','created','updated');
  UPDATE ai_summary_templates SET prompt='modified' WHERE id='builtin-standard-summary';`)
 	r, err = Apply(ctx, db, path, nil)
-	if err != nil || r.FromVersion != 10 || r.Backup != "" {
+	if err != nil || r.FromVersion != 12 || r.Backup != "" {
 		t.Fatal(r, err)
 	}
 	if scalar(t, db, "SELECT name FROM meeting_members WHERE id='member'") != "合成人员" || scalar(t, db, "SELECT prompt FROM ai_summary_templates WHERE id='custom'") != "Original prompt" {
@@ -131,7 +131,7 @@ func TestFreshDatabaseAndRepeatKeepCustomData(t *testing.T) {
 }
 
 func TestRejectInvalidVersionBeforeDDLOrWAL(t *testing.T) {
-	for _, value := range []string{"11", "-1", "invalid", "9999999999999999999999"} {
+	for _, value := range []string{"13", "-1", "invalid", "9999999999999999999999"} {
 		t.Run(value, func(t *testing.T) {
 			db, path := database(t)
 			exec(t, db, "CREATE TABLE app_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
@@ -172,7 +172,7 @@ func TestCredentialStageFailureRecoveryAndSharedReferences(t *testing.T) {
 	vault.failDelete = false
 	vault.failWriteAt = 0
 	r, err := Apply(ctx, db, path, vault)
-	if err != nil || r.Version != 10 {
+	if err != nil || r.Version != 12 {
 		t.Fatal(r, err)
 	}
 	if scalar(t, db, "SELECT api_key FROM ai_model_configs WHERE id='model'") != "" || scalar(t, db, "SELECT api_token FROM app_settings") != "" {
@@ -240,7 +240,7 @@ func TestPublishedCredentialCleanupResumesAfterReopen(t *testing.T) {
 	if _, err := Apply(context.Background(), db, path, vault); err != nil {
 		t.Fatal(err)
 	}
-	if scalar(t, db, "SELECT value FROM app_meta WHERE key='schema_version'") != "10" || scalar(t, db, "SELECT api_token FROM app_settings") != "" {
+	if scalar(t, db, "SELECT value FROM app_meta WHERE key='schema_version'") != "12" || scalar(t, db, "SELECT api_token FROM app_settings") != "" {
 		t.Fatal("publication not committed")
 	}
 	var journal credentialJournal

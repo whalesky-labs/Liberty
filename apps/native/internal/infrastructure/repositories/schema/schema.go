@@ -340,6 +340,10 @@ func applyStep(ctx context.Context, c *sql.Conn, v int) error {
 		return executeBlocks(ctx, c, runnerProtocolSQL, false)
 	case 10:
 		return executeBlocks(ctx, c, credentialCleanupSQL, false)
+	case 11:
+		return executeBlocks(ctx, c, liveSessionsSQL, false)
+	case 12:
+		return executeBlocks(ctx, c, liveAutoLanguageSQL, false)
 	default:
 		return ErrVersion
 	}

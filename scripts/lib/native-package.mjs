@@ -54,6 +54,7 @@ export function candidatePlist(version) {
 <key>CFBundleGetInfoString</key><string>Liberty Native ${version} (candidate)</string>
 <key>CFBundleIconFile</key><string>icon.icns</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>NSMicrophoneUsageDescription</key><string>Liberty 使用麦克风进行实时转写与翻译。Liberty uses the microphone for live transcription and translation.</string>
 </dict></plist>
 `;
 }
@@ -73,7 +74,7 @@ export function assertCandidateManifest(manifest) {
   }
   if (manifest.availableRuntimeProfiles !== undefined) {
     const profiles = JSON.stringify(manifest.availableRuntimeProfiles);
-    if (manifest.defaultRuntimeProfile !== "production" || !['["production"]', '["production","security-candidate"]'].includes(profiles)) throw new Error("Invalid candidate runtime selection policy");
+    if (manifest.defaultRuntimeProfile !== "production" || !['["production"]', '["production","security-candidate"]', '["production","funasr-upgrade"]'].includes(profiles)) throw new Error("Invalid candidate runtime selection policy");
     if (manifest.availableRuntimeProfiles.length === 2) {
       if (!manifest.candidateRuntimeVersion || !Array.isArray(manifest.runtimeInputs) || manifest.runtimeInputs.length !== 8) throw new Error("Incomplete candidate runtime metadata");
       const runtimeNames = new Set();

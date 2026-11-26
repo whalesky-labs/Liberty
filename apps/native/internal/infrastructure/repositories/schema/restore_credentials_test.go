@@ -310,7 +310,7 @@ func TestRestoreCredentialPublicationFailurePrecedesRestoreAndCanRetry(t *testin
 				verified := false
 				for _, entry := range entries {
 					if strings.HasPrefix(entry.Name(), filepath.Base(database)+".pre-restore-") && strings.HasSuffix(entry.Name(), ".bak") {
-						if verifyBackup(ctx, filepath.Join(filepath.Dir(database), entry.Name()), 10) != nil {
+						if verifyBackup(ctx, filepath.Join(filepath.Dir(database), entry.Name()), CurrentVersion) != nil {
 							t.Fatal("journal publication preceded a verified safety backup")
 						}
 						verified = true
@@ -401,7 +401,7 @@ func TestRestoreCredentialJournalSurvivesRestoreCancellation(t *testing.T) {
 	if !errors.Is(err, ErrRestore) || result.SafetyBackup == "" || len(restoreCredentialRecords(t, path)) != 1 {
 		t.Fatal("canceled restore discarded its journal or safety backup")
 	}
-	if verifyBackup(ctx, result.SafetyBackup, 10) != nil {
+	if verifyBackup(ctx, result.SafetyBackup, CurrentVersion) != nil {
 		t.Fatal("canceled restore did not retain a verified safety backup")
 	}
 	if _, err := RestoreLocked(ctx, path, filepath.Base(handover.Backup), nil); err != nil {

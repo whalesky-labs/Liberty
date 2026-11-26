@@ -70,7 +70,7 @@ func (v *SettingsView) View(c *ui.Context) {
 			ui.Text(c, localized(v.Locale, "正在读取…", "Loading…")).Role(ui.RoleStatus).Busy(v.Client.Busy)
 			return
 		}
-		settingsPanel(c).Children(func() {
+		settingsPanel(c, func() {
 			switch v.section {
 			case "appearance":
 				v.appearance(c)
@@ -112,17 +112,9 @@ func (v *SettingsView) appearance(c *ui.Context) {
 		mode = "dark"
 	}
 	settingsRow(c, v.msg("themeMode"), v.msg("effectiveTheme")+": "+v.msg(mode), func() {
-		ui.Row(c).FillWidth().Gap(10).Children(func() {
+		ui.Row(c).Gap(14).Children(func() {
 			for _, mode := range []string{"auto", "light", "dark"} {
-				b := ui.ButtonBase(c.Key(mode)).Grow(1).Basis(0).MinWidth(0).MinHeight(88).Padding(8).Radius(8).Gap(8).Label(v.msg(mode)).Role(ui.RoleToggleButton).Checked(preferences.ThemeMode == mode).Selected(preferences.ThemeMode == mode).Background(palette(c).Subpanel).TextColor(c.Theme().Text)
-				if preferences.ThemeMode == mode {
-					b.Border(1, c.Theme().Accent).Background(palette(c).Subpanel.Mix(c.Theme().Accent, .08))
-				} else {
-					b.Border(1, palette(c).Separator)
-				}
-				b.Children(func() {
-					ui.Column(c).Gap(8).FillWidth().Children(func() { v.themePreview(c, mode); ui.Text(c, v.msg(mode)).FontSize(12) })
-				})
+				b := settingsPreview(c.Key(mode), v.msg(mode), preferences.ThemeMode == mode, func() ui.Element { return v.themePreview(c, mode) })
 				if b.Clicked() {
 					v.Client.SetThemeMode(mode)
 				}
@@ -130,20 +122,9 @@ func (v *SettingsView) appearance(c *ui.Context) {
 		})
 	})
 	v.row(c, "glassStyle", "glassStyleHint", func() {
-		ui.Row(c).FillWidth().Gap(10).Children(func() {
+		ui.Row(c).Gap(14).Children(func() {
 			for _, style := range []string{"transparent", "tinted"} {
-				b := ui.ButtonBase(c.Key(style)).Grow(1).Basis(0).MinWidth(0).MinHeight(88).Padding(8).Radius(8).Label(v.msg(style)).Role(ui.RoleToggleButton).Checked(preferences.LiquidGlassStyle == style).Selected(preferences.LiquidGlassStyle == style).Background(palette(c).Subpanel).TextColor(c.Theme().Text)
-				if preferences.LiquidGlassStyle == style {
-					b.Border(1, c.Theme().Accent)
-				} else {
-					b.Border(1, palette(c).Separator)
-				}
-				b.Children(func() {
-					ui.Column(c).FillWidth().Gap(8).Children(func() {
-						v.glassPreview(c, style)
-						ui.Text(c, v.msg(style)).FontSize(12)
-					})
-				})
+				b := settingsPreview(c.Key(style), v.msg(style), preferences.LiquidGlassStyle == style, func() ui.Element { return v.glassPreview(c, style) })
 				if b.Clicked() {
 					v.Client.Draft.LiquidGlassStyle = style
 					v.Client.Save()
@@ -157,7 +138,7 @@ func (v *SettingsView) appearance(c *ui.Context) {
 		if preferences.Locale == "en-US" {
 			selected = labels[1]
 		}
-		if ui.Select(c, &selected, labels).Width(190).MinHeight(40).Label(v.msg("locale")).Changed() {
+		if ui.Select(c, &selected, labels).Width(160).MinHeight(40).Label(v.msg("locale")).Changed() {
 			locale := "zh-CN"
 			if selected == labels[1] {
 				locale = "en-US"
@@ -166,69 +147,73 @@ func (v *SettingsView) appearance(c *ui.Context) {
 		}
 	})
 }
-func (v *SettingsView) themePreview(c *ui.Context, mode string) {
-	background := ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{{Color: ui.Hex("#fcfdff")}, {Color: ui.Hex("#eef2f7"), At: 1}}}
-	header, body := ui.RGBA(255, 255, 255, .84), ui.RGBA(242, 244, 247, .96)
-	switch mode {
-	case "auto":
-		background = ui.LinearGradient{Angle: 135, Stops: []ui.GradientStop{{Color: ui.Hex("#f4f7fb")}, {Color: ui.Hex("#d8deeb"), At: .5}, {Color: ui.Hex("#171b24"), At: .5}, {Color: ui.Hex("#0d1117"), At: 1}}}
-		header = ui.RGBA(255, 255, 255, .76)
-	case "dark":
-		background = ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{{Color: ui.Hex("#171c26")}, {Color: ui.Hex("#0d1117"), At: 1}}}
-		header, body = ui.RGBA(220, 223, 230, .6), ui.RGBA(62, 64, 71, .94)
-	}
-	ui.Box(c).FillWidth().Height(46).Radius(5).Clip().LinearGradient(background).Children(func() {
-		ui.Box(c).Absolute().Left(8).Right(8).Top(8).Height(8).Radius(8).Background(header)
-		content := ui.Box(c).Absolute().Left(8).Right(8).Top(22).Bottom(8).Radius(4).Background(body)
+
+// The preview and its visible caption share one keyboard and click target.
+func settingsPreview(c *ui.Context, label string, selected bool, preview func() ui.Element) ui.Element {
+	button := ui.ButtonBase(c).Column().Width(100).MinHeight(78).Padding(0).Gap(6).AlignItems(ui.Center).Radius(7).Label(label).Tooltip(label).Role(ui.RoleToggleButton).Checked(selected).Selected(selected).Background(ui.Transparent)
+	button.Children(func() {
+		art := preview().Border(1, palette(c).Separator)
+		if selected {
+			art.Border(2, c.Theme().TextMuted)
+		} else if button.Hovered() {
+			art.Border(1, c.Theme().TextMuted)
+		}
+		ui.Text(c, label).FontSize(12).TextColor(c.Theme().Text).SingleLine()
+	})
+	return button
+}
+
+func (v *SettingsView) themePreview(c *ui.Context, mode string) ui.Element {
+	return ui.Box(c).FillWidth().Height(56).Radius(7).Clip().Children(func() {
+		draw := func(left, width float32, dark bool) {
+			p := presentation.Colors(dark, c.Theme().Accent)
+			ui.Box(c).Absolute().Left(left).Top(0).Width(width).FillHeight().Background(p.Window).Children(func() {
+				ui.Box(c).Absolute().Left(0).Top(0).Width(20).FillHeight().Background(p.Subpanel)
+				ui.Box(c).Absolute().Left(5).Top(9).Size(10, 4).Radius(2).Background(p.Theme.TextMuted)
+				ui.Box(c).Absolute().Left(5).Top(20).Size(10, 4).Radius(2).Background(p.Theme.TextMuted)
+				ui.Box(c).Absolute().Left(25).Right(6).Top(9).Height(5).Radius(2).Background(p.Theme.TextMuted)
+				ui.Box(c).Absolute().Left(25).Right(6).Top(21).Bottom(7).Radius(4).Background(p.Panel).Border(1, p.Separator)
+			})
+		}
 		if mode == "auto" {
-			content.LinearGradient(ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{{Color: ui.RGBA(255, 255, 255, .86)}, {Color: ui.RGBA(255, 255, 255, .86), At: .48}, {Color: ui.RGBA(39, 41, 48, .82), At: .48}, {Color: ui.RGBA(39, 41, 48, .82), At: 1}}})
+			draw(0, 50, false)
+			draw(50, 50, true)
+		} else {
+			draw(0, 100, mode == "dark")
 		}
 	})
 }
 
-func (v *SettingsView) glassPreview(c *ui.Context, style string) {
-	accent := c.Theme().Accent
-	start, end := ui.Hex("#eef2f6").Mix(accent, .16), ui.Hex("#dde4ec").Mix(accent, .10)
-	radial, radius := ui.Hex("#ffffff").Mix(accent, .20), float32(.42)
-	border, glint := ui.RGBA(206, 212, 220, .96), ui.RGBA(255, 255, 255, .92)
-	header, body := ui.RGBA(255, 255, 255, .94), ui.RGBA(255, 255, 255, .42)
-	if style == "tinted" {
-		start, end = ui.Hex("#ffffff").Mix(accent, .12), ui.Hex("#f6f8fb").Mix(accent, .08)
-		radial, radius = ui.Hex("#ffffff").Mix(accent, .24), .46
-		border, glint = ui.RGBA(214, 218, 224, .82), ui.RGBA(255, 255, 255, .9)
-		header, body = ui.RGBA(255, 255, 255, .96), ui.Hex("#f7f7f7")
-	}
-	if c.Theme().Dark {
-		start, end = ui.RGBA(45, 45, 44, .82).Mix(accent, .10), ui.RGBA(51, 51, 50, .72).Mix(accent, .08)
-		radial, radius = accent.Alpha(.28), .44
-		border, glint = ui.RGBA(255, 255, 255, .08), ui.RGBA(255, 255, 255, .18)
-		header, body = ui.RGBA(255, 255, 255, .36), ui.RGBA(255, 255, 255, .12)
-		if style == "tinted" {
-			start, end = ui.Hex("#2d2d2c").Mix(accent, .08), ui.Hex("#333332").Mix(accent, .06)
-			radial, radius = accent.Alpha(.22), .42
-			header, body = ui.RGBA(220, 223, 230, .32), ui.Hex("#3e4047")
-		}
-	}
-	ui.Box(c).FillWidth().Height(46).Radius(5).Clip().Gradient(start, end, 140).InsetShadow(0, 0, 0, 1, border).InsetShadow(0, 1, 0, 0, glint).Children(func() {
-		if !c.Theme().Dark && style == "transparent" {
-			ui.Box(c).Absolute().Fill().Gradient(ui.RGBA(255, 255, 255, .66), ui.RGBA(255, 255, 255, .54), 140)
-		}
-		ui.Box(c).Absolute().Fill().RadialGradient(ui.RadialGradient{Center: ui.Point{X: .18, Y: .18}, Stops: []ui.GradientStop{{Color: radial}, {Color: radial.Alpha(0), At: radius}}})
-		ui.Box(c).Absolute().Left(8).Right(8).Top(8).Height(8).Radius(8).Background(header)
-		ui.Box(c).Absolute().Left(8).Right(8).Bottom(8).Height(18).Radius(4).Background(body)
+func (v *SettingsView) glassPreview(c *ui.Context, style string) ui.Element {
+	p := palette(c)
+	return ui.Box(c).FillWidth().Height(56).Radius(7).Clip().Background(p.Content).Children(func() {
+		ui.Box(c).Absolute().Left(0).Top(0).Size(38, 56).Background(p.Subpanel)
+		ui.Box(c).Absolute().Left(16).Top(12).Size(62, 8).Radius(4).Background(p.Theme.TextMuted)
+		ui.Box(c).Absolute().Left(26).Top(31).Size(64, 12).Radius(4).Background(p.Theme.TextMuted)
+		ui.Box(c).Absolute().Fill().Radius(7).Material(presentation.LiquidGlass(style, p.Window)).Children(func() {
+			ui.Box(c).Absolute().Left(8).Right(8).Top(8).Height(8).Radius(4).Background(p.Theme.TextMuted)
+			ui.Box(c).Absolute().Left(8).Right(8).Bottom(8).Height(18).Radius(4).Background(p.Panel)
+		})
 	})
 }
 func (v *SettingsView) accent(c *ui.Context) {
 	v.row(c, "accentColor", "", func() {
-		ui.Row(c).FillWidth().Gap(8).Wrap().Justify(ui.End).Children(func() {
+		ui.Row(c).FillWidth().Gap(4).Justify(ui.End).Children(func() {
 			for _, color := range []string{"#8f96a3", "#2f6dff", "#a65dd9", "#f062a8", "#ff6a57", "#ffb020", "#f5dd00", "#33c96f"} {
 				selected := strings.EqualFold(v.Client.Draft.AccentColor, color)
-				b := ui.ButtonBase(c.Key(color)).Size(38, 38).Padding(5).Center().Radius(19).Label(v.msg("colorLabels." + color)).Tooltip(v.msg("colorLabels." + color)).Role(ui.RoleToggleButton).Checked(selected).Selected(selected)
+				label := v.msg("colorLabels." + color)
+				b := ui.ButtonBase(c.Key(color)).Column().Width(38).MinHeight(70).Padding(0).Gap(4).AlignItems(ui.Center).Radius(7).Label(label).Tooltip(label).Role(ui.RoleToggleButton).Checked(selected).Selected(selected).Background(ui.Transparent)
 				b.Children(func() {
-					dot := ui.Box(c).Size(28, 28).Radius(14).Background(ui.Hex(color)).Border(2, palette(c).Separator)
-					if selected {
-						dot.Border(2, c.Theme().Accent).Shadow(0, 0, 0, 2, palette(c).Panel).Shadow(0, 0, 0, 4, c.Theme().Accent)
-					}
+					ui.Box(c).Size(38, 38).Center().Children(func() {
+						ring := ui.Box(c).Size(24, 24).Radius(12).Center()
+						if selected {
+							ring.Border(1, c.Theme().TextMuted)
+						}
+						ring.Children(func() {
+							ui.Box(c).Size(18, 18).Radius(9).Background(ui.Hex(color))
+						})
+					})
+					ui.Text(c, label).FillWidth().MinHeight(28).FontSize(11).TextAlign(ui.Center).TextColor(c.Theme().Text)
 				})
 				if b.Clicked() {
 					v.Client.Draft.AccentColor = color
@@ -255,7 +240,7 @@ func (v *SettingsView) text(c *ui.Context, key, hint string, value *string, mult
 func (v *SettingsView) number(c *ui.Context, key, hint string, value *uint32, minValue, maxValue, step float64) {
 	v.row(c, key, hint, func() {
 		number := float64(*value)
-		field := ui.NumberInput(c, &number, minValue, maxValue, step).Width(190).MinHeight(40).Label(v.msg(key))
+		field := ui.NumberInput(c, &number, minValue, maxValue, step).Width(160).MinHeight(40).Justify(ui.End).Label(v.msg(key))
 		if field.Changed() {
 			*value = uint32(number)
 		}
@@ -278,7 +263,7 @@ func (v *SettingsView) defaults(c *ui.Context) {
 				selected = labels[i]
 			}
 		}
-		if ui.Select(c, &selected, labels).Width(190).MinHeight(40).Label(v.msg("localAsrDevice")).Changed() {
+		if ui.Select(c, &selected, labels).Width(160).MinHeight(40).Label(v.msg("localAsrDevice")).Changed() {
 			for i, label := range labels {
 				if label == selected {
 					d.Device = ids[i]

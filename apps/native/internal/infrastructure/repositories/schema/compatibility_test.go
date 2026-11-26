@@ -18,7 +18,9 @@ func TestRustMigrationVersionsAndCompleteDataMatch(t *testing.T) {
 	if directory == "" {
 		t.Fatal("run pnpm native:compat")
 	}
-	for v := 0; v <= CurrentVersion; v++ {
+	// The independently hashed Rust golden corpus is frozen at v10. New native
+	// migrations must preserve that projection and have their own adjacent tests.
+	for v := 0; v <= 10; v++ {
 		t.Run(fmt.Sprint(v), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "migration.sqlite3")
 			data, err := os.ReadFile(filepath.Join(directory, fmt.Sprintf("migration-v%d.sqlite3", v)))
@@ -37,7 +39,7 @@ func TestRustMigrationVersionsAndCompleteDataMatch(t *testing.T) {
 			beforeUpgrade := snapshot(t, db)
 			vault := &memoryVault{}
 			r, err := Apply(context.Background(), db, path, vault)
-			if err != nil || r.FromVersion != v || r.Version != 10 {
+			if err != nil || r.FromVersion != v || r.Version != CurrentVersion {
 				t.Fatal(r, err)
 			}
 			expected, err := sql.Open("sqlite", URI(filepath.Join(directory, fmt.Sprintf("migration-v%d-expected.sqlite3", v)), url.Values{"mode": {"ro"}}))
@@ -82,6 +84,27 @@ func TestRustMigrationVersionsAndCompleteDataMatch(t *testing.T) {
 func compareDatabases(t *testing.T, got, want *sql.DB) {
 	t.Helper()
 	a, b := snapshot(t, got), snapshot(t, want)
+	if scalar(t, got, "SELECT value FROM app_meta WHERE key='schema_version'") != "12" || scalar(t, want, "SELECT value FROM app_meta WHERE key='schema_version'") != "10" {
+		t.Fatal("unexpected compatibility projection versions")
+	}
+	for index, row := range a["app_meta"] {
+		if row == `["schema_version","12"]` {
+			a["app_meta"][index] = `["schema_version","10"]`
+		}
+	}
+	for _, name := range []string{"live_sessions", "live_segments", "live_session_events"} {
+		if rows, ok := a[name]; !ok || len(rows) != 0 {
+			t.Fatal("upgrade did not create empty live tables")
+		}
+		delete(a, name)
+		delete(a, "schema:"+name)
+	}
+	for _, name := range []string{"live_sessions_created", "live_session_events_session"} {
+		if _, ok := a["schema:"+name]; !ok {
+			t.Fatal("live index missing")
+		}
+		delete(a, "schema:"+name)
+	}
 	for table, rows := range b {
 		if !reflect.DeepEqual(a[table], rows) {
 			t.Errorf("table %s differs from Rust (details omitted to keep test output free of credentials)", table)

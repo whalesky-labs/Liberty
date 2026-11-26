@@ -56,7 +56,6 @@ func settingsTrailingTargets(view *SettingsView, locale, section string) []setti
 	case "runtimeOverview":
 		return []settingsEdgeTarget{
 			{ui.RolePopUpButton, view.msg("runtimeMode")},
-			{ui.RoleText, presentation.Message(locale, "shell.localMode") + " · " + view.msg("waitingLocalConfig")},
 		}
 	case "localRuntime":
 		return []settingsEdgeTarget{
@@ -71,7 +70,6 @@ func settingsTrailingTargets(view *SettingsView, locale, section string) []setti
 		return []settingsEdgeTarget{
 			{ui.RoleTextField, view.msg("backendUrl")},
 			{ui.RoleTextField, view.msg("apiToken")},
-			{ui.RoleText, view.msg("apiTokenNotConfigured")},
 		}
 	case "diagnostics":
 		return []settingsEdgeTarget{
@@ -83,7 +81,7 @@ func settingsTrailingTargets(view *SettingsView, locale, section string) []setti
 	}
 }
 
-func TestSettingsAllSectionsKeepLegacyHierarchyAndResponsiveFields(t *testing.T) {
+func TestSettingsAllSectionsKeepHierarchyAndHorizontalFields(t *testing.T) {
 	for _, locale := range []string{"zh-CN", "en-US"} {
 		for _, width := range []int{1440, 1100, 760} {
 			for _, section := range []string{"appearance", "themeSection", "runtimeOverview", "processingDefaults", "localRuntime", "remoteCompatibility", "diagnostics"} {
@@ -92,15 +90,15 @@ func TestSettingsAllSectionsKeepLegacyHierarchyAndResponsiveFields(t *testing.T)
 					shell := Shell{Locale: locale, Route: "/settings", Preferences: domain.DefaultUIPreferences(), Sidebar: view.Sidebar, Content: view.View}
 					tester := ui.NewTesterWith(shell.View, width, 2200, ui.TesterOptions{Dark: locale == "en-US"})
 					heading, ok := tester.AccessByRole(ui.RoleHeading, view.msg(section))
-					if !ok || heading.Level != 2 || heading.Offscreen || !tester.HasText(view.msg(settingsHintKey(section))) {
+					if !ok || heading.Level != 1 || heading.Offscreen || heading.Description != view.msg(settingsHintKey(section)) {
 						t.Fatal("settings lost its heading or section description", heading)
 					}
-					sideHeading, ok := tester.AccessByRole(ui.RoleHeading, view.msg("pageTitle"))
-					if !ok || sideHeading.Level != 1 || sideHeading.Offscreen {
-						t.Fatal("settings sidebar title missing", sideHeading)
+					navigation, ok := tester.AccessByRole(ui.RoleNavigation, view.msg("navigationLabel"))
+					if !ok || navigation.Offscreen {
+						t.Fatal("settings navigation missing", navigation)
 					}
-					if width > 760 && heading.Bounds.X < 248 || width <= 760 && heading.Bounds.Y < sideHeading.Bounds.Y+sideHeading.Bounds.H {
-						t.Fatal("settings sidebar ignored its breakpoint", heading, sideHeading)
+					if width > 760 && heading.Bounds.X < navigation.Bounds.X+navigation.Bounds.W || width <= 760 && heading.Bounds.Y < navigation.Bounds.Y+navigation.Bounds.H {
+						t.Fatal("settings sidebar covered the page heading", heading, navigation)
 					}
 					for _, node := range tester.AccessAll() {
 						if node.Role != ui.RoleTextField && node.Role != ui.RolePopUpButton && node.Role != ui.RoleToggleButton {
@@ -109,7 +107,7 @@ func TestSettingsAllSectionsKeepLegacyHierarchyAndResponsiveFields(t *testing.T)
 						if node.Offscreen || node.Bounds.W < 20 || node.Bounds.X < 0 || node.Bounds.X+node.Bounds.W > float32(width) {
 							t.Fatalf("settings control clipped: %+v", node)
 						}
-						if node.Role == ui.RoleToggleButton && section != "themeSection" && (node.Name == view.msg("auto") || node.Name == view.msg("light") || node.Name == view.msg("dark") || node.Name == view.msg("transparent") || node.Name == view.msg("tinted")) && node.Bounds.H < 80 {
+						if node.Role == ui.RoleToggleButton && section != "themeSection" && (node.Name == view.msg("auto") || node.Name == view.msg("light") || node.Name == view.msg("dark") || node.Name == view.msg("transparent") || node.Name == view.msg("tinted")) && node.Bounds.H < 55.9 {
 							t.Fatal("appearance preview lost its card size", node)
 						}
 						if node.Role == ui.RolePopUpButton && node.Bounds.H < 39.9 {
@@ -119,8 +117,18 @@ func TestSettingsAllSectionsKeepLegacyHierarchyAndResponsiveFields(t *testing.T)
 					if section == "processingDefaults" {
 						label, _ := tester.AccessByRole(ui.RoleText, view.msg("defaultHotwords"))
 						field, _ := tester.AccessByRole(ui.RoleTextField, view.msg("defaultHotwords"))
-						if width <= 1180 && field.Bounds.Y < label.Bounds.Y+label.Bounds.H || width > 1180 && field.Bounds.X <= label.Bounds.X+label.Bounds.W {
-							t.Fatalf("settings fields ignored stacked breakpoint: label=%+v field=%+v", label, field)
+						if field.Bounds.X <= label.Bounds.X+label.Bounds.W || field.Bounds.Y > label.Bounds.Y+label.Bounds.H || field.Bounds.Y+field.Bounds.H < label.Bounds.Y {
+							t.Fatalf("settings fields did not stay beside their labels: label=%+v field=%+v", label, field)
+						}
+					}
+					if section == "runtimeOverview" || section == "remoteCompatibility" {
+						key, status, role := "runtimeMode", "waitingLocalConfig", ui.RolePopUpButton
+						if section == "remoteCompatibility" {
+							key, status, role = "apiToken", "apiTokenNotConfigured", ui.RoleTextField
+						}
+						control, ok := tester.AccessByRole(role, view.msg(key))
+						if !ok || control.Description != view.msg(status) || tester.HasText(view.msg(status)) {
+							t.Fatal("settings status should describe the control without a separate caption", control)
 						}
 					}
 					tester.SetSize(width, 960)
@@ -421,12 +429,14 @@ func TestSettingsRuntimeOverviewDoesNotReportStaleReadyStatus(t *testing.T) {
 	view := settingsParityView("en-US", "runtimeOverview")
 	view.Runtime.Client.Panel.Overview.ShellReady = true
 	tester := ui.NewTester(view.View, 1100, 960)
-	if !tester.HasText(view.msg("localDatabaseReady")) {
+	control, ok := tester.AccessByRole(ui.RolePopUpButton, view.msg("runtimeMode"))
+	if !ok || control.Description != view.msg("localDatabaseReady") {
 		t.Fatal("verified runtime readiness missing")
 	}
 	view.Runtime.Client.Error = errors.New("synthetic runtime refresh failed")
 	tester.Frame()
-	if tester.HasText(view.msg("localDatabaseReady")) || !tester.HasText(view.msg("waitingLocalConfig")) {
+	control, _ = tester.AccessByRole(ui.RolePopUpButton, view.msg("runtimeMode"))
+	if control.Description != view.msg("waitingLocalConfig") {
 		t.Fatal("failed runtime refresh retained a ready label")
 	}
 }
@@ -456,7 +466,8 @@ func TestSettingsRuntimeOverviewFollowsSelectedProcessingModeAndRemoteState(t *t
 				view.Remote.Checking = scenario.checking
 
 				tester := ui.NewTester(view.View, 1100, 960)
-				if !tester.HasText(view.msg(scenario.want)) {
+				control, ok := tester.AccessByRole(ui.RolePopUpButton, view.msg("runtimeMode"))
+				if !ok || control.Description != view.msg(scenario.want) {
 					t.Fatalf("remote runtime status missing: want %q", view.msg(scenario.want))
 				}
 				if tester.HasText(view.msg("localDatabaseReady")) || tester.HasText(view.msg("waitingLocalConfig")) {
@@ -465,13 +476,15 @@ func TestSettingsRuntimeOverviewFollowsSelectedProcessingModeAndRemoteState(t *t
 
 				view.Client.Draft.ProcessingMode = "local"
 				tester.Frame()
-				if !tester.HasText(view.msg("localDatabaseReady")) || tester.HasText(view.msg(scenario.want)) {
+				control, _ = tester.AccessByRole(ui.RolePopUpButton, view.msg("runtimeMode"))
+				if control.Description != view.msg("localDatabaseReady") {
 					t.Fatal("switching back to local mode retained remote status")
 				}
 
 				view.Runtime.Client.Error = errors.New("synthetic local runtime failure")
 				tester.Frame()
-				if tester.HasText(view.msg("localDatabaseReady")) || !tester.HasText(view.msg("waitingLocalConfig")) {
+				control, _ = tester.AccessByRole(ui.RolePopUpButton, view.msg("runtimeMode"))
+				if control.Description != view.msg("waitingLocalConfig") {
 					t.Fatal("local mode did not restore its runtime status after refresh failure")
 				}
 			})

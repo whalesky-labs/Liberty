@@ -5,7 +5,7 @@ try {
   const options = parseDistributionArgs(process.argv.slice(2));
   if (options.command === 'check') {
     const template = await readFile(new URL('../packages/desktop-resources/distribution/windows.wxs.in', import.meta.url), 'utf8');
-    for (const target of ['windows-x64']) renderWix(template, { target, version: '1.0.0', files: ['Liberty Native Candidate.exe', 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'] });
+    for (const target of ['windows-x64']) renderWix(template, { target, version: '1.0.0', files: ['Liberty Native Candidate.exe', 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'LOCAL_TRANSLATION_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'] });
     if (options.target) checkDistributionHost(options.target);
     console.log(JSON.stringify({ policyValid: true, targetHostChecked: Boolean(options.target), productionReady: false, productionPromotion }, null, 2));
   } else if (options.command === 'plan') console.log(JSON.stringify(distributionPlan(options.target), null, 2));

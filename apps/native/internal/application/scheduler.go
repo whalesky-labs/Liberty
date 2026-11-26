@@ -23,17 +23,18 @@ type scheduledJob struct {
 // Scheduler is process-owned, not page-owned. Durable queue state lives in the
 // repository; this only bounds concurrent work and coordinates exclusivity.
 type Scheduler struct {
-	mu       sync.Mutex
-	executor JobExecutor
-	limit    int
-	queue    []string
-	queued   map[string]bool
-	active   map[string]*scheduledJob
-	delayed  map[string]*scheduledJob
-	retries  map[string]uint32
-	reserved map[string]bool
-	closed   bool
-	changed  chan struct{}
+	mu           sync.Mutex
+	executor     JobExecutor
+	limit        int
+	queue        []string
+	queued       map[string]bool
+	active       map[string]*scheduledJob
+	delayed      map[string]*scheduledJob
+	retries      map[string]uint32
+	reserved     map[string]bool
+	closed       bool
+	liveReserved bool
+	changed      chan struct{}
 }
 
 func NewScheduler(executor JobExecutor, limit uint32) *Scheduler {
@@ -61,7 +62,7 @@ func (s *Scheduler) Enqueue(id string) error {
 	return nil
 }
 func (s *Scheduler) launchLocked() {
-	for !s.closed && len(s.active) < s.limit && len(s.queue) > 0 {
+	for !s.closed && !s.liveReserved && len(s.active) < s.limit && len(s.queue) > 0 {
 		id := s.queue[0]
 		s.queue = s.queue[1:]
 		delete(s.queued, id)
@@ -74,6 +75,22 @@ func (s *Scheduler) launchLocked() {
 		go s.execute(ctx, task)
 	}
 	s.notifyLocked()
+}
+
+// ReserveLive does not interrupt existing work. A live session owns the ASR
+// budget until all capture/recognition children have been reaped.
+func (s *Scheduler) ReserveLive() (func(), error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, ErrSchedulerClosed
+	}
+	if s.liveReserved || len(s.active) > 0 {
+		return nil, domain.ErrLiveBusy
+	}
+	s.liveReserved = true
+	var once sync.Once
+	return func() { once.Do(func() { s.mu.Lock(); defer s.mu.Unlock(); s.liveReserved = false; s.launchLocked() }) }, nil
 }
 
 func admissionRetryDelay(retries uint32) time.Duration {

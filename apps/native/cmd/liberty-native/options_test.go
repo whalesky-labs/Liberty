@@ -79,6 +79,13 @@ func TestCandidateRuntimeSelectionIsExplicitAndDoesNotPrepareProfile(t *testing.
 	if _, err := os.Stat(directory); !os.IsNotExist(err) {
 		t.Fatal("runtime selection prepared an unverified profile")
 	}
+	upgrade, err := parseOptions([]string{"--profile-directory", directory, "--writable", "--prepare-database", "--runtime-profile", "funasr-upgrade"}, "candidate", io.Discard)
+	if err != nil || upgrade.runtimeProfile != "funasr-upgrade" {
+		t.Fatal("upgrade candidate selection failed", err)
+	}
+	if _, err := parseOptions([]string{"--runtime-profile", "funasr-upgrade"}, "candidate", io.Discard); err == nil {
+		t.Fatal("upgrade candidate selected default profile")
+	}
 	production, err := parseOptions(nil, "candidate", io.Discard)
 	if err != nil || production.runtimeProfile != "production" {
 		t.Fatal("default runtime changed", err)

@@ -28,11 +28,12 @@ func petParityStore() *domain.PetStoreState {
 
 func TestPetStoreCardsUsePaneWidthAndKeepFinalRowSize(t *testing.T) {
 	for _, locale := range []string{"zh-CN", "en-US"} {
-		for _, width := range []int{1440, 1100, 960, 760} {
+		for _, width := range []int{2560, 1920, 1440, 1100, 960, 760} {
 			t.Run(fmt.Sprintf("%s-%d", locale, width), func(t *testing.T) {
 				store := petParityStore()
-				view := &PetView{Locale: locale, Route: "/pet-store", Client: &client.PetController{Store: store}, OpenItem: func(string) {}}
-				shell := &Shell{Locale: locale, Preferences: domain.DefaultUIPreferences(), Content: view.View}
+				openedItem := ""
+				view := &PetView{Locale: locale, Route: "/pet-store", Client: &client.PetController{Store: store}, OpenItem: func(key string) { openedItem = key }}
+				shell := &Shell{Locale: locale, Route: view.Route, Preferences: domain.DefaultUIPreferences(), Content: view.View}
 				tester := ui.NewTester(shell.View, width, 1400)
 				captureParity(t, tester, fmt.Sprintf("pet-store-%s-%d", locale, width))
 				first, ok := tester.AccessByRole(ui.RoleGroup, view.itemName(store.Catalog[0].Item.ItemKey))
@@ -46,11 +47,23 @@ func TestPetStoreCardsUsePaneWidthAndKeepFinalRowSize(t *testing.T) {
 					}
 				}
 				if width <= 1080 {
-					last, _ := tester.AccessByRole(ui.RoleGroup, view.itemName(store.Catalog[len(store.Catalog)-1].Item.ItemKey))
+					products, productsOK := tester.AccessByRole(ui.RoleList, view.text("商品列表", "Products"))
 					overview, ok := tester.Find(view.text("商店概览", "Store Overview"))
-					if !ok || overview.Y <= last.Bounds.Y+last.Bounds.H {
-						t.Fatal("stacked overview obscures the product grid", overview, last)
+					if !productsOK || !ok || overview.Y <= products.Bounds.Y+products.Bounds.H {
+						t.Fatal("stacked overview obscures the scrollable product grid", overview, products)
 					}
+					// A narrow pane can add rows beyond the list viewport. Check the
+					// visible boundary, then prove the clipped final item is reachable.
+					lastKey := store.Catalog[len(store.Catalog)-1].Item.ItemKey
+					last, _ := tester.AccessByRole(ui.RoleGroup, view.itemName(lastKey))
+					if last.Bounds.Y+last.Bounds.H > products.Bounds.Y+products.Bounds.H {
+						tester.Scroll(products.Bounds.X+products.Bounds.W/2, products.Bounds.Y+products.Bounds.H/2, 0, 3000)
+					}
+					label := view.text("查看详情：", "View Details: ") + view.itemName(lastKey)
+					if err := tester.Click(label); err != nil || openedItem != lastKey {
+						t.Fatal("final product cannot be opened after scrolling", openedItem, err)
+					}
+					captureParity(t, tester, fmt.Sprintf("pet-store-scrolled-%s-%d", locale, width))
 				}
 			})
 		}

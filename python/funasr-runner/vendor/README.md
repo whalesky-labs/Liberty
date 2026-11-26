@@ -2,6 +2,8 @@
 
 [文档总览](../../../docs/README.md) · [开发与验收](../../../docs/development.md)
 
+另有显式隔离的 [1.4.29 配方](funasr-1.4.29.json)，由 `tools/build_upgrade_wheel.py` 选择并调用同一校验构建器。产物为 `1.4.29+liberty.local1`，433 个 Python 源文件不变，仅调整 `oss2`/`six` 元数据与版本记账；source SBOM 保留上游 1.4.29 身份。生产 local2 配方和构建器摘要不变。三平台候选锁、输入准备和打包步骤见[实时翻译](../../../docs/live-translation.md#funasr-升级候选)。
+
 `../tools/build_vendor_wheel.py` 用 Python 标准库从显式选择的本地上游 wheel 构建固定 `1.3.9+liberty.local2`，不下载、安装或执行包代码。生产运行时 `2026.11.22-python311-security.1` 使用 CPython 3.11.18 和该 wheel；运行时清单的 `productionInputs` 固定构建器与八个输入的摘要。历史 `security-candidate` 的配方和固定输入保持可复现，配方中的候选交付描述记录最初边界，本身不构成生产安全或平台验收结论。
 
 在仓库根目录运行，输入必须是 [funasr-1.3.9.json](funasr-1.3.9.json) 指定的官方 wheel，输出目录必须尚不存在，其父目录应已存在：

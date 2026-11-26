@@ -29,7 +29,7 @@ type Store struct {
 }
 
 // Open acquires shared profile ownership BEFORE opening SQLite in rw mode.
-// Only an existing schema-v10 file is accepted. No implicit create, migration,
+// Only an existing schema-v12 file is accepted. No implicit create, migration,
 // default-profile discovery, or credential access occurs here.
 func Open(ctx context.Context, database string) (*Store, error) {
 	if !filepath.IsAbs(database) {

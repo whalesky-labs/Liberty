@@ -123,9 +123,7 @@ func runWithProfileResolver(resolve func(bool) (string, error)) error {
 		default:
 			mygo.Theme.SetSource(mygo.ThemeSystem)
 		}
-		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-			{Role: mygo.RoleAppMenu}, {Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},
-		}))
+		mygo.App.SetMenu(desktop.ApplicationMenu(preferences.Locale))
 		var meetings client.Meetings = application.NewMeetings(reader)
 		if writableProfile != nil {
 			meetings = writableProfile.ModeMeetings
@@ -145,6 +143,7 @@ func runWithProfileResolver(resolve func(bool) (string, error)) error {
 			workspace.AttachResultEditing(writableProfile.ModeMeetings)
 			workspace.AttachWordExport(writableProfile.WordExport)
 			workspace.AttachSummary(writableProfile.Summary)
+			workspace.AttachLive(writableProfile.Live)
 			workspace.AttachWork(writableProfile.Work)
 			workspace.AttachPet(writableProfile.Pet, writableProfile.RecordPetDiagnostic)
 			workspace.AttachRemoteDiagnostics(writableProfile.Remote, writableProfile.Diagnostics)

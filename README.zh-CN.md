@@ -12,9 +12,9 @@ Liberty 将本地转写、说话人分离、AI 总结、会议纪要和结果导
 
 ## 当前重构状态
 
-当前源码正在准备 **v2.0.0-alpha.1** 原生预发布，面向 macOS Apple Silicon、macOS Intel 和 Windows x64；发布说明、候选资料边界和已知限制见 [alpha 说明](docs/releases/2.0.0-alpha.1.md)。
+当前源码版本为 **v2.0.0-alpha.2**，面向 macOS Apple Silicon、macOS Intel 和 Windows x64 的原生候选归档；变化、资料升级与已知限制见 [alpha.2 说明](docs/releases/2.0.0-alpha.2.md)，公开发行状态以 [GitHub Release](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.2) 为准。
 
-截至 2026-11-21，**新版实现位于 `apps/native`，采用 Go + MyGo，是日常开发、验证和启动入口；正式生产发布入口暂时仍为 `apps/desktop`。** `pnpm start` 启动已打包的原生候选，不编译源码。原生端仍是候选，完整 UI 验收与生产切换均未完成。旧 React/Tauri 只在迁移期间冻结为生产入口和对照实现；Native 门禁全部通过后，在一次可审查的切换变更中删除旧端及其发布链。启动、资料和恢复边界见[原生模块说明](apps/native/README.md)。
+截至 2026-11-25，**新版实现位于 `apps/native`，采用 Go + MyGo，是日常开发、验证和启动入口；正式生产发布入口暂时仍为 `apps/desktop`。** `pnpm start` 启动已打包的原生候选，不编译源码。原生端仍是候选，完整 UI 验收与生产切换均未完成。旧 React/Tauri 只在迁移期间冻结为生产入口和对照实现；Native 门禁全部通过后，在一次可审查的切换变更中删除旧端及其发布链。启动、资料和恢复边界见[原生模块说明](apps/native/README.md)。
 
 | 实现 | 作用 |
 | --- | --- |
@@ -22,7 +22,7 @@ Liberty 将本地转写、说话人分离、AI 总结、会议纪要和结果导
 | `apps/desktop` | 迁移期间冻结的 React/Tauri 对照端和生产入口；Native 门禁通过后随发布链一并删除 |
 | Python Runner / SQLite / 共享 schema | 两端沿用的转写协议、数据和资源事实来源 |
 
-全 UI、输入法/读屏、真实远端、Intel/Windows 实机、供应链、安装升级回退及签名公证仍需独立验收；状态以 [发布就绪检查](docs/architecture/release-readiness.md) 为准。
+全 UI、输入法/读屏、真实远端、Intel/Windows 实机、供应链及升级回退仍需独立验收。本次收尾采用未签名、未公证的候选归档交付，签名公证不属于完成条件；候选身份及其他验收要求继续保留，状态以 [发布就绪检查](docs/architecture/release-readiness.md) 为准。
 
 ## 主要能力
 
@@ -35,6 +35,8 @@ Liberty 将本地转写、说话人分离、AI 总结、会议纪要和结果导
 - **本地陪伴**：桌宠多窗口、255 级成长、LP、商店/仓库、签到/补签、每日免费盲盒、礼盒、签名兑换、农场及打工地图。工厂需照看岗位可选用装配练习完成照看，原有一键操作保留，成绩不影响奖励。
 
 宠物系统为尽力提供的陪伴能力，失败不阻塞会议主流程；LP、盲盒与兑换均不引入真钱、充值、交易或排行榜。规则见 [宠物系统](docs/pet-system.md)。
+
+原生源码支持麦克风中英文实时转写、默认自动切换方向的离线中英互译（无需第三方服务或 API Key）、历史编辑、失败补译和双语字幕导出；默认不保存音频。使用方式与当前限制见[实时翻译](docs/live-translation.md)。FunASR 1.4.29 通过独立 `funasr-upgrade` 候选评估，尚未替换默认运行时。
 
 ## 运行方式与边界
 
@@ -75,7 +77,7 @@ config/                       平台、安全和许可证策略
 docs/                         原生文档与过程记录
 ```
 
-数据库当前 schema v10。Native 从共享来源生成迁移定义，在 `packages/desktop-resources/fixtures/native-v10` 中重放历史 Rust 实现导出的合成库和期望输出，已不再构建或运行 Rust oracle。切换前必须从干净检出独立生成并通过检查，不能再读取 `apps/desktop` 作为事实源；原生分层与源文件映射见 [原生架构](docs/architecture/native-desktop-architecture.md)。
+数据库当前 schema v12，支持实时会话、字幕和自动翻译方向。Native 从共享来源生成迁移定义，在 `packages/desktop-resources/fixtures/native-v10` 中重放历史 Rust 实现导出的合成库和期望输出，已不再构建或运行 Rust oracle。切换前必须从干净检出独立生成并通过检查，不能再读取 `apps/desktop` 作为事实源；原生分层与源文件映射见 [原生架构](docs/architecture/native-desktop-architecture.md)。
 
 ## 开发与验证
 

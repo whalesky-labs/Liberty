@@ -50,7 +50,7 @@ func TestRemotePersistedSettingsToHTTPWithNoLocalFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if version, err := store.SchemaVersion(ctx); err != nil || version != 10 {
+	if version, err := store.SchemaVersion(ctx); err != nil || version != 12 {
 		t.Fatal("diagnostic schema projection", version, err)
 	}
 	reader, err := legacydb.Open(ctx, path)

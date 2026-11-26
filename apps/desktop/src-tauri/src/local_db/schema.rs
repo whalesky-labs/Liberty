@@ -26,7 +26,29 @@ const MIGRATIONS: &[Migration] = &[
         "credential cleanup intents",
         migrate_v10_credential_cleanup_intents,
     ),
+    Migration::new(11, "native live sessions", migrate_v11_live_sessions),
+    Migration::new(
+        12,
+        "automatic live language",
+        migrate_v12_live_auto_language,
+    ),
 ];
+
+fn migrate_v12_live_auto_language(transaction: &Transaction<'_>) -> LocalResult<()> {
+    transaction
+        .execute_batch(include_str!(
+            "../../../../../packages/desktop-resources/database/v12-live-auto-language.sql"
+        ))
+        .map_err(|err| err.to_string())
+}
+
+fn migrate_v11_live_sessions(transaction: &Transaction<'_>) -> LocalResult<()> {
+    transaction
+        .execute_batch(include_str!(
+            "../../../../../packages/desktop-resources/database/v11-live-sessions.sql"
+        ))
+        .map_err(|err| err.to_string())
+}
 
 pub(crate) fn apply_schema(conn: &Connection) -> LocalResult<()> {
     apply_schema_with_credentials(conn, &default_credential_store())
@@ -295,6 +317,24 @@ mod tests {
     use rusqlite::{params, Connection, OptionalExtension};
 
     static TEST_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn live_session_migration_preserves_final_text_on_repeat_startup() {
+        let conn = Connection::open_in_memory().unwrap();
+        let vault = TestCredentialStore::default();
+        apply_schema_with_credentials(&conn, &vault).unwrap();
+        conn.execute_batch("INSERT INTO live_sessions(id,state,source_language,target_language,translate_enabled,created_at,updated_at) VALUES('synthetic-live','completed','zh','en',0,'now','now'); INSERT INTO live_segments(session_id,segment_id,revision,start_ms,end_ms,original_text,translation_state) VALUES('synthetic-live',1,1,0,500,'Synthetic retained text','disabled')").unwrap();
+        apply_schema_with_credentials(&conn, &vault).unwrap();
+        let text: String = conn
+            .query_row(
+                "SELECT original_text FROM live_segments WHERE session_id='synthetic-live'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(text, "Synthetic retained text");
+        assert_eq!(schema_version(&conn), CURRENT_SCHEMA_VERSION);
+    }
 
     #[test]
     #[ignore = "explicit cross-language migration fixtures via pnpm native:compat"]

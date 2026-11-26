@@ -36,3 +36,7 @@ are not silently accepted or rewritten.
 It checks failure and explicit retry across connection/service restarts. Domain
 wire tests cover exact names, duplicates, nulls, parts and unused extra choices.
 These tests use synthetic content and do not call an external AI service.
+
+
+Live captions use a separate local translation process and do not use this HTTP
+client, model configuration or credentials. See [live translation](../../../../../docs/live-translation.md).

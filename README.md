@@ -12,9 +12,9 @@ Liberty brings local transcription, speaker diarization, AI summaries, meeting m
 
 ## Refactor Status
 
-The current source is being prepared for the **v2.0.0-alpha.1** Native prerelease for macOS Apple Silicon, macOS Intel and Windows x64. See the [alpha notes](docs/releases/2.0.0-alpha.1.md) for scope, profile isolation and known limitations.
+This source is **v2.0.0-alpha.2**, targeting Native candidate archives for Apple Silicon Macs, Intel Macs and Windows x64. See the [alpha.2 notes](docs/releases/2.0.0-alpha.2.md) for changes, profile upgrades and known limitations; publication status is recorded in the [GitHub Release](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.2).
 
-As of 2026-11-21, **the new implementation is Go + MyGo under `apps/native`; `pnpm start` (equivalent to `pnpm native:launch`) starts an already packaged native candidate without compiling source.** The table below describes the current migration roles; the native client remains a candidate, and neither full UI acceptance nor production cutover is complete. The React/Tauri client is frozen only as a temporary production and migration reference. Once the Native gates close, one reviewed cutover retires and deletes that client and its release chain.
+As of 2026-11-25, **the new implementation is Go + MyGo under `apps/native`; `pnpm start` (equivalent to `pnpm native:launch`) starts an already packaged native candidate without compiling source.** The table below describes the current migration roles; the native client remains a candidate, and neither full UI acceptance nor production cutover is complete. The React/Tauri client is frozen only as a temporary production and migration reference. Once the Native gates close, one reviewed cutover retires and deletes that client and its release chain.
 
 | Implementation | Role |
 | --- | --- |
@@ -22,7 +22,7 @@ As of 2026-11-21, **the new implementation is Go + MyGo under `apps/native`; `pn
 | `apps/desktop` | Frozen React/Tauri migration reference and current production entry until Native cutover; scheduled for deletion with its release chain after all gates pass |
 | Python Runner / SQLite / shared schemas | Shared transcription, data and resource sources |
 
-See the [native module guide](apps/native/README.md) for profiles, backup and restore. Full UI, IME/accessibility, external-service, Intel/Windows device, supply-chain, installer/rollback and signing/notarization acceptance remain separate requirements in [release readiness](docs/architecture/release-readiness.md).
+See the [native module guide](apps/native/README.md) for profiles, backup and restore. Full UI, IME/accessibility, external-service, Intel/Windows device, supply-chain and upgrade/rollback acceptance remain separate requirements. This closeout delivers unsigned, unnotarized candidate archives; signing and notarization are outside its completion conditions. Candidate identity and the other acceptance requirements remain in force; see [release readiness](docs/architecture/release-readiness.md).
 
 ## Capabilities
 
@@ -37,6 +37,8 @@ See the [native module guide](apps/native/README.md) for profiles, backup and re
 Companion features are best-effort and must not block meeting work. LP, boxes and redemption do not introduce payments, top-ups, trading or leaderboards. See the [pet system](docs/pet-system.md).
 
 ## Modes and Boundaries
+
+Native source supports live Chinese/English microphone transcription and offline Chinese–English translation with automatic direction switching, without third-party services or API keys, plus history editing, translation retries and bilingual subtitle export; audio is not saved. See [live translation](docs/live-translation.md) for usage and current limits. FunASR 1.4.29 is evaluated in an isolated `funasr-upgrade` profile and has not replaced the default runtime.
 
 The `processingMode` setting selects local or remote operation. `backendUrl` configures a remote connection; a nonempty address does not switch modes automatically.
 
@@ -75,7 +77,7 @@ config/                       Platform, security and license policies
 docs/                         Maintained guides and historical process records
 ```
 
-The database is schema v10. Native generates migration definitions from shared sources and replays the historical Rust implementation's frozen synthetic databases and expected outputs in `packages/desktop-resources/fixtures/native-v10`; it no longer builds or runs the Rust oracle. Before cutover, a clean checkout must regenerate and test without reading `apps/desktop`. See [native architecture](docs/architecture/native-desktop-architecture.md) for module boundaries and source mappings.
+The database is schema v12, including live-session/caption tables and automatic translation direction. Native generates migration definitions from shared sources and replays the historical Rust implementation's frozen synthetic databases and expected outputs in `packages/desktop-resources/fixtures/native-v10`; it no longer builds or runs the Rust oracle. Before cutover, a clean checkout must regenerate and test without reading `apps/desktop`. See [native architecture](docs/architecture/native-desktop-architecture.md) for module boundaries and source mappings.
 
 ## Development and Verification
 

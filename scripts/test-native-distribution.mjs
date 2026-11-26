@@ -10,7 +10,7 @@ import { assertDistributionManifest, assertMsiMetadata, assertSignedProvenance, 
 import { candidateIdentity, candidateName, candidatePlist, fileDigest, nativeTargets } from './lib/native-package.mjs';
 
 const template = await readFile(new URL('../packages/desktop-resources/distribution/windows.wxs.in', import.meta.url), 'utf8');
-const installerFiles = [`${candidateName}.exe`, 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'];
+const installerFiles = [`${candidateName}.exe`, 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'LOCAL_TRANSLATION_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'];
 const commit = 'a'.repeat(40);
 const version = '9.8.7';
 
@@ -30,6 +30,9 @@ for (const target of Object.keys(nativeTargets)) {
     assert.equal(plan.productionReady, false);
     assert.equal(plan.installer.removesUserData, false);
     assert.ok(plan.productionPromotion.requiredEvidence.includes('runtime-security-clearance'));
+    assert.ok(plan.productionPromotion.requiredEvidence.includes('distribution-upgrade-and-rollback'));
+    assert.ok(!plan.productionPromotion.requiredEvidence.includes('signing-and-notarization'));
+    assert.ok(plan.requirements.some(value => /certificate|Developer ID/.test(value)), 'optional signed installers still require signing');
     assert.match(plan.productionPromotion.requiredChange, /launch channel\/profile/);
   });
 }
@@ -46,6 +49,7 @@ for (const target of ['windows-x64']) {
     assert.match(result, /DowngradeErrorMessage=/);
     assert.ok(result.includes(upgradeCodes[target]));
     assert.equal((result.match(/<File /g) ?? []).length, installerFiles.length);
+    assert.match(result, /Name="LOCAL_TRANSLATION_NOTICES.txt"/);
     assert.match(result, /Custom Action="AcceptanceRollback" After="InstallFiles"/);
     assert.match(result, /Execute="deferred" Return="check" Impersonate="yes"/);
     assert.doesNotMatch(result, /RemoveFile|DeleteFile|RemoveRegistryKey|Id="AppDataFolder"|com\.westng\.liberty[^.]/);
@@ -55,7 +59,7 @@ for (const target of ['windows-x64']) {
 test('installer identity is isolated from production', () => {
   assert.notEqual(candidateIdentity, distributionPlan('windows-x64').productionPromotion.productionIdentity);
 });
-for (const files of [installerFiles.slice(1), [...installerFiles, 'secret.txt'], [...installerFiles, '..\\escape.exe'], [...installerFiles, 'bad"/>&.exe']]) test(`refuses noncanonical installer payload ${JSON.stringify(files)}`, () => assert.throws(() => renderWix(template, { target: 'windows-x64', version, files })));
+for (const files of [installerFiles.slice(1), installerFiles.filter(name => name !== 'LOCAL_TRANSLATION_NOTICES.txt'), [...installerFiles, 'secret.txt'], [...installerFiles, '..\\escape.exe'], [...installerFiles, 'bad"/>&.exe']]) test(`refuses noncanonical installer payload ${JSON.stringify(files)}`, () => assert.throws(() => renderWix(template, { target: 'windows-x64', version, files })));
 test('refuses unknown template placeholders and wildcard deletion', () => {
   for (const extra of ['@UNREVIEWED@', '<RemoveFile Name="*" On="uninstall" />']) assert.throws(() => renderWix(template + extra, { target: 'windows-x64', version, files: installerFiles }));
 });
@@ -82,11 +86,20 @@ function metadata(target = 'windows-x64') {
   return { properties: { ProductName: `Liberty Native Candidate (${target})`, ProductVersion: version, UpgradeCode: `{${upgradeCodes[target]}}`, ProductCode: '{AABBCCDD-1111-2222-3333-444455556666}' }, template: 'x64;1033', files: installerFiles };
 }
 test('accepts architecture-specific MSI metadata', () => { for (const target of Object.keys(upgradeCodes)) assertMsiMetadata(metadata(target), target, version); });
+test('accepts the old notice inventory only for a previous MSI rollback input', () => {
+  const previous = metadata();
+  previous.files = previous.files.filter(name => name !== 'LOCAL_TRANSLATION_NOTICES.txt');
+  assert.throws(() => assertMsiMetadata(previous, 'windows-x64', version), /MSI must embed the exact file set/);
+  assertMsiMetadata(previous, 'windows-x64', version, { allowLegacyNotices: true });
+  previous.files.push('unexpected.txt');
+  assert.throws(() => assertMsiMetadata(previous, 'windows-x64', version, { allowLegacyNotices: true }), /MSI must embed the exact file set/);
+});
 for (const [name, change] of [
   ['machine-wide scope', m => { m.properties.ALLUSERS = '1'; }],
   ['wrong architecture', m => { m.template = 'Intel;1033'; }],
   ['wrong upgrade identity', m => { m.properties.UpgradeCode = '{00000000-1111-2222-3333-444455556666}'; }],
   ['missing provenance', m => { m.files = m.files.filter(name => name !== 'native-distribution-provenance.json'); }],
+  ['missing local translation notices', m => { m.files = m.files.filter(name => name !== 'LOCAL_TRANSLATION_NOTICES.txt'); }],
   ['extra payload', m => { m.files = [...m.files, 'unreviewed.exe']; }],
   ['wrong version', m => { m.properties.ProductVersion = '1.0.0'; }],
 ]) test(`refuses MSI ${name}`, () => { const m = metadata(); change(m); assert.throws(() => assertMsiMetadata(m, 'windows-x64', version)); });
@@ -132,7 +145,7 @@ async function fixture(context, target) {
   const program = Buffer.alloc(256);
   if (mac) { program.writeUInt32LE(0xfeedfacf, 0); program.writeUInt32LE(nativeTargets[target].machine, 4); }
   else { program.write('MZ'); program.writeUInt32LE(64, 0x3c); program.writeUInt32LE(0x4550, 64); program.writeUInt16LE(nativeTargets[target].machine, 68); }
-  const files = new Map([[binary, program], ['README.txt', Buffer.from('unsigned candidate fixture\n')], [`${resources}LICENSE`, Buffer.from('license')], [`${resources}THIRD_PARTY_NOTICES.txt`, Buffer.from('notices')], [`${resources}${mac ? 'icon.icns' : 'icon.ico'}`, Buffer.from('icon')], ...(mac ? [[`${candidateName}.app/Contents/Info.plist`, Buffer.from(candidatePlist(version))]] : [])]);
+  const files = new Map([[binary, program], ['README.txt', Buffer.from('unsigned candidate fixture\n')], [`${resources}LICENSE`, Buffer.from('license')], [`${resources}THIRD_PARTY_NOTICES.txt`, Buffer.from('notices')], [`${resources}LOCAL_TRANSLATION_NOTICES.txt`, Buffer.from('local translation notices')], [`${resources}${mac ? 'icon.icns' : 'icon.ico'}`, Buffer.from('icon')], ...(mac ? [[`${candidateName}.app/Contents/Info.plist`, Buffer.from(candidatePlist(version))]] : [])]);
   const manifest = { format: 1, channel: 'candidate', identity: candidateIdentity, version, target, productionReady: false, signed: false, notarized: false, defaultRuntimeProfile: 'production', availableRuntimeProfiles: ['production'], files: [...files].map(([path, bytes]) => ({ path, bytes: bytes.length, sha256: fileDigest(bytes) })) };
   const name = `liberty-native-candidate-${version}-${target}`;
   const parent = path.join(directory, 'target/native/packages', `${name}-abcdef`);

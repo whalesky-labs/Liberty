@@ -47,9 +47,9 @@ func (v *SettingsView) diagnostics(c *ui.Context) {
 			v.diagnosticRow(c, localized(v.Locale, row[0], row[1]), "", func() { ui.Text(c, row[2]).FontSize(12).Bold() })
 		}
 		v.diagnosticRow(c, localized(v.Locale, "发布平台矩阵", "Release Platform Matrix"), "", func() {
-			ui.Column(c).FillWidth().Gap(5).AlignItems(ui.End).Children(func() {
+			ui.Row(c).FillWidth().Gap(5).Justify(ui.End).Children(func() {
 				for _, p := range r.SupportedPlatforms {
-					ui.Text(c, p.ID).FontSize(11).Padding(3, 8).Radius(10).Background(palette(c).Subpanel)
+					ui.Text(c, p.ID).SingleLine().FontSize(11).Padding(3, 8).Radius(10).Background(palette(c).Subpanel)
 				}
 			})
 		})

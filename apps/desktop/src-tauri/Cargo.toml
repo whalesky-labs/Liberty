@@ -1,6 +1,6 @@
 [package]
 name = "liberty"
-version = "2.0.0-alpha.1"
+version = "2.0.0-alpha.2"
 description = "Liberty desktop client"
 authors = ["west"]
 edition = "2021"

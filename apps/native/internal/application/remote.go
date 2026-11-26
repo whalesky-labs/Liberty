@@ -376,12 +376,18 @@ func (m *ModeMeetings) Queue(ctx context.Context, q domain.QueueQuery) (domain.J
 	if err != nil {
 		return domain.JobPage{}, err
 	}
-	jobs, err := reader.ListJobs(ctx)
-	if err != nil {
-		return domain.JobPage{}, err
-	}
 	q.Source = mode
-	return domain.QueryJobs(jobs, q), nil
+	return NewMeetings(reader).Queue(ctx, q)
+}
+
+func (m *ModeMeetings) ResultRevisionForSource(ctx context.Context, source, _ string) (uint64, error) {
+	if source == "local" {
+		return meetingRevision(ctx, m.local)
+	}
+	if source == "remote" {
+		return 0, nil
+	}
+	return 0, ErrWindowScope
 }
 func (m *ModeMeetings) Result(ctx context.Context, id string) (domain.Result, error) {
 	mode, err := m.ProcessingMode(ctx)

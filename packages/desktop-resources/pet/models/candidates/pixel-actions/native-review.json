@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "date": "2026-11-26",
+  "scope": "User approved the current pixel appearance and synchronized nine-pose animation for continued native integration; this is not production or platform acceptance.",
+  "nativeIntegrationApproved": true,
+  "actionSHA256": {
+    "crush": "c2b536e4cca790d368f841ee50283dfbe62aeb21b72b15fe64662121745b4fe7",
+    "defecate": "d8cf1a91b74cfb3df6bb3b2b15d7ee78df08734ff4bbda37f09e087b6b45c0ed",
+    "drive": "2a0e72975a2203c17fb0ab55c29c4c5725036b7bc27d3bac766ce0f94a700a0e",
+    "eat": "639ad1f16afc82d3b474298e07e67531585ebc135634cb6a2a9c3a8504a40e35",
+    "gaming": "12b657ed816c95512c4ca039cdea8e472cec389e3cce7ca40c2966735e5c0b11",
+    "pants": "99d5be919ef984461e61f93c461d178ff8d5a1d303d865a4c4a2d6d0d25d7390",
+    "reading": "d37abd6fa7ae1c277bb1ac68cbd1b4b2bf654a371b20cf7d03c9aeca388fbc90",
+    "rope": "f4beb7a7f8477c5926884cef893fb98bc24389e2094e51cbdcf40ad26c9a48dd",
+    "run": "3cf0894c5810ffdb3823328cf2f6099a2eb02321ee56123d47c9c67fef499bff",
+    "slack": "b2a071b77c552024c0461031f8ffe7289090d4faeeb8d374ab92ef7fdf172630",
+    "sleep": "9970850140397e67d193bb53918d80f3d1b7ee3b63f4c47cadbe943349ca2e4e",
+    "snow": "5554db9d69917933e426b80b494c275b1dd9829f175726d558e8eb0783a4893e",
+    "studying": "18a878981de0b01983091591d5a9dc9a967859e2179a0e26afb9e2584a2daf17",
+    "toy": "ac83c0f1d628a9d039a309691f4837293bfcd0d9fb40e3a73922cb5251e6b71b",
+    "work": "27118ad06d7cd892fa568f4fcb7ff6a1f3fea57aff31f34191bec62bba769854"
+  }
+}

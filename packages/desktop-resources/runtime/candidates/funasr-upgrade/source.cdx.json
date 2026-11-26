@@ -1,0 +1,75 @@
+{
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "pkg:pypi/funasr@1.4.29",
+      "externalReferences": [
+        {
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "3a9c233218c12fce95fb15717cc881c30a223877f5c6809e33256b1aa57c56e7"
+            }
+          ],
+          "type": "distribution",
+          "url": "https://files.pythonhosted.org/packages/97/fc/80048d657335f8d049504186d9834fd08b5310c7ce2f6a03161d0a9d1889/funasr-1.4.29-py3-none-any.whl"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3a9c233218c12fce95fb15717cc881c30a223877f5c6809e33256b1aa57c56e7"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "funasr",
+      "purl": "pkg:pypi/funasr@1.4.29",
+      "type": "library",
+      "version": "1.4.29"
+    }
+  ],
+  "dependencies": [
+    {
+      "dependsOn": [
+        "pkg:pypi/funasr@1.4.29"
+      ],
+      "ref": "liberty:vendor-wheel"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "bom-ref": "liberty:vendor-wheel",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "02fc106e0c6de671133b5685c53776daa29d5c54fba0cda2ddbde9854ee3a46c"
+        }
+      ],
+      "name": "funasr-1.4.29+liberty.local1-py3-none-any.whl",
+      "properties": [
+        {
+          "name": "liberty:recipe:sha256",
+          "value": "9d62027bfc9dd22e644f12455e65e5ecc025a31674cda2bf1e5dd6867b180622"
+        },
+        {
+          "name": "liberty:metadata-patch:sha256",
+          "value": "c4c453b60d64db4d3555627792ce3facd5d23ce5e617762a7b9bc0e3699c5451"
+        },
+        {
+          "name": "liberty:security-gate-established",
+          "value": "false"
+        }
+      ],
+      "type": "file",
+      "version": "1.4.29+liberty.local1"
+    }
+  },
+  "specVersion": "1.5",
+  "version": 1
+}

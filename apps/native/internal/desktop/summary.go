@@ -450,13 +450,14 @@ func (w *Workspace) openSummary(parent *application.JobWindow, title string) {
 		result, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: window, Type: mygo.MessageWarning, Title: presentation.Message(locale, "aiSummary.deleteTitle"), Message: presentation.Message(locale, "aiSummary.deleteConfirm"), Buttons: []string{presentation.Message(locale, "common.cancel"), presentation.Message(locale, "common.delete")}, CancelButton: 0, DefaultButton: 0, DestructiveButtons: []int{1}})
 		return result.Button == 1 && ctx.Err() == nil, err
 	}
-	w.summaryWindow, w.summaryView = window, view
+	w.summaryWindow, w.summaryView, w.summaryTitle = window, view, title
 	window.OnClosed(func() {
 		controller.Close()
 		grant.Close()
 		if w.summaryWindow == window {
 			w.summaryWindow = nil
 			w.summaryView = nil
+			w.summaryTitle = ""
 		}
 	})
 	controller.Refresh()

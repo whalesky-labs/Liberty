@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"liberty.local/liberty/internal/application"
 	"liberty.local/liberty/internal/domain"
@@ -18,14 +19,19 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const SchemaVersion = "10"
+const SchemaVersion = "12"
 
 var (
 	ErrDatabase = errors.New("database_read_failed")
 	ErrSchema   = errors.New("database_schema_unsupported")
 )
 
-type Reader struct{ db *sql.DB }
+type Reader struct {
+	db                    *sql.DB
+	revisionMu            sync.Mutex
+	revisionConnection    any
+	dataVersion, revision uint64
+}
 
 // Open requires an explicitly supplied file; it neither discovers the user's
 // profile nor creates, migrates, checkpoints, or repairs a database.
@@ -55,7 +61,8 @@ func Open(ctx context.Context, path string) (*Reader, error) {
 	db.SetMaxOpenConns(1)
 	r := &Reader{db: db}
 	var version string
-	if err := db.QueryRowContext(ctx, "SELECT value FROM app_meta WHERE key = 'schema_version'").Scan(&version); err != nil || version != SchemaVersion {
+	// Earlier native/legacy profiles remain readable; writers require v12.
+	if err := db.QueryRowContext(ctx, "SELECT value FROM app_meta WHERE key = 'schema_version'").Scan(&version); err != nil || (version != SchemaVersion && version != "10" && version != "11") {
 		db.Close()
 		return nil, ErrSchema
 	}
@@ -63,6 +70,33 @@ func Open(ctx context.Context, path string) (*Reader, error) {
 }
 
 func (r *Reader) Close() error { return r.db.Close() }
+
+// ReadRevision observes the same SQLite connection on every comparison. Keep
+// the connection checked out through both Raw and the pragma; a replacement
+// connection advances our own revision even if its data_version starts again.
+// No schema changes, write hooks, cached transcripts, or user data are needed.
+func (r *Reader) ReadRevision(ctx context.Context) (uint64, error) {
+	r.revisionMu.Lock()
+	defer r.revisionMu.Unlock()
+	conn, err := r.db.Conn(ctx)
+	if err != nil {
+		return 0, ErrDatabase
+	}
+	defer conn.Close()
+	var identity any
+	if err := conn.Raw(func(driver any) error { identity = driver; return nil }); err != nil {
+		return 0, ErrDatabase
+	}
+	var version uint64
+	if conn.QueryRowContext(ctx, "PRAGMA data_version").Scan(&version) != nil {
+		return 0, ErrDatabase
+	}
+	if identity != r.revisionConnection || version != r.dataVersion {
+		r.revision++
+		r.revisionConnection, r.dataVersion = identity, version
+	}
+	return r.revision, nil
+}
 
 const jobColumns = `id, title, created_at, overall_status, diarization_status, duration_minutes,
 lang, enable_speaker, runner_protocol_version, asr_backend, warnings_json, summary_template,

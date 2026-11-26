@@ -33,6 +33,7 @@ async function check() {
   await run(process.execPath, ["--test", path.join(root, "scripts/test-native-fixtures.mjs")], { cwd: root });
   await run(process.execPath, ["--test", path.join(root, "scripts/test-native-launch.mjs")], { cwd: root });
   await run(process.execPath, ["--test", path.join(root, "scripts/test-native-package.mjs")], { cwd: root });
+  await run(process.execPath, ["--test", path.join(root, "scripts/test-native-bloub.mjs")], { cwd: root });
   await run(process.execPath, ["--test", path.join(root, "scripts/test-native-runtime-inputs.mjs")], { cwd: root });
   await run(process.execPath, ["--experimental-vm-modules", "--test", path.join(root, "scripts/test-native-runtime-security.mjs")], { cwd: root });
   await run(process.execPath, ["--test", path.join(root, "packages/desktop-resources/pet/validate.test.mjs")], { cwd: root });

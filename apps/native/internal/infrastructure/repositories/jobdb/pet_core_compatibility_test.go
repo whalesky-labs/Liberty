@@ -262,7 +262,7 @@ func TestWriteRustPetCoreActionsAndReopen(t *testing.T) {
 			if err := os.WriteFile(path, baseline, 0600); err != nil {
 				t.Fatal(err)
 			}
-			store, err := Open(ctx, path)
+			store, err := openCompatibility(ctx, path)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -277,7 +277,7 @@ func TestWriteRustPetCoreActionsAndReopen(t *testing.T) {
 					t.Fatal(err)
 				}
 				store = nil
-				store, err = Open(ctx, path)
+				store, err = openCompatibility(ctx, path)
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -4,7 +4,7 @@ package presentation
 
 import (
 	"embed"
-	"sync"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -12,20 +12,12 @@ import (
 //go:embed work-art/*
 var workArtFiles embed.FS
 
-var workArtCache sync.Map
+var workArtCache = newBitmapCache(24 * 1024 * 1024)
 
 func WorkArt(name string) ui.ImageSource {
-	if cached, ok := workArtCache.Load(name); ok {
-		return cached.(ui.ImageSource)
+	maxEdge := 1600
+	if strings.Contains(name, "worker") || strings.HasPrefix(name, "dog-walk") {
+		maxEdge = 320
 	}
-	data, err := workArtFiles.ReadFile("work-art/" + name)
-	if err != nil {
-		panic(err)
-	}
-	image, err := ui.DecodeImage(data)
-	if err != nil {
-		panic(err)
-	}
-	value, _ := workArtCache.LoadOrStore(name, image)
-	return value.(ui.ImageSource)
+	return workArtCache.load(workArtFiles, "work-art/"+name, maxEdge)
 }

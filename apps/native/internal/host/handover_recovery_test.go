@@ -128,8 +128,8 @@ func newRecoveryFixture(test *testing.T) (*recoveryFixture, *Profile) {
 	ctx := context.Background()
 	fixture := &recoveryFixture{database: filepath.Join(test.TempDir(), "synthetic #资料.sqlite3"), vault: &recoveryVault{values: map[string]domain.Secret{}}, now: time.Date(2026, 11, 19, 3, 0, 0, 0, time.UTC)}
 	profileHost, prepared := fixture.open(test, "create")
-	if prepared.Version != 10 {
-		test.Fatal("synthetic profile is not v10", prepared.Version)
+	if prepared.Version != 12 {
+		test.Fatal("synthetic profile is not v12", prepared.Version)
 	}
 	recoveryRequire(test, profileHost.Start(ctx))
 	var err error
@@ -405,8 +405,8 @@ func TestHandoverRecoveryRestoresBusinessSnapshotAndRetainsWALChanges(t *testing
 		}
 	}
 	handover, result := fixture.open(t, "handover")
-	if result.FromVersion != 10 || result.Version != 10 || result.Backup == "" {
-		t.Fatal("first takeover did not record a v10 recovery point", result)
+	if result.FromVersion != 12 || result.Version != 12 || result.Backup == "" {
+		t.Fatal("first takeover did not record a v12 recovery point", result)
 	}
 	recoveryEqualSnapshot(t, before, recoverySnapshot(t, result.Backup))
 	originalBackup, err := os.ReadFile(result.Backup)
@@ -521,7 +521,7 @@ func TestHandoverRecoveryRestoresBusinessSnapshotAndRetainsWALChanges(t *testing
 	}
 	restored, err := fixture.restore(t, result.Backup)
 	recoveryRequire(t, err)
-	if restored.RestoredVersion != 10 || restored.SafetyBackup == "" || restored.SafetyBackup == result.Backup {
+	if restored.RestoredVersion != 12 || restored.SafetyBackup == "" || restored.SafetyBackup == result.Backup {
 		t.Fatal("restore did not retain a separate pre-restore safety backup", restored)
 	}
 	recoveryEqualSnapshot(t, before, recoverySnapshot(t, fixture.database))
@@ -573,7 +573,7 @@ func TestHandoverRecoveryRestoresBusinessSnapshotAndRetainsWALChanges(t *testing
 	if !matchedTemplate || petStore.Wallet != originalStore.Wallet {
 		t.Fatal("reopened template or wallet did not match the recovery point")
 	}
-	t.Logf("v10 takeover, interrupted-summary recovery, shutdown ownership, WAL-only write and exact %d-table rollback/safety-backup comparison verified", len(before))
+	t.Logf("v12 takeover, interrupted-summary recovery, shutdown ownership, WAL-only write and exact %d-table rollback/safety-backup comparison verified", len(before))
 }
 
 func recoverySignal(test *testing.T, signal <-chan struct{}) {
@@ -707,7 +707,7 @@ func TestHandoverRecoveryPreservesRotatedSnapshotCredentialsAndRestoresBusinessD
 			after := recoverySnapshot(test, fixture.database)
 			restored, err := fixture.restore(test, result.Backup)
 			recoveryRequire(test, err)
-			if restored.RestoredVersion != 10 || restored.SafetyBackup == "" {
+			if restored.RestoredVersion != 12 || restored.SafetyBackup == "" {
 				test.Fatal("normal credential rotation made its recovery point unusable", restored)
 			}
 			current := recoverySnapshot(test, fixture.database)
@@ -767,7 +767,7 @@ func TestHandoverRecoveryRetiresPostSnapshotCredentialsAfterRestoreAndLastSafety
 					if len(pending) != 1 || pending[0].Reference != rotation.current || pending[0].Operation != "retire" {
 						test.Fatal("reopen discarded the post-snapshot retirement intent")
 					}
-					additional := fixture.database + ".pre-restore-v10-synthetic-second-safety.bak"
+					additional := fixture.database + ".pre-restore-v12-synthetic-second-safety.bak"
 					data, err := os.ReadFile(restored.SafetyBackup)
 					recoveryRequire(test, err)
 					recoveryRequire(test, os.WriteFile(additional, data, 0600))
@@ -856,7 +856,7 @@ func TestHandoverRecoveryReclaimsRetiredCredentialsOnlyAfterLastSnapshotRemoval(
 			initial.Close()
 			handover, result := fixture.open(test, "handover")
 			recoveryRequire(test, handover.Start(ctx))
-			additionalBackup := fixture.database + ".pre-restore-v10-synthetic-retention.bak"
+			additionalBackup := fixture.database + ".pre-restore-v12-synthetic-retention.bak"
 			backupBytes, err := os.ReadFile(result.Backup)
 			recoveryRequire(test, err)
 			recoveryRequire(test, os.WriteFile(additionalBackup, backupBytes, 0600))
@@ -950,8 +950,8 @@ func TestHandoverRecoveryImportsOldSchemaJournalBeforeResources(t *testing.T) {
 	store, result, err := jobdb.OpenPrepared(ctx, fixture.database, fixture.vault, false)
 	recoveryRequire(t, err)
 	defer store.Close()
-	if result.FromVersion != 0 || result.Version != 10 {
-		t.Fatal("legacy preparation did not reach v10 before intent import")
+	if result.FromVersion != 0 || result.Version != 12 {
+		t.Fatal("legacy preparation did not reach v12 before intent import")
 	}
 	pending, err := store.PendingCredentials(ctx)
 	recoveryRequire(t, err)

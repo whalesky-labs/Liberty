@@ -16,6 +16,37 @@ type blockingExecutor struct {
 	active, max int
 }
 
+func TestLiveReservationDefersQueuedFilesAndRefusesToInterruptActiveJob(t *testing.T) {
+	e := &blockingExecutor{started: make(chan string, 2), release: make(chan struct{})}
+	s := NewScheduler(e, 2)
+	defer s.Shutdown(context.Background())
+	release, err := s.ReserveLive()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.ReserveLive(); !errors.Is(err, domain.ErrLiveBusy) {
+		t.Fatal("second live reservation admitted", err)
+	}
+	if err = s.Enqueue("job-1700000000000-1"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-e.started:
+		t.Fatal("batch job competed with live ASR")
+	case <-time.After(20 * time.Millisecond):
+	}
+	release()
+	release()
+	select {
+	case <-e.started:
+	case <-time.After(time.Second):
+		t.Fatal("queued work did not resume")
+	}
+	if _, err = s.ReserveLive(); !errors.Is(err, domain.ErrLiveBusy) {
+		t.Fatal("live session interrupted active file", err)
+	}
+}
+
 func (e *blockingExecutor) Execute(ctx context.Context, id string) error {
 	e.mu.Lock()
 	e.active++

@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { assertNativeWorkflow, parseNativeWorkflow, readNativeArchive, verifyNativeArtifacts } from './check-native-release-policy.mjs';
+import { assertNativeCandidatePayload, assertNativeWorkflow, parseNativeWorkflow, readNativeArchive, verifyNativeArtifacts } from './check-native-release-policy.mjs';
 import { candidateName, candidatePlist, fileDigest, nativeTargets } from './lib/native-package.mjs';
 
 const workflow = await readFile(new URL('../.github/workflows/build-native.yml', import.meta.url), 'utf8');
@@ -97,6 +97,7 @@ async function fixture(context, target = 'windows-x64') {
   }
   const files = new Map([[binary, program], ['README.txt', Buffer.from('Unsigned, unnotarized isolated candidate. Not an installer.\n')],
     [`${resources}LICENSE`, Buffer.from('Synthetic license\n')], [`${resources}THIRD_PARTY_NOTICES.txt`, Buffer.from('Synthetic notices\n')],
+    [`${resources}LOCAL_TRANSLATION_NOTICES.txt`, Buffer.from('Synthetic local translation notices\n')],
     [`${resources}${mac ? 'icon.icns' : 'icon.ico'}`, Buffer.from('Synthetic icon\n')],
     ...(mac ? [[`${candidateName}.app/Contents/Info.plist`, Buffer.from(candidatePlist(version))]] : [])]);
   const manifest = { format: 1, channel: 'candidate', identity: 'com.westng.liberty.native-candidate', version, target,
@@ -133,6 +134,20 @@ for (const target of Object.keys(nativeTargets)) {
       assert.ok(checksums.includes(`${fileDigest(await readFile(path.join(output, name)))}  ${name}\n`));
     }
     await assert.rejects(verifyNativeArtifacts(f.options), /output must be empty/);
+  });
+
+  test(`permits the old notice inventory only for explicit rollback inputs: ${target}`, async context => {
+    const f = await fixture(context, target);
+    const resources = target.startsWith('darwin-') ? `${candidateName}.app/Contents/Resources/` : '';
+    f.files.delete(`${resources}LOCAL_TRANSLATION_NOTICES.txt`);
+    await f.refresh();
+    const files = new Map(f.files);
+    files.set('candidate-manifest.json', await readFile(path.join(f.payload, 'candidate-manifest.json')));
+    const options = { files, target, version };
+    assert.throws(() => assertNativeCandidatePayload(options), /Candidate file set differs/);
+    assertNativeCandidatePayload({ ...options, allowLegacyNotices: true });
+    files.set('unexpected.txt', Buffer.from('extra'));
+    assert.throws(() => assertNativeCandidatePayload({ ...options, allowLegacyNotices: true }), /Candidate file set differs/);
   });
 }
 
@@ -224,6 +239,8 @@ for (const [name, mutate] of [
   ['wrong version', async f => { f.manifest.version = '9.8.6'; await f.refresh(); }],
   ['unknown package metadata', async f => { f.manifest.installer = true; await f.refresh(); }],
   ['extra executable with matching digest', async f => { f.files.set('installer.exe', Buffer.from('unreviewed')); await f.refresh(); }],
+  ['missing local translation notices', async f => { f.files.delete('LOCAL_TRANSLATION_NOTICES.txt'); await rm(path.join(f.payload, 'LOCAL_TRANSLATION_NOTICES.txt')); await f.refresh(); }],
+  ['modified local translation notices and stale manifest', async f => { await writeFile(path.join(f.payload, 'LOCAL_TRANSLATION_NOTICES.txt'), 'tampered'); }],
   ['modified binary and stale manifest', async f => { await writeFile(path.join(f.payload, f.binary), Buffer.from('tampered')); }],
   ['wrong binary architecture with matching digest', async f => { f.files.get(f.binary).writeUInt16LE(0xaa64, 68); await f.refresh(); }],
   ['missing archive', async f => { await rm(path.join(f.parent, `${f.name}.tar.gz`)); }],

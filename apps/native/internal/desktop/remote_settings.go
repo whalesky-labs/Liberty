@@ -36,26 +36,23 @@ func (v *SettingsView) remoteSettings(c *ui.Context) {
 		}
 	})
 	v.row(c, "apiToken", "apiTokenHint", func() {
-		ui.Column(c).FillWidth().Gap(7).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 			status := v.msg("apiTokenNotConfigured")
 			placeholder := v.msg("apiTokenPlaceholder")
 			if v.Client.Draft.TokenConfigured {
 				status = v.msg("apiTokenConfigured")
 				placeholder = status
 			}
-			ui.Text(c, status).AlignSelf(ui.End).FontSize(11).TextColor(c.Theme().TextMuted)
-			ui.Row(c).FillWidth().Gap(8).Children(func() {
-				field := ui.TextInput(c, &v.Client.Password).Password().Grow(1).MinWidth(80).MinHeight(40).Label(v.msg("apiToken")).Placeholder(placeholder)
-				if field.Changed() {
-					v.Remote.Reset()
-				}
-				if field.FocusLeft() {
-					v.Client.Save()
-				}
-				if v.Client.Draft.TokenConfigured && textButton(c, v.msg("apiTokenClear")).Disabled(v.Client.Confirming).TextColor(c.Theme().Danger).Clicked() && v.ConfirmTokenClear != nil {
-					v.ConfirmTokenClear()
-				}
-			})
+			field := ui.TextInput(c, &v.Client.Password).Password().Grow(1).MinWidth(80).MinHeight(40).Label(v.msg("apiToken")).Description(status).Tooltip(status).Placeholder(placeholder)
+			if field.Changed() {
+				v.Remote.Reset()
+			}
+			if field.FocusLeft() {
+				v.Client.Save()
+			}
+			if v.Client.Draft.TokenConfigured && textButton(c, v.msg("apiTokenClear")).Disabled(v.Client.Confirming).TextColor(c.Theme().Danger).Clicked() && v.ConfirmTokenClear != nil {
+				v.ConfirmTokenClear()
+			}
 		})
 	})
 	hint := v.msg("backendUrlHint")
@@ -67,9 +64,11 @@ func (v *SettingsView) remoteSettings(c *ui.Context) {
 		hint = localized(v.Locale, "远端服务不可用，请检查地址、Token 和服务能力。", "Remote service unavailable. Check the address, token and capabilities.")
 	}
 	settingsRow(c, v.msg("remoteStatus"), hint, func() {
-		ui.Text(c.Key("remote-status"), v.msg(key)).FontSize(12).Role(ui.RoleStatus)
-		if textButton(c, v.msg("remoteCheck")).Disabled(v.Remote.Checking || strings.TrimSpace(v.Client.Draft.BackendURL) == "").Clicked() {
-			v.Client.SaveThen(v.Remote.Check)
-		}
+		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+			ui.Text(c.Key("remote-status"), v.msg(key)).FontSize(12).Role(ui.RoleStatus)
+			if textButton(c, v.msg("remoteCheck")).Disabled(v.Remote.Checking || strings.TrimSpace(v.Client.Draft.BackendURL) == "").Clicked() {
+				v.Client.SaveThen(v.Remote.Check)
+			}
+		})
 	})
 }

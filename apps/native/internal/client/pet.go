@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"reflect"
 	"time"
 
 	"liberty.local/liberty/internal/domain"
@@ -62,6 +63,7 @@ type PetController struct {
 	closed, querying, polling  bool
 	revision                   uint64
 	darkDate, recordedDarkDate string
+	visible                    bool
 }
 
 type petSnapshot struct {
@@ -76,7 +78,61 @@ type petSnapshot struct {
 
 func NewPet(service PetService, dispatch func(func()), changed func()) *PetController {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &PetController{service: service, dispatch: dispatch, changed: changed, ctx: ctx, cancel: cancel}
+	return &PetController{service: service, dispatch: dispatch, changed: changed, ctx: ctx, cancel: cancel, visible: true}
+}
+
+func (c *PetController) SetVisible(visible bool) {
+	if c == nil || c.closed || c.visible == visible {
+		return
+	}
+	c.visible = visible
+	if visible && c.service != nil {
+		c.Refresh()
+	}
+}
+
+// Hidden shop pages do not need ledgers, inventory, check-in and prize pools.
+// Keep desktop companions synchronized using the two small read projections.
+func (c *PetController) poll() {
+	if c.visible || c.Store == nil || c.darkDate != c.recordedDarkDate {
+		c.Refresh()
+		return
+	}
+	if c.closed || c.querying || c.Busy {
+		return
+	}
+	ctx, cancel := context.WithCancel(c.ctx)
+	c.queryCancel = cancel
+	c.revision++
+	revision := c.revision
+	c.querying = true
+	go func() {
+		defer cancel()
+		profile, err := c.service.Profile(ctx)
+		var settings domain.PetSettings
+		if err == nil {
+			settings, err = c.service.Settings(ctx)
+		}
+		c.dispatch(func() {
+			if c.closed || revision != c.revision {
+				return
+			}
+			c.querying = false
+			if err != nil {
+				if c.visible {
+					c.Refresh()
+				}
+				return
+			} // Full page reads retain their own error/retry state.
+			if !reflect.DeepEqual(c.Profile, &profile) || !reflect.DeepEqual(c.Settings, &settings) {
+				c.Profile, c.Settings = &profile, &settings
+				c.changed()
+			}
+			if c.visible {
+				c.Refresh()
+			}
+		})
+	}()
 }
 
 // Start loads every page's data and starts one cancellable refresh loop.
@@ -96,7 +152,7 @@ func (c *PetController) Start() {
 			case <-ticker.C:
 				c.dispatch(func() {
 					if !c.closed {
-						c.Refresh()
+						c.poll()
 					}
 				})
 			}

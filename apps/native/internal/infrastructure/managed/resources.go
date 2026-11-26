@@ -2,11 +2,27 @@ package managed
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 )
+
+// LiveScript revalidates the embedded runner immediately before starting a new
+// session worker. An earlier installation check does not authorize later edits.
+func (i *Installer) LiveScript(ctx context.Context, name string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if name != "live_runner.py" && name != "translation_runner.py" {
+		return "", ErrResources
+	}
+	if err := verifyResourceSnapshot(i.Resources, resourceContents(i.inputs)); err != nil {
+		return "", err
+	}
+	return filepath.Join(i.Resources, name), nil
+}
 
 // MaterializeResources publishes verified copies under a content-addressed
 // directory. It never reads or overwrites scripts in a user-selected location.

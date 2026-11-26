@@ -7,7 +7,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtime = 'packages/desktop-resources/runtime';
 const inputs = new Map([
  ['runtime-manifest.json', `${runtime}/runtime-manifest.json`],
- ...['runner.py', 'runtime_validate.py', 'runtime_warmup.py', 'requirements-lock-darwin-aarch64.txt', 'requirements-lock-darwin-x64.txt', 'requirements-lock-windows-x64.txt'].map(name => [name, `python/funasr-runner/${name}`]),
+ ['live-translation-NOTICES.txt', `${runtime}/live-translation-NOTICES.txt`],
+ ...['runner.py', 'live_runner.py', 'translation_runner.py', 'runtime_validate.py', 'runtime_warmup.py', 'requirements-lock-darwin-aarch64.txt', 'requirements-lock-darwin-x64.txt', 'requirements-lock-windows-x64.txt'].map(name => [name, `python/funasr-runner/${name}`]),
  ['build_vendor_wheel.py', 'python/funasr-runner/tools/build_vendor_wheel.py'],
  ['funasr-1.3.9.json', 'python/funasr-runner/vendor/funasr-1.3.9.json'],
 ]);

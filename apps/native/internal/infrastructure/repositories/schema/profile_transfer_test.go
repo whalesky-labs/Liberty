@@ -43,7 +43,7 @@ VALUES('synthetic-model','Synthetic model','https://example.invalid','synthetic-
 	if scalar(t, db, "SELECT api_key FROM ai_model_configs") != "" || scalar(t, db, "SELECT api_key_ref FROM ai_model_configs") != live[0] || vault.values[live[0]].Reveal() != "synthetic-private-value" {
 		t.Fatal("migrated secret was not rebound")
 	}
-	if scalar(t, db, "SELECT value FROM app_meta WHERE key='schema_version'") != "10" {
+	if scalar(t, db, "SELECT value FROM app_meta WHERE key='schema_version'") != "12" {
 		t.Fatal("normal versioned executor did not upgrade snapshot")
 	}
 	if err := VerifyTransferredProfile(context.Background(), path, vault); err != nil {

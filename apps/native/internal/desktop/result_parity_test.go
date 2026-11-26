@@ -140,13 +140,19 @@ func TestTranscriptProjectionCacheTracksResultAndDisplaySourceChanges(t *testing
 	view := resultParityView("en-US", 2)
 	result := view.Client.Result
 
-	options, visible := view.transcriptData(result, result.DisplaySegments())
+	options, visible := view.transcriptData(result.DisplaySegments())
 	if len(options) != 2 || len(visible) != 2 {
 		t.Fatal("initial transcript projection is incomplete", options, len(visible))
 	}
 	optionsData := &options[0]
+	metadata := *result
+	metadata.Job.Title = "Updated title"
+	metadataOptions, _ := view.transcriptData(metadata.DisplaySegments())
+	if &metadataOptions[0] != optionsData {
+		t.Fatal("metadata-only change rebuilt transcript index")
+	}
 	view.query = "TRANSCRIPT 0001"
-	filteredOptions, filtered := view.transcriptData(result, result.DisplaySegments())
+	filteredOptions, filtered := view.transcriptData(result.DisplaySegments())
 	if &filteredOptions[0] != optionsData || len(filtered) != 1 || filtered[0].ID != "segment-0001" {
 		t.Fatal("query changes rebuilt source projection or returned stale rows", filteredOptions, filtered)
 	}
@@ -154,7 +160,7 @@ func TestTranscriptProjectionCacheTracksResultAndDisplaySourceChanges(t *testing
 	view.query = ""
 	result.Speakers = append([]domain.Segment(nil), result.Speakers...)
 	result.Speakers[0].Text = "Replacement transcript"
-	options, visible = view.transcriptData(result, result.DisplaySegments())
+	options, visible = view.transcriptData(result.DisplaySegments())
 	if len(visible) != 2 || !strings.Contains(visible[0].Text, "Replacement") {
 		t.Fatal("same-result source replacement retained stale transcript rows", visible)
 	}
@@ -163,19 +169,19 @@ func TestTranscriptProjectionCacheTracksResultAndDisplaySourceChanges(t *testing
 	replacement.Job.ID = result.Job.ID
 	replacement.Speakers = append([]domain.Segment(nil), result.Speakers...)
 	replacement.Speakers[0].Text = "Same-ID refreshed transcript"
-	options, visible = view.transcriptData(&replacement, replacement.DisplaySegments())
+	options, visible = view.transcriptData(replacement.DisplaySegments())
 	if len(options) != 2 || len(visible) != 2 || visible[0].Text != "Same-ID refreshed transcript" {
 		t.Fatal("same-ID result refresh retained stale transcript rows", visible)
 	}
 
 	speaker := "Legacy speaker"
 	legacy := &domain.Result{Job: domain.JobSummary{ID: "legacy", DiarizationStatus: "legacy_unverified"}, Transcript: []domain.Segment{{ID: "legacy-segment", Text: "Legacy transcript", StartMS: 0, EndMS: 1000}}, Speakers: []domain.Segment{{ID: "legacy-speaker", Speaker: &speaker, Text: "Legacy transcript", StartMS: 0, EndMS: 1000}}}
-	legacyOptions, _ := view.transcriptData(legacy, legacy.DisplaySegments())
+	legacyOptions, _ := view.transcriptData(legacy.DisplaySegments())
 	if len(legacyOptions) != 1 || legacyOptions[0].label != "Legacy speaker" {
 		t.Fatal("legacy speaker projection was not displayed", legacyOptions)
 	}
 	legacy.Speakers[0].EndMS++
-	legacyOptions, legacyVisible := view.transcriptData(legacy, legacy.DisplaySegments())
+	legacyOptions, legacyVisible := view.transcriptData(legacy.DisplaySegments())
 	if len(legacyOptions) != 1 || legacyOptions[0].label != presentation.Message("en-US", "common.unknownSpeaker") || len(legacyVisible) != 1 || legacyVisible[0].ID != "legacy-segment" {
 		t.Fatal("legacy projection fallback retained stale speaker filters", legacyOptions, legacyVisible)
 	}

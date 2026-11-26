@@ -28,15 +28,16 @@ type Workspace struct {
 	resultView          *ResultView
 	summaryWindow       *mygo.Window
 	summaryView         *SummaryView
+	summaryTitle        string
 	summaryService      *application.SummaryService
 	notesView           *NotesView
+	notesTitle          string
 	notes               *mygo.Window
 	resultEditing       bool
 	wordExportEnabled   bool
 	preferences         domain.UIPreferences
 	main                *mygo.Window
-	metrics             *domain.ProcessMetrics
-	graphicsMB          int
+	metrics             *client.MetricsController
 	result              *mygo.Window
 	controller          *client.Controller
 	view                *Meetings
@@ -74,6 +75,7 @@ type Workspace struct {
 	closing                   closeCoordinator
 	settingsClosing           settingsCloseGate
 	runtime                   *RuntimeView
+	live                      *LiveView
 	newJob                    *NewJobView
 	resources                 *ResourcesView
 	resourceService           *application.Resources
@@ -88,6 +90,7 @@ type Workspace struct {
 	itemView                  *StoreItemView
 	companions                *companionWindows
 	stopThemeObserver         func()
+	stopAppearanceObserver    func()
 	editors                   map[application.ResourceKind]*mygo.Window
 	openingEditor             map[application.ResourceKind]bool
 	editorIDs                 map[application.ResourceKind]string
@@ -101,6 +104,7 @@ func (w *Workspace) AttachRuntime(service client.Runtime) {
 		}
 	})
 	w.runtime = &RuntimeView{Client: controller, Locale: w.preferences.Locale, Back: w.returnToApp}
+	controller.SetVisible(w.tab == "/settings" || w.tab == "/jobs/new")
 	controller.Start()
 }
 
@@ -114,6 +118,7 @@ func (w *Workspace) AttachPet(service *application.Pet, record ...func(diagnosti
 		}
 	})
 	w.pet = &PetView{Client: controller, Locale: w.preferences.Locale, Route: "/pet", Navigate: w.navigate, DesktopAvailable: true}
+	controller.SetVisible(PetRouteAvailable(w.tab))
 	w.companions = newCompanions(w.pet, service.SavePosition, record...)
 	w.pet.OpenItem = w.openStoreItem
 	w.pet.VisibleCompanions = w.companions.visibleCount
@@ -281,7 +286,7 @@ func (w *Workspace) AttachMode(service interface {
 	w.modeDispatch = mygo.RunOnMain
 	w.refreshProcessingMode()
 	go func() {
-		ticker := time.NewTicker(time.Second)
+		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
@@ -305,7 +310,7 @@ func (w *Workspace) refreshProcessingMode() {
 	ctx, service := w.modeContext, w.modeService
 	epoch, revision := w.modeEpoch, w.modeRevision
 	w.processingModeBusy = true
-	if w.main != nil {
+	if w.main != nil && w.processingModeError {
 		w.main.Invalidate()
 	}
 	go func() {
@@ -328,10 +333,11 @@ func (w *Workspace) completeProcessingModeRefresh(ctx context.Context, epoch, re
 		return
 	}
 	w.processingModeBusy = false
+	previousError, previousMode := w.processingModeError, w.view.Source
 	if w.modeRevision == revision {
 		w.applyProcessingModeResult(mode, err)
 	}
-	if w.main != nil {
+	if w.main != nil && (previousError || w.processingModeError || previousMode != w.view.Source) {
 		w.main.Invalidate()
 	}
 }
@@ -442,8 +448,11 @@ func (w *Workspace) onJobsChanged() {
 	}
 }
 
-func workspaceWindowOptionsForPlatform(platform string, content func(*ui.Context)) mygo.WindowOptions {
+func workspaceWindowOptionsForPlatform(platform string, preferences domain.UIPreferences, content func(*ui.Context), systemDark ...bool) mygo.WindowOptions {
 	options := mainWindowOptionsForPlatform(platform, content)
+	if options.Vibrancy != mygo.VibrancyNone {
+		options.Vibrancy, options.VibrancyTint = windowGlass(preferences, len(systemDark) > 0 && systemDark[0])
+	}
 	if platform == "windows" {
 		options.TitleBarStyle = mygo.TitleBarDefault
 		options.TitleBarHeight = 0
@@ -476,13 +485,19 @@ func OpenWorkspace(service client.Meetings, dashboard *application.Dashboard, pr
 	}
 	w.dashboard.Navigate = w.navigate
 	w.dashboard.CanNavigate = w.canNavigate
-	w.main = mygo.NewWindow(workspaceWindowOptionsForPlatform(runtime.GOOS, w.View))
+	w.main = mygo.NewWindow(workspaceWindowOptionsForPlatform(runtime.GOOS, preferences, w.View, mygo.Theme.IsDark()))
+	w.stopAppearanceObserver = mygo.Theme.OnUpdated(func() {
+		if !w.closed {
+			applyWindowGlass(w.main, w.preferences)
+		}
+	})
 	w.installCloseGuards()
 	w.main.OnBlur(w.pauseAssemblyGame)
 	w.main.OnHide(w.pauseAssemblyGame)
 	w.main.OnMinimize(w.pauseAssemblyGame)
 	w.main.OnClosed(func() {
 		w.closed = true
+		w.stopAppearanceObserver()
 		w.stopJobCompletionFeedback()
 		w.assemblyGame = nil
 		w.controller.Close()
@@ -500,6 +515,9 @@ func OpenWorkspace(service client.Meetings, dashboard *application.Dashboard, pr
 		}
 		if w.runtime != nil {
 			w.runtime.Client.Close()
+		}
+		if w.live != nil {
+			w.live.Client.Close()
 		}
 		if w.workClient != nil {
 			w.workClient.Close()
@@ -545,6 +563,9 @@ func OpenWorkspace(service client.Meetings, dashboard *application.Dashboard, pr
 
 func (w *Workspace) canNavigate(path string) bool {
 	path = queueRedirect(path)
+	if path == "/live" {
+		return w.live != nil
+	}
 	if w.pet != nil && PetRouteAvailable(path) {
 		return true
 	}
@@ -614,6 +635,15 @@ func (w *Workspace) navigate(path string) {
 		}
 	}
 	w.tab = strings.Split(path, "?")[0]
+	if w.runtime != nil {
+		w.runtime.Client.SetVisible(w.tab == "/settings" || w.tab == "/jobs/new")
+	}
+	if w.live != nil {
+		w.live.Client.SetVisible(w.tab == "/live")
+	}
+	if w.pet != nil {
+		w.pet.Client.SetVisible(PetRouteAvailable(w.tab) || w.itemWindow != nil)
+	}
 	if w.tab == assemblyRoute && w.workGame != nil {
 		if w.assemblyGame == nil {
 			taskID := w.pendingAssemblyCareTaskID
@@ -688,6 +718,9 @@ func (w *Workspace) returnToApp() {
 }
 
 func (w *Workspace) shellStatus() (string, string) {
+	if w.live != nil && domain.LiveActive(w.live.Client.Snapshot.Session.State) {
+		return liveStatus(w.view.Locale, w.live.Client.Snapshot.Session.State), "info"
+	}
 	statusMessage, statusTone := w.completionMessage, "success"
 	if w.processingModeError {
 		locale := w.preferences.Locale
@@ -704,9 +737,12 @@ func (w *Workspace) openDetail(id string) {
 }
 func (w *Workspace) View(c *ui.Context) {
 	statusMessage, statusTone := w.shellStatus()
-	shell := Shell{Locale: w.view.Locale, Route: w.tab, Source: w.view.Source, Version: presentation.Version, Preferences: w.preferences, ActiveJobs: w.controller.Page.Counts.Processing, StatusMessage: statusMessage, StatusTone: statusTone, ModeReadFailed: w.processingModeError, ModeReadBusy: w.processingModeBusy, RetryMode: w.retryProcessingMode, Metrics: w.metrics, GraphicsMB: w.graphicsMB,
+	shell := Shell{Locale: w.view.Locale, Route: w.tab, Source: w.view.Source, Version: presentation.Version, Preferences: w.preferences, ActiveJobs: w.controller.Page.Counts.Processing, StatusMessage: statusMessage, StatusTone: statusTone, ModeReadFailed: w.processingModeError, ModeReadBusy: w.processingModeBusy, RetryMode: w.retryProcessingMode,
 		Navigate: w.navigate, Available: w.canNavigate, Content: func(c *ui.Context) {
 			switch {
+			case w.tab == "/live" && w.live != nil:
+				w.live.Locale = w.view.Locale
+				w.live.View(c)
 			case w.pet != nil && PetRouteAvailable(w.tab):
 				w.pet.View(c)
 			case w.tab == "/work-market" && w.workMarket != nil:
@@ -766,6 +802,9 @@ func (w *Workspace) View(c *ui.Context) {
 			}
 		}
 	}
+	if w.metrics != nil {
+		shell.Metrics = w.metrics.Value
+	}
 	shell.View(c)
 }
 
@@ -809,11 +848,13 @@ func (w *Workspace) openResultFromSource(id, locale, source string) {
 					window.Invalidate()
 				}
 			})
+			// The lookup is asynchronous; preferences may have changed since it began.
+			locale = w.preferences.Locale
 			view := NewResultView(controller, locale)
 			w.resultView = view
 			view.Preferences = w.preferences
 			window = mygo.NewWindow(mygo.WindowOptions{
-				Title: localized(locale, "Liberty · 结果工作台", "Liberty · Result workbench"), Width: 1280, Height: 900, MinWidth: 960, MinHeight: 720,
+				Title: resultWindowTitle(locale), Width: 1280, Height: 900, MinWidth: 960, MinHeight: 720,
 				Content: ui.View(view.View),
 			})
 			view.Close = window.Close

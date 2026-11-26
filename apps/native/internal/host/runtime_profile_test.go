@@ -8,7 +8,7 @@ import (
 )
 
 func TestUnverifiedRuntimeProfileCannotCreateDatabaseOrAcquireOwnership(t *testing.T) {
-	for _, runtimeProfile := range []string{"unknown", "security-candidate"} {
+	for _, runtimeProfile := range []string{"unknown", "security-candidate", "funasr-upgrade"} {
 		t.Run(runtimeProfile, func(t *testing.T) {
 			directory := t.TempDir()
 			client, _, err := OpenHandoverWithRuntimeProfile(context.Background(), filepath.Join(directory, "liberty.sqlite3"), true, runtimeProfile)

@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"reflect"
 	"time"
 
 	"liberty.local/liberty/internal/domain"
@@ -31,11 +32,23 @@ type RuntimeController struct {
 	revision                 uint64
 	loading, closed, polling bool
 	ReadError, actionError   error
+	visible                  bool
+	lastPoll                 time.Time
 }
 
 func NewRuntime(service Runtime, dispatch func(func()), changed func()) *RuntimeController {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &RuntimeController{service: service, dispatch: dispatch, changed: changed, ctx: ctx, cancel: cancel}
+	return &RuntimeController{service: service, dispatch: dispatch, changed: changed, ctx: ctx, cancel: cancel, visible: true}
+}
+
+func (c *RuntimeController) SetVisible(visible bool) {
+	if c == nil || c.closed || c.visible == visible {
+		return
+	}
+	c.visible = visible
+	if visible && c.service != nil {
+		c.poll()
+	}
 }
 func (c *RuntimeController) Start() {
 	if c.closed || c.polling {
@@ -51,7 +64,7 @@ func (c *RuntimeController) Start() {
 			case <-c.ctx.Done():
 				return
 			case <-ticker.C:
-				c.dispatch(c.poll)
+				c.dispatch(c.pollDue)
 			}
 		}
 	}()
@@ -64,11 +77,29 @@ func (c *RuntimeController) Refresh() {
 	c.Error = c.ReadError
 	c.query(nil, true)
 }
-func (c *RuntimeController) poll() {
+func (c *RuntimeController) pollDue() {
 	if c.closed || c.loading || c.Busy {
 		return
 	}
-	c.query(nil, false)
+	interval := 30 * time.Second
+	if c.visible {
+		interval = 5 * time.Second
+	}
+	if c.Panel != nil {
+		o := c.Panel.Overview
+		if o.Python.Operation.Active() || o.FFmpeg.Operation.Active() || o.Models.Operation.Active() {
+			interval = time.Second
+		}
+	}
+	if time.Since(c.lastPoll) < interval {
+		return
+	}
+	c.poll()
+}
+func (c *RuntimeController) poll() {
+	if !c.closed && !c.loading && !c.Busy {
+		c.query(nil, false)
+	}
 }
 func (c *RuntimeController) query(action func(context.Context) error, clearActionError bool) {
 	if c.queryCancel != nil {
@@ -79,12 +110,16 @@ func (c *RuntimeController) query(action func(context.Context) error, clearActio
 	c.revision++
 	revision := c.revision
 	c.loading = true
+	c.lastPoll = time.Now()
 	c.Busy = action != nil
 	if action != nil {
 		c.actionError = nil
 		c.Error = c.ReadError
 	}
-	c.changed()
+	foreground := action != nil || clearActionError || c.Panel == nil
+	if foreground {
+		c.changed()
+	}
 	go func() {
 		var actionErr error
 		if action != nil {
@@ -96,8 +131,11 @@ func (c *RuntimeController) query(action func(context.Context) error, clearActio
 				return
 			}
 			c.loading, c.Busy = false, false
+			previousPanel, previousError := c.Panel, c.Error
 			if err == nil {
-				c.Panel = &panel
+				if !reflect.DeepEqual(c.Panel, &panel) {
+					c.Panel = &panel
+				}
 				c.ReadError = nil
 				if clearActionError {
 					c.actionError = nil
@@ -115,7 +153,9 @@ func (c *RuntimeController) query(action func(context.Context) error, clearActio
 			if c.Error == nil {
 				c.Error = c.actionError
 			}
-			c.changed()
+			if foreground || previousPanel != c.Panel || !sameError(previousError, c.Error) {
+				c.changed()
+			}
 		})
 	}()
 }

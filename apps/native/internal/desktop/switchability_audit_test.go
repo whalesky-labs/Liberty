@@ -127,7 +127,7 @@ func TestSettingsSwitchabilityAuditBackButtonReturnsToApplication(t *testing.T) 
 			view.Back = workspace.returnToApp
 			dashboard.Navigate, dashboard.CanNavigate = workspace.navigate, workspace.canNavigate
 			tester := ui.NewTester(workspace.View, presentation.WindowWidth, presentation.WindowHeight)
-			backLabel := "‹ " + view.msg("backToApp")
+			backLabel := view.msg("backToApp")
 			back, ok := tester.AccessByRole(ui.RoleButton, backLabel)
 			if !ok || back.Disabled || back.Offscreen {
 				t.Fatalf("settings back control is not visibly actionable: %+v", back)
@@ -168,7 +168,8 @@ func TestSettingsSwitchabilityAuditModeChoiceIsVisibleAfterCommit(t *testing.T) 
 		t.Fatalf("settings did not commit the remote mode: %q", saved.ProcessingMode)
 	}
 	tester.Frame()
-	if !tester.HasText(view.msg("remoteStatusIdle")) || tester.HasText(view.msg("localDatabaseReady")) {
-		t.Fatal("committed remote mode did not replace the visible local runtime status")
+	selector, _ = tester.AccessByRole(ui.RolePopUpButton, view.msg("runtimeMode"))
+	if selector.Value != presentation.Message(view.Locale, "shell.remoteMode") || selector.Description != view.msg("remoteStatusIdle") {
+		t.Fatal("committed remote mode did not replace the selected mode and its status")
 	}
 }

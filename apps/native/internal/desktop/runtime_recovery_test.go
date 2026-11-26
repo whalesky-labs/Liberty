@@ -45,7 +45,11 @@ func TestRuntimeViewMatchesLegacyProgressAndSourceStatus(t *testing.T) {
 	if !ok || progressAccess.Now != 25 {
 		t.Fatal("active runtime validation was rendered as ready", progressAccess)
 	}
-	if !tester.HasText(view.msg("runtimeResourceSystemSelected")) || !tester.HasText(view.msg("runtimeDownloadSourceRequired")) {
-		t.Fatal("runtime source status did not match the legacy settings panel")
+	for _, key := range []string{"runtimeResourceSystemSelected", "runtimeDownloadSourceRequired"} {
+		_, progressOK := tester.AccessByRole(ui.RoleProgress, view.msg(key))
+		_, captionOK := tester.AccessByRole(ui.RoleText, view.msg(key))
+		if !progressOK || captionOK {
+			t.Fatal("runtime source status should label its progress without a separate caption", key)
+		}
 	}
 }

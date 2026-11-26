@@ -26,6 +26,8 @@ type PetView struct {
 	OpenExtra                      func()
 	Environment                    string
 	section, category              string
+	storeGrid                      ui.ListState
+	storeGridFilter                string
 	name                           string
 	settings                       domain.PetSettings
 	settingsStamp                  string

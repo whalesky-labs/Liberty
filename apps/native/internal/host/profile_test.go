@@ -16,7 +16,7 @@ func TestPreparedProfileStartsEmptyAndReleasesOwnershipAfterShutdown(t *testing.
 	database := filepath.Join(directory, "liberty.sqlite3")
 	ctx := context.Background()
 	p, result, err := OpenPrepared(ctx, database, true)
-	if err != nil || result.Version != 10 {
+	if err != nil || result.Version != 12 {
 		t.Fatal(result, err)
 	}
 	defer p.Close()
@@ -117,7 +117,7 @@ func TestRestoreRequiresOwnershipAndReturnsToRecordedSnapshot(t *testing.T) {
 	}
 	p.Close()
 	restored, err := RestoreProfile(ctx, database, filepath.Base(result.Backup))
-	if err != nil || restored.RestoredVersion != 10 || restored.SafetyBackup == "" {
+	if err != nil || restored.RestoredVersion != 12 || restored.SafetyBackup == "" {
 		t.Fatal("profile restore failed", restored, err, database, result.Backup)
 	}
 	reopened, err := Open(ctx, database)

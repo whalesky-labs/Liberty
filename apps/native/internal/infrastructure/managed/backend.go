@@ -149,7 +149,7 @@ func (i *Installer) managedArtifactAllowed(component string, artifact domain.Run
 
 func candidateRuntimePath(filename string) bool {
 	normalized := "/" + strings.ToLower(filepath.ToSlash(filepath.Clean(filename))) + "/"
-	return strings.Contains(normalized, "/runtime/profiles/"+SecurityCandidateProfile+"/")
+	return strings.Contains(normalized, "/runtime/profiles/"+SecurityCandidateProfile+"/") || strings.Contains(normalized, "/runtime/profiles/"+FunASRUpgradeProfile+"/")
 }
 func artifactExists(candidate, component string) bool {
 	if !filepath.IsAbs(candidate) {

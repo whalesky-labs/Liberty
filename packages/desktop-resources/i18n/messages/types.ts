@@ -16,6 +16,7 @@ export type MessageTree = {
     dashboard: string;
     newJob: string;
     jobs: string;
+    live: string;
     workMarket: string;
     models: string;
     templates: string;
@@ -79,6 +80,10 @@ export type MessageTree = {
     cpu: string;
     memory: string;
     graphics: string;
+    cpuUsageHint: string;
+    memoryUsageHint: string;
+    memoryFootprintHint: string;
+    memoryWorkingSetHint: string;
     statusReady: string;
     modeReadFailed: string;
     statusWorking: string;
