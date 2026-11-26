@@ -50,7 +50,7 @@ func TestIsolatedSystemCredentialsSurviveRotationRestoreAndReclamation(test *tes
 		}
 	})
 	database := filepath.Join(test.TempDir(), "synthetic #资料.sqlite3")
-	store, _, err := jobdb.OpenPrepared(ctx, database, vault, true)
+	store, prepared, err := jobdb.OpenPrepared(ctx, database, vault, true)
 	if err != nil {
 		test.Fatal("isolated database preparation failed", err)
 	}
@@ -119,8 +119,8 @@ func TestIsolatedSystemCredentialsSurviveRotationRestoreAndReclamation(test *tes
 	canonicalDatabase := filepath.Join(owner.Directory(), filepath.Base(database))
 	restored, restoreErr := schema.RestoreLocked(ctx, canonicalDatabase, filepath.Base(takeover.Backup), vault)
 	closeErr := owner.Close()
-	if restoreErr != nil || closeErr != nil || restored.RestoredVersion != 10 || restored.SafetyBackup == "" {
-		test.Fatal("isolated system-credential restore failed", restoreErr, closeErr)
+	if restoreErr != nil || closeErr != nil || restored.RestoredVersion != prepared.Version || restored.SafetyBackup == "" {
+		test.Fatalf("isolated system-credential restore failed: restored version %d, expected %d, restore error %v, close error %v", restored.RestoredVersion, prepared.Version, restoreErr, closeErr)
 	}
 	reopened, err := jobdb.Open(ctx, database)
 	if err != nil {

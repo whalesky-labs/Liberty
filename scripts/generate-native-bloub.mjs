@@ -8,6 +8,9 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const output = path.join(root, "apps/native/internal/desktop/presentation/bloub_frames_generated.json.gz");
 const sample = sampleBloub(await loadBloub(root));
 const bytes = gzipSync(Buffer.from(JSON.stringify(sample)), { level: 9 });
+// RFC 1952's OS byte describes the compressor host, not the frame payload.
+// Use "unknown" so macOS, Linux and Windows produce the same checked-in bytes.
+bytes[9] = 255;
 if (process.argv.includes("--check")) {
   if (!(await readFile(output)).equals(bytes)) throw new Error("Bloub animation drift; run node scripts/generate-native-bloub.mjs");
 } else await writeFile(output, bytes);
