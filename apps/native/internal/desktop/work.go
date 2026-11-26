@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -629,15 +630,14 @@ func workError(c *ui.Context, locale string, controller *client.WorkController, 
 	}
 }
 func workActionError(locale string, err error) string {
-	for _, crop := range domain.FarmCropCatalog() {
-		if err.Error() == fmt.Sprintf("缺少%s，请先去宠物商店购买。", crop.NameZh+"种子") {
-			return fmt.Sprintf(workText(locale, "Not enough %s seeds. Buy seeds in the Pet Store.", "缺少%s种子，请先去宠物商店购买。"), workText(locale, crop.NameEn, crop.NameZh))
-		}
+	var missing *domain.MissingSeed
+	if errors.As(err, &missing) {
+		return fmt.Sprintf(workText(locale, "Not enough %s seeds. Buy seeds in the Pet Store.", "缺少%s种子，请先去宠物商店购买。"), workText(locale, missing.Crop.NameEn, missing.Crop.NameZh))
 	}
-	switch err.Error() {
-	case "这块地还不能播种。", "这块地暂时不需要浇水。", "作物还没有成熟。":
+	switch {
+	case errors.Is(err, domain.ErrPlotOccupied), errors.Is(err, domain.ErrPlotNotThirsty), errors.Is(err, domain.ErrCropNotMature):
 		return workText(locale, "The plot has changed. Refresh the map before trying again.", "地块状态已变化，请刷新地图后重试。")
-	case "这个岗位还没有空闲。", "这个岗位暂时不需要照看。", "这个岗位还不能领奖。":
+	case errors.Is(err, domain.ErrWorkNotIdle), errors.Is(err, domain.ErrWorkNotNeedsCare), errors.Is(err, domain.ErrWorkNotClaimable):
 		return workText(locale, "The job has changed. Refresh the map before trying again.", "岗位状态已变化，请刷新地图后重试。")
 	}
 	return workText(locale, "The action could not be completed. Refresh the map before trying again.", "操作未完成，请刷新地图后重试。")
