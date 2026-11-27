@@ -97,6 +97,12 @@ PR 和 main 的 `quality.yml` 按改动范围选择检查，未知或高风险�
 
 候选打包支持 `darwin-arm64`、`darwin-x64`、`windows-x64`。manifest 的 macOS ARM 平台 ID 是 `darwin-aarch64`，Go 架构是 `arm64`，不能把三个命名位置混用。Native 包版本只由根 `package.json` 与 Native host 版本决定；默认 `release:check-versions` 仍核对当前生产 Release 的全部来源。`native:package` 的 Windows 输出为便携包。
 
+Windows 打包从共享 `packages/desktop-resources/presentation/icon.ico` 生成确定性的 x64 COFF 图标资源，在隔离的 `.mygo` 临时 main 包中链接进 exe，完成或失败后清理，不把 `.syso` 留在源码目录。原生窗口使用同源生成的 PNG；修改图标后运行 `pnpm native:presentation:generate`。打包和独立资产检查均拒绝缺失或篡改的 PE 图标，MSI 开始菜单和卸载列表也引用该共享图标。macOS 继续使用原有 ICNS。
+
+社区安装交付使用 `pnpm native:installers:check` 和 `pnpm native:installers:build --target <target> --commit <40位SHA> --input artifacts/native/<target>`。后者要求干净且提交匹配的源码，并消费前一步 `check-native-release-policy.mjs verify-artifacts` 生成的四份已验证文件；在匹配主机制作 macOS ad-hoc 临时签名 DMG 或未做可信发布者签名的 Windows per-user MSI。每份安装器均重新挂载或解包，比对内嵌文件并执行其中程序的 `--version`；输出安装器、`installer-manifest.json` 并扩展原 `SHA256SUMS`。清单绑定源码、输入归档、安装器字节、真实签名状态和固定 GitHub Releases 更新地址。此命令不发布 Release、不授予 Git 写权限，不宣称公证、无安全提示、安装升级事务或数据库回退已验收。`build-native.yml` 在完整门禁后调用它；历史候选归档和可选可信证书安装器的检查不削弱。
+
+Windows 社区及证书安装器共用有序产品版本编码：`major.minor.(patch*1000+rank)`，alpha 为序号 1–299，beta 加 300，rc 加 600，稳定版使用 999。major/minor 最大 255、patch 最大 64，超界或不能映射的 SemVer 明确拒绝；原始版本保留在文件名、应用输出及清单中。该规则避免 alpha 升级互相覆盖或稳定版被识别为降级，真实 MSI 升级/卸载仍需 Windows 验收。
+
 原生分发入口为 `pnpm native:distribution:check`、`native:distribution:prepare`、`native:distribution:build`、`native:distribution:verify` 和 `native:distribution:accept-install`。后三类产物操作使用确切 `--target`、`--commit <40位SHA>`、`--output <新目录>`；`accept-install` 另需 `--previous <较旧已签名MSI>`。prepare 只生成不可分发的安装输入。build 在匹配目标平台强制执行质量、兼容、race、平台、供应链和凭据检查，再制作 macOS Developer ID 签名/公证 DMG 或 Windows Authenticode 签名的 per-user MSI。verify 重新校验签名、信任、摘要、架构、版本和签名覆盖的源码归因。Windows 事务验收覆盖失败升级回滚、成功升级、阻止降级、卸载和旧安装器回退；不证明数据库回滚。证书缺失或检查失败会阻断，不能跳过。凭据变量和生产切换条件见[发布就绪检查](architecture/release-readiness.md)。
 
 独立复核已生成的候选资产（输出目录须为空）使用 `node scripts/check-native-release-policy.mjs verify-artifacts --target <manifest平台ID> --commit <40位Git提交> --output <输出目录>`。该命令不重新编译、不启动 GUI；候选文件清单与归档任一不一致均失败。

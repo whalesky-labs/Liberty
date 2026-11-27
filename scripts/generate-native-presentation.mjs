@@ -5,6 +5,7 @@ import path from "node:path";
 import ts from "typescript";
 import { icons } from "@iconify-json/f7";
 import { getIconData, iconToSVG } from "@iconify/utils";
+import { windowsApplicationPNG } from "./lib/native-windows-resources.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const resources = "packages/desktop-resources";
@@ -83,6 +84,7 @@ if (formatted.status !== 0) throw new Error(formatted.stderr || "gofmt failed");
 const artifacts = [
   ["resources_generated.go", Buffer.from(formatted.stdout)],
   ["sidebar-mascot.webp", await readFile(path.join(root, resources, "presentation/sidebar-mascot.webp"))],
+  ["application-icon.png", windowsApplicationPNG(await readFile(path.join(root, resources, "presentation/icon.ico")))],
 ];
 if (!check) await mkdir(output, { recursive: true });
 for (const [name, bytes] of artifacts) {

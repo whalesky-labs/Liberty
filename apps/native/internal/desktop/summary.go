@@ -441,7 +441,7 @@ func (w *Workspace) openSummary(parent *application.JobWindow, title string) {
 		}
 	})
 	view := &SummaryView{Client: controller, Locale: w.preferences.Locale, Preferences: w.preferences, useMembers: true}
-	window = mygo.NewWindow(mygo.WindowOptions{Title: presentation.Format(w.preferences.Locale, "windows.aiSummaryTitle", map[string]any{"title": title}), Width: 1120, Height: 860, MinWidth: 960, MinHeight: 720, Content: ui.View(view.View)})
+	window = newDesktopWindow(mygo.WindowOptions{Title: presentation.Format(w.preferences.Locale, "windows.aiSummaryTitle", map[string]any{"title": title}), Width: 1120, Height: 860, MinWidth: 960, MinHeight: 720, Content: ui.View(view.View)})
 	view.Close = window.Close
 	view.Confirm = func(ctx context.Context, locale string) (bool, error) {
 		if err := ctx.Err(); err != nil {

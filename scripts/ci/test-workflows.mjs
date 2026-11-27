@@ -103,6 +103,7 @@ const mutations = [
   ['ci-suite.yml', 'missing artifact accepted', value => { value.jobs.run.steps.at(-1).with['if-no-files-found'] = 'ignore'; }],
   ['build-native.yml', 'selected gate used for delivery', value => { value.jobs.quality.uses = './.github/workflows/quality.yml'; }],
   ['build-native.yml', 'build without full gate', value => { value.jobs.build.needs = ['select']; }],
+  ['build-native.yml', 'delivery without installer verification', value => { value.jobs.build.steps = value.jobs.build.steps.filter(step => step.name !== 'Build and verify platform installer'); }],
   ['build-native.yml', 'unreviewed publication job', value => { value.jobs.publish = { 'runs-on': 'ubuntu-latest', steps: [{ run: 'gh release create v1.2.3' }] }; }],
   ['ci-suite.yml', 'mutable publication source accepted', value => { value.jobs.run.steps.find(step => step.name === 'Require immutable validation source').run = 'true'; }],
   ['release-native.yml', 'automatic Native publication', value => { value.on.push = { branches: ['main'] }; }],

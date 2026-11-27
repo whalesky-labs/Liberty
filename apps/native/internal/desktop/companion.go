@@ -354,7 +354,7 @@ func (companions *companionWindows) createNativeWindow(instance int, settings do
 		}
 		view.companion(c, bubble, until, &growth, pointer.input)
 	}
-	window = mygo.NewWindow(mygo.WindowOptions{Title: view.text("Liberty 桌宠", "Liberty Desktop Companion"), Width: companionWidth, Height: companionHeight, X: position.X, Y: position.Y, Hidden: true, Frameless: true, Transparent: true, AlwaysOnTop: settings.AlwaysOnTop, SkipTaskbar: true, DisableShadow: true, DisableResize: true, Content: ui.View(content)})
+	window = newDesktopWindow(mygo.WindowOptions{Title: view.text("Liberty 桌宠", "Liberty Desktop Companion"), Width: companionWidth, Height: companionHeight, X: position.X, Y: position.Y, Hidden: true, Frameless: true, Transparent: true, AlwaysOnTop: settings.AlwaysOnTop, SkipTaskbar: true, DisableShadow: true, DisableResize: true, Content: ui.View(content)})
 	pointer.window = window
 	return window
 }

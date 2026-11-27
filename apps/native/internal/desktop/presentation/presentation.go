@@ -17,8 +17,14 @@ import (
 //go:embed sidebar-mascot.webp
 var mascotBytes []byte
 
+//go:embed application-icon.png
+var ApplicationIconPNG []byte
+
 var Mascot = mustAnimation(mascotBytes)
 var icons = loadIcons()
+
+const RepositoryURL = "https://github.com/whalesky-labs/Liberty"
+const ReleasesURL = RepositoryURL + "/releases"
 
 func loadIcons() map[string]*ui.SVG {
 	result := make(map[string]*ui.SVG, len(iconSources))

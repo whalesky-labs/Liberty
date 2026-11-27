@@ -1,6 +1,6 @@
 # CI/CD 操作与检查规则
 
-最后核实：2026-11-24。执行来源为 `.github/workflows/`、`scripts/ci/` 和根 `package.json`。支持 macOS Apple Silicon、macOS Intel、Windows x64；当前 Native 仍为隔离候选，生产切换按[发布要求](release-readiness.md)验收。
+最后核实：2026-11-27。执行来源为 `.github/workflows/`、`scripts/ci/` 和根 `package.json`。支持 macOS Apple Silicon、macOS Intel、Windows x64；当前 Native 仍为隔离候选，生产切换按[发布要求](release-readiness.md)验收。
 
 ## 何时执行
 
@@ -51,7 +51,7 @@ main 的差异基准为 Quality Gate 最近一次成功 push 的祖先提交，�
 | `quality.yml` | PR/main 改动分类、按需调用、固定结果汇总 |
 | `ci-suite.yml` | 封闭检查单元的工具链、缓存、执行环境 |
 | `ci-full.yml` | 文档、Go、Python、前端、Rust、策略、兼容、race、矩阵、三平台执行、Windows 专项及供应链完整集合 |
-| `build-native.yml` | 按需完整门禁和候选打包，无签名或公开发布权限 |
+| `build-native.yml` | 按需完整门禁、候选归档与 DMG/MSI 安装包；无证书秘密或公开发布权限 |
 | `release-native.yml` | main 授权、确切源提交全量复核、候选 ZIP 与资产校验、备份、bot 草稿事务和公开下载验证 |
 | `build-desktop.yml` | 临时生产发布事务，强制调用完整门禁；随旧端退役删除 |
 | `pnpm ci:generate` | 从 `scripts/ci/workflows.mjs` 生成五个受控工作流 |
@@ -82,11 +82,13 @@ gh workflow run build-native.yml --ref main -f target=all
 gh workflow run release-native.yml --ref main -f candidate_run_id=<successful-candidate-run-id>
 ```
 
-发布入口检查候选运行的仓库、原工作流、确切源码、全部 15 项检查、`full-gate` 和三个主机候选任务。源码必须在本地和远端 main 历史中。下载原运行的四个 artifact 时核对 GitHub ZIP 大小及 SHA-256，再检查 ZIP 路径、精确文件集合、tar payload、三目标二进制架构、内嵌与外置 manifest、项目许可证和 Go notices。随后组装 13 份资产。格式 2 的统一清单不内嵌 Release ID 或发布尝试时间，便于断点恢复；发布结果和 Release 正文绑定最终 ID。
+发布入口检查候选运行的仓库、原工作流、确切源码、全部 15 项检查、`full-gate` 和三个主机候选任务。源码必须在本地和远端 main 历史中。下载原运行的四个 artifact 时核对 GitHub ZIP 大小及 SHA-256，再检查 ZIP 路径、精确文件集合、tar payload、三目标二进制架构、内嵌与外置 manifest、项目许可证和 Go notices。随后组装 19 份资产：原有 13 份技术资产，以及三平台安装器与对应的三份 installer manifest。安装器在匹配构建主机重新挂载或解包，核对内嵌文件、架构和可执行版本；Linux 发布端再次核对容器标识、源码与输入归档绑定、精确签名状态和安装器摘要。macOS 为 ad-hoc 临时签名而非 Developer ID/公证，Windows 不声称可信签名。格式 2 的统一清单不内嵌 Release ID 或发布尝试时间，便于断点恢复；发布结果和 Release 正文绑定最终 ID。
 
 授权、完整源码复核和准备阶段均只读。准备阶段将所有资产、来源、摘要、发布计划和必要的原发行备份上传为不可变 artifact 后，发布 job 才获得 `contents: write`，并使用 `${{ github.token }}` 创建草稿。API 创建响应中的 ID用于后续全部操作；已有 bot 草稿只复用同提交、同构建和同清单的资产，拒绝覆盖、未知资产或不完整上传。全部上传后的真实字节通过验证后才公开，随后逐一核验无需登录的下载、标签、bot 作者、ID、预发行状态和 stable latest。
 
-已有人工预发行交接给 bot 时，必须显式传入 `replace_release_id=<exact-manual-release-id>`。这会更换 Release ID。只有该 ID 对应的已公开、非 immutable、2.x 预发行及其 13 份公开下载全部匹配候选源码和构建，且原正文与全部旧字节已备份，才删除这个旧 Release；标签不删除或移动。11 份候选归档、平台 manifest、SBOM 和 notices 保持原字节，统一清单与 `SHA256SUMS` 更新为格式 2。普通发布拒绝替换人工 Release，稳定版不能通过该参数交接。
+已有人工预发行交接给 bot 时，必须显式传入 `replace_release_id=<exact-manual-release-id>`。这会更换 Release ID。只有该 ID 对应的已公开、非 immutable、2.x 预发行及其完整公开下载集合全部匹配候选源码和构建，且原正文与全部旧字节已备份，才删除这个旧 Release；标签不删除或移动。候选归档、安装器、平台 manifest、SBOM 和 notices 等全部载荷保持原字节，统一清单与 `SHA256SUMS` 更新为格式 2。普通发布拒绝替换人工 Release，稳定版不能通过该参数交接。
+
+已公开 alpha.1–alpha.3 的 13 资产发行保持历史状态；新脚本不为它们补包、移标或放宽既有资产集合检查。包含安装器的交付必须使用新版本和新的三平台构建，不能把当前源码制作的安装器挂到历史标签。
 
 发行源码以标签解析出的提交、candidate/build manifest 和发布结果为准。[GitHub API](https://docs.github.com/en/rest/releases/releases) 的 `target_commitish` 在标签已存在时不参与标签定位；对历史提交指定此字段还可能触发额外的 workflow 写权限检查。因此已有标签的 Release 创建和公开使用 `target_commitish:main`，并在写入前后独立核对标签仍指向已验证源码。新标签使用确切源码 SHA，绝不以 main 的新提交替换既有标签。
 

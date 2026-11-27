@@ -485,7 +485,7 @@ func OpenWorkspace(service client.Meetings, dashboard *application.Dashboard, pr
 	}
 	w.dashboard.Navigate = w.navigate
 	w.dashboard.CanNavigate = w.canNavigate
-	w.main = mygo.NewWindow(workspaceWindowOptionsForPlatform(runtime.GOOS, preferences, w.View, mygo.Theme.IsDark()))
+	w.main = newDesktopWindow(workspaceWindowOptionsForPlatform(runtime.GOOS, preferences, w.View, mygo.Theme.IsDark()))
 	w.stopAppearanceObserver = mygo.Theme.OnUpdated(func() {
 		if !w.closed {
 			applyWindowGlass(w.main, w.preferences)
@@ -853,7 +853,7 @@ func (w *Workspace) openResultFromSource(id, locale, source string) {
 			view := NewResultView(controller, locale)
 			w.resultView = view
 			view.Preferences = w.preferences
-			window = mygo.NewWindow(mygo.WindowOptions{
+			window = newDesktopWindow(mygo.WindowOptions{
 				Title: resultWindowTitle(locale), Width: 1280, Height: 900, MinWidth: 960, MinHeight: 720,
 				Content: ui.View(view.View),
 			})

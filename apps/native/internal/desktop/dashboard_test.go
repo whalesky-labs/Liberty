@@ -251,7 +251,7 @@ func TestTitlebarOpensProjectAndTogglesCompanion(t *testing.T) {
 		if err := tester.Click(presentation.Message(locale, "shell.github")); err != nil {
 			t.Fatal(err)
 		}
-		if opened := tester.OpenedURLs(); len(opened) != 1 || opened[0] != "https://github.com/westng/Liberty" {
+		if opened := tester.OpenedURLs(); len(opened) != 1 || opened[0] != presentation.RepositoryURL {
 			t.Fatal("unexpected project link")
 		}
 	}

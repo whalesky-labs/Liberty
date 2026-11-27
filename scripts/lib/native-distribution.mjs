@@ -51,14 +51,25 @@ export function msiVersion(version) {
   return version;
 }
 
-export function renderWix(template, { target, version, files }) {
+// MSI compares only three numeric fields. Use the same ordered product version
+// for community and certificate-backed installers sharing an UpgradeCode.
+export function installerProductVersion(version) {
+  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(alpha|beta|rc)\.([1-9]\d*))?$/.exec(version);
+  if (!match) throw new Error('Installer version requires stable SemVer or alpha.N, beta.N, rc.N');
+  const [, major, minor, patch, stage, sequence] = match;
+  const rank = stage ? { alpha: 0, beta: 300, rc: 600 }[stage] + Number(sequence) : 999;
+  if (+major > 255 || +minor > 255 || +patch > 64 || (sequence && +sequence > 299)) throw new Error('Installer version exceeds ordered MSI limits');
+  return `${+major}.${+minor}.${+patch * 1000 + rank}`;
+}
+
+export function renderWix(template, { target, version, files, productVersion = msiVersion(version) }) {
   if (!Object.hasOwn(upgradeCodes, target)) throw new Error('MSI target must be Windows x64');
-  msiVersion(version);
+  msiVersion(productVersion);
   const expected = [`${candidateName}.exe`, 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'LOCAL_TRANSLATION_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'];
   assert.deepEqual([...files].sort(), expected.sort(), 'Installer payload must be the exact verified candidate file set');
   const win64 = 'yes';
   const components = files.map((name, index) => `            <Component Id="Payload${index}" Guid="*" Win64="${win64}">\n              <File Id="File${index}" Source="payload\\${xml(name)}" Name="${xml(name)}" Checksum="yes" />\n              <RegistryValue Root="HKCU" Key="Software\\Liberty\\NativeCandidate\\${target}" Name="File${index}" Type="integer" Value="1" KeyPath="yes" />\n            </Component>`).join('\n');
-  const values = { TARGET: target, VERSION: version, UPGRADE_CODE: upgradeCodes[target], PLATFORM: 'x64', WIN64: win64, ARCH_CONDITION: 'VersionNT64', COMPONENTS: components, COMPONENT_REFS: files.map((_, i) => `      <ComponentRef Id="Payload${i}" />`).join('\n') };
+  const values = { TARGET: target, VERSION: productVersion, UPGRADE_CODE: upgradeCodes[target], PLATFORM: 'x64', WIN64: win64, ARCH_CONDITION: 'VersionNT64', COMPONENTS: components, COMPONENT_REFS: files.map((_, i) => `      <ComponentRef Id="Payload${i}" />`).join('\n') };
   const rendered = template.replace(/@([A-Z_]+)@/g, (_, key) => {
     if (!Object.hasOwn(values, key)) throw new Error('Unknown installer template placeholder');
     return values[key];
@@ -164,7 +175,7 @@ async function populate(stage, target, commit, rootDirectory, gatesPassed = fals
   const provenanceFile = target.startsWith('darwin-') ? path.join(payload, `${candidateName}.app/Contents/Resources/native-distribution-provenance.json`) : path.join(payload, 'native-distribution-provenance.json');
   await writeFile(provenanceFile, JSON.stringify(provenance, null, 2) + '\n', { flag: 'wx' });
   if (target.startsWith('darwin-')) await chmod(path.join(payload, `${candidateName}.app/Contents/MacOS/liberty-native`), 0o755);
-  else await writeFile(path.join(stage, 'installer.wxs'), renderWix(await readFile(new URL('../../packages/desktop-resources/distribution/windows.wxs.in', import.meta.url), 'utf8'), { target, version: report.version, files: await readdir(payload) }));
+  else await writeFile(path.join(stage, 'installer.wxs'), renderWix(await readFile(new URL('../../packages/desktop-resources/distribution/windows.wxs.in', import.meta.url), 'utf8'), { target, version: report.version, productVersion: installerProductVersion(report.version), files: await readdir(payload) }));
   return report;
 }
 
@@ -266,10 +277,10 @@ async function installWix(stage) {
 export function msiQueryScript(file) {
   return `$i=New-Object -ComObject WindowsInstaller.Installer; $d=$i.OpenDatabase(${ps(file)},0); $p=@{}; $q=$d.OpenView('SELECT \`Property\`,\`Value\` FROM \`Property\`'); $q.Execute(); while($r=$q.Fetch()){$p[$r.StringData(1)]=$r.StringData(2)}; $f=@(); $q=$d.OpenView('SELECT \`FileName\` FROM \`File\`'); $q.Execute(); while($r=$q.Fetch()){$f+=($r.StringData(1) -split '\\|')[-1]}; @{properties=$p;files=@($f);template=$d.SummaryInformation(0).Property(7)} | ConvertTo-Json -Depth 5 -Compress`;
 }
-export function assertMsiMetadata(metadata, target, version, { allowLegacyNotices = false } = {}) {
+export function assertMsiMetadata(metadata, target, version, { allowLegacyNotices = false, productVersion = msiVersion(version) } = {}) {
   if (!Object.hasOwn(upgradeCodes, target)) throw new Error('MSI target must be Windows x64');
   const properties = metadata.properties ?? {};
-  if (properties.ProductName !== `Liberty Native Candidate (${target})` || properties.ProductVersion !== msiVersion(version) || properties.UpgradeCode?.replace(/[{}]/g, '').toUpperCase() !== upgradeCodes[target] || properties.ALLUSERS || metadata.template?.split(';')[0] !== 'x64') throw new Error('MSI product, version, identity, per-user scope or architecture mismatch');
+  if (properties.ProductName !== `Liberty Native Candidate (${target})` || properties.ProductVersion !== msiVersion(productVersion) || properties.UpgradeCode?.replace(/[{}]/g, '').toUpperCase() !== upgradeCodes[target] || properties.ALLUSERS || metadata.template?.split(';')[0] !== 'x64') throw new Error('MSI product, version, identity, per-user scope or architecture mismatch');
   const expected = [`${candidateName}.exe`, 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'];
   if (!allowLegacyNotices || metadata.files.includes('LOCAL_TRANSLATION_NOTICES.txt')) expected.push('LOCAL_TRANSLATION_NOTICES.txt');
   assert.deepEqual([...metadata.files].sort(), expected.sort(), 'MSI must embed the exact file set');
@@ -279,7 +290,7 @@ export function assertMsiMetadata(metadata, target, version, { allowLegacyNotice
 async function verifyMsi(file, target, version, stage, comparePayload = false, expectedProvenance) {
   powershell(authenticodeScript(file));
   const metadata = JSON.parse(powershell(msiQueryScript(file)));
-  assertMsiMetadata(metadata, target, version);
+  assertMsiMetadata(metadata, target, version, { productVersion: installerProductVersion(version) });
   const extracted = path.join(stage, '.msi-extracted');
   await mkdir(extracted);
   try {
@@ -387,9 +398,9 @@ export async function acceptWindowsInstall(options) {
   const oldProperties = assertMsiMetadata(old, options.target, old.properties?.ProductVersion, { allowLegacyNotices: true });
   const current = path.resolve(options.output, manifest.file);
   const currentMetadata = JSON.parse(powershell(msiQueryScript(current)));
-  const currentProperties = assertMsiMetadata(currentMetadata, options.target, manifest.version);
+  const currentProperties = assertMsiMetadata(currentMetadata, options.target, manifest.version, { productVersion: installerProductVersion(manifest.version) });
   if (currentProperties.ProductCode === oldProperties.ProductCode) throw new Error('Different installer versions must have different ProductCodes');
-  const newer = manifest.version.split('.').map(Number), older = oldProperties.ProductVersion.split('.').map(Number);
+  const newer = currentProperties.ProductVersion.split('.').map(Number), older = oldProperties.ProductVersion.split('.').map(Number);
   if (!newer.some((part, index) => newer.slice(0, index).every((part, i) => part === older[i]) && part > older[index])) throw new Error('Acceptance requires an older signed candidate MSI');
   const upgrade = `{${upgradeCodes[options.target]}}`;
   powershell(`$i=New-Object -ComObject WindowsInstaller.Installer; if(@($i.RelatedProducts(${ps(upgrade)})).Count -ne 0){throw 'Refuse acceptance while a candidate is installed'}`);

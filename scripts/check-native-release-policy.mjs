@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { assertCandidateManifest, assertNativeBinary, assertNativeVersion, candidateName, candidatePlist, fileDigest, nativeTargets } from './lib/native-package.mjs';
+import { assertWindowsApplicationIcon } from './lib/native-windows-resources.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 import { assertWorkflow, checkWorkflows } from './ci/workflows.mjs';
@@ -37,6 +38,8 @@ export function assertNativeCandidatePayload({ files, version, target, allowLega
     if (bytes.length !== file.bytes || fileDigest(bytes) !== file.sha256) throw new Error('Candidate payload integrity failed');
   }
   assertNativeBinary(files.get(binary), target);
+  // Explicit previous-version rollback inputs may predate embedded PE icons.
+  if (!mac && !allowLegacyNotices) assertWindowsApplicationIcon(files.get(binary), files.get('icon.ico'));
   if (mac && files.get(`${candidateName}.app/Contents/Info.plist`).toString() !== candidatePlist(version)) throw new Error('Candidate bundle identity differs');
   return { manifest, resources };
 }

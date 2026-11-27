@@ -22,7 +22,7 @@ Liberty 将本地转写、说话人分离、AI 总结、会议纪要和结果导
 | `apps/desktop` | 迁移期间冻结的 React/Tauri 对照端和生产入口；Native 门禁通过后随发布链一并删除 |
 | Python Runner / SQLite / 共享 schema | 两端沿用的转写协议、数据和资源事实来源 |
 
-全 UI、输入法/读屏、真实远端、Intel/Windows 实机、供应链及升级回退仍需独立验收。本次收尾采用未签名、未公证的候选归档交付，签名公证不属于完成条件；候选身份及其他验收要求继续保留，状态以 [发布就绪检查](docs/architecture/release-readiness.md) 为准。
+全 UI、输入法/读屏、真实远端、Intel/Windows 实机、供应链及升级回退仍需独立验收。待发行的安装交付恢复为 macOS 临时签名 DMG 与 Windows 当前用户 MSI，便携归档保留为技术资产；系统可信签名与 Apple 公证尚未提供，不宣称安装时没有安全提示。设置中的“从 GitHub 下载更新”打开 Releases，由用户下载匹配安装包并在正常退出后更新。既有 alpha.3 的已公开资产不会因此自动改变；候选身份及其他验收要求见 [发布就绪检查](docs/architecture/release-readiness.md)。
 
 ## 主要能力
 

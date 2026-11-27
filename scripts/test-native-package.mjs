@@ -1,7 +1,50 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { assertCandidateManifest, assertNativeBinary, assertNativeVersion, assertRunnableTarget, candidateIdentity, candidatePlist, fileDigest, packageTarget } from "./lib/native-package.mjs";
 import { productionRuntimeAcceptanceDirectory } from "./run-native.mjs";
+import { assertWindowsApplicationIcon, windowsApplicationPNG, windowsIconFrames, windowsIconObject } from "./lib/native-windows-resources.mjs";
+import { windowsExecutableFixture, windowsIconFixture } from "./test-fixtures/native-windows.mjs";
+
+test("Windows resources retain every shared icon size and reject malformed input", () => {
+  assert.deepEqual(windowsIconFrames(windowsIconFixture).map(frame => frame.entry[0] || 256).sort((a, b) => a - b), [16, 24, 32, 48, 64, 256]);
+  assert.equal(windowsApplicationPNG(windowsIconFixture).readUInt32BE(16), 256);
+  for (const icon of [Buffer.alloc(0), Buffer.alloc(6), windowsIconFixture.subarray(0, 20), windowsIconFixture.subarray(0, -1)]) assert.throws(() => windowsIconObject(icon));
+  const executable = windowsExecutableFixture();
+  assertWindowsApplicationIcon(executable, windowsIconFixture);
+  for (const mutate of [
+    bytes => bytes.writeUInt32LE(0, 128 + 24 + 128),
+    bytes => bytes.writeUInt32LE(0xffffffff, 128 + 24 + 128),
+    bytes => bytes.writeUInt32LE(0xffffffff, 512 + 20),
+    bytes => { bytes[bytes.length - 4] ^= 1; },
+  ]) {
+    const bytes = Buffer.from(executable);
+    mutate(bytes);
+    assert.throws(() => assertWindowsApplicationIcon(bytes, windowsIconFixture));
+  }
+});
+
+test("Go's Windows linker embeds a readable application icon resource", { timeout: 120_000 }, async context => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "liberty-windows-icon-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  await writeFile(path.join(directory, "go.mod"), "module liberty-icon-fixture\n\ngo 1.27.3\n");
+  await writeFile(path.join(directory, "main.go"), "package main\nfunc main() {}\n");
+  await writeFile(path.join(directory, "application_windows_amd64.syso"), windowsIconObject(windowsIconFixture));
+  const executable = path.join(directory, "fixture.exe");
+  const environment = { ...process.env, GOTOOLCHAIN: "go1.27.4", GOFLAGS: "-mod=readonly", GOWORK: "off", CGO_ENABLED: "0" };
+  execFileSync("go", ["build", "-trimpath", "-ldflags=-H windowsgui", "-o", executable, "."], { cwd: directory, env: { ...environment, GOOS: "windows", GOARCH: "amd64" }, timeout: 90_000, stdio: "pipe" });
+  const bytes = await readFile(executable);
+  assertNativeBinary(bytes, "windows-x64");
+  assertWindowsApplicationIcon(bytes, windowsIconFixture);
+  // An independent standard-library PE reader must also accept the linked
+  // resource section. This is a cross-build check, not Windows execution.
+  await writeFile(path.join(directory, "inspect.go"), 'package main\nimport ("debug/pe"; "os")\nfunc main(){f,e:=pe.Open(os.Args[1]);if e!=nil{panic(e)};defer f.Close();s:=f.Section(".rsrc");if s==nil{panic("missing .rsrc")};if _,e=s.Data();e!=nil{panic(e)}}\n');
+  const { GOOS: _, GOARCH: __, ...hostEnvironment } = environment;
+  execFileSync("go", ["run", "inspect.go", executable], { cwd: directory, env: hostEnvironment, timeout: 90_000, stdio: "pipe" });
+});
 
 test("package selection accepts three existing platform identities and rejects production overrides", () => {
   for (const target of ["darwin-aarch64", "darwin-x64", "windows-x64"]) assert.equal(packageTarget(["--target", target]), target);

@@ -1,6 +1,6 @@
 # Release Readiness
 
-Last verified: 2026-11-26 against the current checkout, root `package.json` scripts and pinned dependency scanners. Security-scan findings below retain their stated scan dates.
+Last verified: 2026-11-27 against the current checkout, root `package.json` scripts and pinned dependency scanners. Security-scan findings below retain their stated scan dates.
 
 Use the [documentation index](../README.md), [development guide](../development.md)
 and [native architecture](native-desktop-architecture.md) for navigation and
@@ -53,6 +53,10 @@ upgrade/rollback acceptance. The optional signed DMG/MSI commands below still
 require their certificates and verification; no signing check is bypassed and
 no archive may claim to be signed or notarized.
 
+On 2026-11-27, installer delivery was restored for subsequent releases: ad-hoc-signed macOS DMGs and a Windows per-user MSI, retaining portable archives as verified technical inputs. This supersedes archive-only delivery, not the pending cutover gates. The community path uses no certificate secrets and reports `signed:false`, `notarized:false` plus an explicit `signature:adhoc` or `signature:none`; `signed` denotes trusted publisher signing here. System security prompts may appear. The optional certificate-backed DMG/MSI path retains its trust and notarization requirements. Existing alpha.1–alpha.3 public assets are not rewritten or supplemented from a different source commit.
+
+Settings opens the canonical GitHub Releases list for user-initiated update downloads, including prereleases. Users quit before replacing the application or running the next MSI. This is not an automatic updater: there is no background download, installer execution or self-replacement. Runtime/model installation remains a separate online first-use step.
+
 The old React/Tauri client is retained only until the Native cutover gates are
 closed. It must not become a second production track or an excuse to leave
 unverified behavior in the migration. Before switching, move every required
@@ -101,11 +105,11 @@ before packaging one selected target or all three. Each package runs its extract
 version check and verifies exact archive contents, manifest, architecture and
 SHA-256 before upload. Ordinary commits do not build candidate archives. Candidate
 jobs have read-only repository permissions; there is no Release publication,
-Git-ref mutation, signing or notarization step.
+Git-ref mutation, certificate-backed signing or notarization step. It additionally creates community DMG/MSI installers, verifies mounted/extracted bytes and executes the contained program on the target host; macOS uses ad-hoc signing without credentials.
 The separate `.github/workflows/release-native.yml` checks a successful
 three-platform candidate run and requires its exact source commit to belong
 to main history. It revalidates that source with the complete gate, verifies
-the original artifact ZIP digests and all 13 assembled assets, and preserves
+the original artifact ZIP digests and all 19 assembled assets (including three installers and three installer manifests), and preserves
 the bundle before giving only its publish job write permission. The job uses
 `GITHUB_TOKEN`, binds the returned draft ID, rejects asset overwrites, and
 checks all public downloads, the bot author, immutable tag and stable latest.

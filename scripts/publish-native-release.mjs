@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { installerName } from './lib/native-installers.mjs';
 import { appendFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -179,13 +180,16 @@ async function stage(api, context) {
   for (const artifact of context.artifacts) {
     const target = releaseTargets.find(target => artifact.name === `liberty-native-candidate-${target}-${context.sourceCommit}`);
     const archiveName = target ? `liberty-native-candidate-${context.version}-${target}.tar.gz` : null;
-    const expected = target ? [archiveName, 'candidate-manifest.json', 'native-build-manifest.json', 'SHA256SUMS'] : ['liberty.cdx.json', 'liberty-native.cdx.json', 'native-go-NOTICES.txt'];
+    const installer = target ? installerName(context.version, target) : null;
+    const expected = target ? [archiveName, 'candidate-manifest.json', 'native-build-manifest.json', installer, 'installer-manifest.json', 'SHA256SUMS'] : ['liberty.cdx.json', 'liberty-native.cdx.json', 'native-go-NOTICES.txt'];
     const files = await extractWorkflowZip(await api.artifact(artifact), expected);
     if (target) {
-      assert.equal(files.get('SHA256SUMS').toString(), [archiveName, 'candidate-manifest.json', 'native-build-manifest.json'].map(name => `${fileDigest(files.get(name))}  ${name}\n`).join(''), 'Platform checksums differ');
+      assert.equal(files.get('SHA256SUMS').toString(), expected.filter(name => name !== 'SHA256SUMS').map(name => `${fileDigest(files.get(name))}  ${name}\n`).join(''), 'Platform checksums differ');
       payload.set(archiveName, files.get(archiveName));
       payload.set(`candidate-manifest-${target}.json`, files.get('candidate-manifest.json'));
       payload.set(`native-build-manifest-${target}.json`, files.get('native-build-manifest.json'));
+      payload.set(installer, files.get(installer));
+      payload.set(`installer-manifest-${target}.json`, files.get('installer-manifest.json'));
     } else {
       payload.set('liberty-native.cdx.json', files.get('liberty-native.cdx.json'));
       payload.set('native-go-NOTICES.txt', files.get('native-go-NOTICES.txt'));
@@ -224,14 +228,14 @@ async function stage(api, context) {
   if (previousRelease) {
     await mkdir(path.join(bundleDirectory, 'previous'));
     await writeFile(path.join(bundleDirectory, 'previous/release.json'), jsonBytes(previousRelease), { flag: 'wx', mode: 0o600 });
-    // Eleven unchanged payloads are already in assets/. Only the two original
+    // Unchanged payloads are already in assets/. Only the two original
     // metadata files need additional backup bytes.
     for (const name of ['release-manifest.json', 'SHA256SUMS']) await writeFile(path.join(bundleDirectory, 'previous', name), previousFiles.get(name), { flag: 'wx', mode: 0o600 });
   }
   await writeFile(path.join(bundleDirectory, 'plan.json'), jsonBytes({ ...context, assets: verifyReleaseBundle(files, verificationContext), hasPreviousRelease: Boolean(previousRelease) }), { flag: 'wx', mode: 0o600 });
   await writeFile(path.join(bundleDirectory, 'notes.md'), releaseNotes(sourceText(context.sourceCommit, 'CHANGELOG.md'), context, files), { flag: 'wx', mode: 0o600 });
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `bundle_attempt=${positiveId(process.env.GITHUB_RUN_ATTEMPT)}\n`);
-  console.log(`Staged 13 verified prerelease assets for ${context.sourceCommit}; no Release or tag has been changed.`);
+  console.log(`Staged ${files.size} verified prerelease assets for ${context.sourceCommit}; no Release or tag has been changed.`);
 }
 
 async function publish(api, currentContext) {
@@ -256,7 +260,7 @@ async function publish(api, currentContext) {
     for (const name of ['release-manifest.json', 'SHA256SUMS']) previousFiles.set(name, await readFile(path.join(bundleDirectory, 'previous', name)));
   }
   const result = await publishRelease({ api, context, files, previousRelease, previousFiles, notes: await readFile(path.join(bundleDirectory, 'notes.md'), 'utf8'), record });
-  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `Published [${result.tag}](https://github.com/${result.repository}/releases/tag/${result.tag}) as **${result.publisher}**. Release ID **${result.releaseId}**, source \`${result.sourceCommit}\`, 13 public downloads verified. Stable latest retained.\n`);
+  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `Published [${result.tag}](https://github.com/${result.repository}/releases/tag/${result.tag}) as **${result.publisher}**. Release ID **${result.releaseId}**, source \`${result.sourceCommit}\`, ${result.assetCount} public downloads verified. Stable latest retained.\n`);
   console.log(JSON.stringify(result, null, 2));
 }
 

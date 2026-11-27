@@ -66,6 +66,9 @@ func (w *Workspace) applyPreferences(preferences domain.UIPreferences) {
 	default:
 		mygo.Theme.SetSource(mygo.ThemeSystem)
 	}
+	// SetSource updates MyGo immediately but does not emit OnUpdated on every
+	// backend. Synchronize every open native frame on explicit changes too.
+	syncWindowChrome()
 	if appearanceChanged {
 		applyWindowGlass(w.main, preferences)
 	}
@@ -174,7 +177,7 @@ func (w *Workspace) openResource(kind application.ResourceKind, id string) {
 			}
 			options := resourceEditorOptions(kind, locale, id)
 			options.Content = ui.View(view.View)
-			window = mygo.NewWindow(options)
+			window = newDesktopWindow(options)
 			w.editorViews[kind] = view
 			w.editors[kind] = window
 			w.editorIDs[kind] = id

@@ -278,6 +278,8 @@ export const zhCNMessages: MessageTree = {
       save: "保存设置",
       copyright: "版权所有 © 2026 Liberty. 保留所有权利。",
       authorGithub: "作者 west · GitHub @westng",
+      downloadUpdate: "从 GitHub 下载更新",
+      updateHint: "打开 GitHub Releases，选择对应平台的安装包；正常退出应用后安装更新，保留现有资料。",
       colorLabels: {
         "#8f96a3": "雾灰",
         "#2f6dff": "海蓝",

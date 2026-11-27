@@ -1,11 +1,20 @@
 package presentation
 
 import (
+	"bytes"
 	"github.com/egoist/mygo/ui"
+	"image/png"
 	"liberty.local/liberty/internal/domain"
 	"testing"
 	"time"
 )
+
+func TestApplicationIconIsEmbeddedAtFullWindowsResolution(t *testing.T) {
+	image, err := png.Decode(bytes.NewReader(ApplicationIconPNG))
+	if err != nil || image.Bounds().Dx() != 256 || image.Bounds().Dy() != 256 {
+		t.Fatal("application icon must remain a valid embedded 256px PNG", err)
+	}
+}
 
 func TestOriginalAnimationRetainsAllFramesAndTiming(t *testing.T) {
 	if len(Mascot.frames) != 11 {

@@ -34,6 +34,17 @@ pnpm native:preview --writable --theme light
 
 直接运行 preview 二进制时，除 `--version` 或帮助输出外，必须显式选择 `--database`、`--profile-directory` 或 `--default-profile` 之一。隔离资料写入使用 `--profile-directory` 配合 `--writable`，创建缺失目录/新库或升级旧库另加 `--prepare-database`；`--default-profile` 明确选择现有生产资料。preview 构建不会自动使用候选默认目录；candidate 无参数启动才会选择独立、持久的候选资料目录。
 
+## GitHub 安装与更新
+
+待发行安装包使用与便携候选相同的隔离资料身份，不自动切换生产资料或删除旧客户端。已公开 alpha.1–alpha.3 仍以对应 Release 的实际资产为准；修改打包脚本不会重发或覆盖历史资产。
+
+- macOS Apple Silicon / Intel：下载对应架构的 `.dmg`，打开后将 `Liberty Native Candidate.app` 拖入 Applications。应用使用免费的 ad-hoc 临时签名，未经过 Developer ID 签名与 Apple 公证，首次启动可能出现系统安全提示。
+- Windows x64：下载 `.msi` 并安装到当前用户；没有可信发布者证书，不宣称消除 Windows 安全提示。卸载保留会议、模型、凭据和资料目录。
+- 设置底部的“从 GitHub 下载更新”打开 `whalesky-labs/Liberty` 的 Releases 列表，包含预发行版本，避免 `/latest` 指向旧稳定端。选择匹配架构的安装包，正常退出候选后更新。当前是用户主动下载并安装，不是后台自动更新；数据库回滚仍按本页的备份规则处理。
+- 安装包不包含完整 Python、ffmpeg、依赖与模型；本地转写的首次运行时安装仍需联网。
+
+`pnpm native:package` 继续产生供开发启动和发布核验使用的便携输入。完整门禁通过后，`build-native.yml` 在匹配主机执行 `native:installers:build`，从已核验归档制作并实际解包执行安装器内的程序，再上传归档、安装器和来源清单。社区安装器不读取签名秘密；可选证书签名的 `native:distribution:*` 仍执行原有信任与公证检查。
+
 ## 资料选择
 
 | 参数 / 通道 | 行为 |
