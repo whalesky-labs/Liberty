@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertCandidateManifest, assertNativeBinary, assertNativeVersion, assertRunnableTarget, candidateIdentity, candidateName, candidatePlist, fileDigest, nativeTargets } from "./lib/native-package.mjs";
 import { loadRuntimeInputManifest, publishRuntimeInputs, readRuntimeInputs, runtimeInputPins, runtimePackageOptions, securityRuntimeProfile } from "./lib/native-runtime-inputs.mjs";
+import { assertWindowsApplicationIcon, windowsIconObject } from "./lib/native-windows-resources.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const native = path.join(root, "apps/native");
@@ -57,12 +58,29 @@ async function packageNative() {
   const binary = target.os === "darwin" ? path.join(app, "MacOS/liberty-native") : path.join(content, "Liberty Native Candidate.exe");
   const resources = target.os === "darwin" ? path.join(app, "Resources") : content;
   let published = false;
+  let windowsSource;
   try {
     await mkdir(path.dirname(binary), { recursive: true });
     await mkdir(resources, { recursive: true });
     const flags = `-s -w -X main.launchChannel=candidate${target.os === "windows" ? " -H windowsgui" : ""}`;
-    await run("go", ["build", "-trimpath", `-ldflags=${flags}`, "-o", binary, "./cmd/liberty-native"], { cwd: native, env: { ...env, GOOS: target.os, GOARCH: target.arch } });
+    let mainPackage = "./cmd/liberty-native";
+    const windowsIcon = target.os === "windows" ? await readFile(path.join(root, "packages/desktop-resources/presentation/icon.ico")) : undefined;
+    if (windowsIcon) {
+      // Go links .syso files only from the real main-package directory; its
+      // overlay does not cover them. Stage an isolated main package so parallel
+      // packaging never mutates or leaves generated objects in the source tree.
+      const staging = path.join(native, ".mygo");
+      await mkdir(staging, { recursive: true });
+      windowsSource = await mkdtemp(path.join(staging, "windows-package-"));
+      for (const file of await readdir(path.join(native, "cmd/liberty-native"))) {
+        if (file.endsWith(".go") && !file.endsWith("_test.go")) await copyFile(path.join(native, "cmd/liberty-native", file), path.join(windowsSource, file));
+      }
+      await writeFile(path.join(windowsSource, "application_windows_amd64.syso"), windowsIconObject(windowsIcon));
+      mainPackage = windowsSource;
+    }
+    await run("go", ["build", "-trimpath", `-ldflags=${flags}`, "-o", binary, mainPackage], { cwd: native, env: { ...env, GOOS: target.os, GOARCH: target.arch } });
     assertNativeBinary(await readFile(binary), targetID);
+    if (windowsIcon) assertWindowsApplicationIcon(await readFile(binary), windowsIcon);
     if (target.os === "darwin") await writeFile(path.join(app, "Info.plist"), candidatePlist(version));
     const iconName = target.os === "darwin" ? "icon.icns" : "icon.ico";
     await copyFile(path.join(root, "packages/desktop-resources/presentation", iconName), path.join(resources, iconName));
@@ -133,6 +151,7 @@ Installation still uses the configured network source; the bundled FunASR wheel 
     published = true;
     console.log(`Verified unsigned candidate package: ${destination}`);
   } finally {
+    if (windowsSource) await rm(windowsSource, { recursive: true, force: true });
     if (!published) await rm(temporary, { recursive: true, force: true });
   }
 }

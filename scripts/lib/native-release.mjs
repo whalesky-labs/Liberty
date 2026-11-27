@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { assertNativeCandidatePayload, readNativeArchive } from '../check-native-release-policy.mjs';
 import { assertNativeVersion, fileDigest, nativeTargets } from './native-package.mjs';
 import { fullSuites } from '../ci/plan.mjs';
+import { assertInstallerManifest, installerName } from './native-installers.mjs';
 
 export const releaseTargets = Object.freeze(Object.keys(nativeTargets));
 const sameNames = (actual, expected) => assert.deepEqual([...actual].sort(), [...expected].sort(), 'Native release file set differs');
@@ -111,7 +112,7 @@ export function assertRecoveryRun(run, jobs, repository, runId) {
 }
 
 export function releaseAssetNames(version) {
-  return [...releaseTargets.flatMap(target => [`liberty-native-candidate-${version}-${target}.tar.gz`, `candidate-manifest-${target}.json`, `native-build-manifest-${target}.json`]), 'liberty-native.cdx.json', 'native-go-NOTICES.txt', 'release-manifest.json', 'SHA256SUMS'].sort();
+  return [...releaseTargets.flatMap(target => [`liberty-native-candidate-${version}-${target}.tar.gz`, installerName(version, target), `installer-manifest-${target}.json`, `candidate-manifest-${target}.json`, `native-build-manifest-${target}.json`]), 'liberty-native.cdx.json', 'native-go-NOTICES.txt', 'release-manifest.json', 'SHA256SUMS'].sort();
 }
 
 export function recoveryBundleNames(version) {
@@ -149,6 +150,7 @@ export function verifyReleasePayload(files, { version, sourceCommit, license }) 
     const name = `liberty-native-candidate-${version}-${target}`;
     const archiveName = `${name}.tar.gz`;
     const archive = files.get(archiveName);
+    assertInstallerManifest(JSON.parse(files.get(`installer-manifest-${target}.json`)), { version, target, sourceCommit, archive, installer: files.get(installerName(version, target)) });
     const manifestBytes = files.get(`candidate-manifest-${target}.json`);
     const archived = readNativeArchive(archive);
     assert.ok([...archived.keys()].every(file => file.startsWith(`${name}/`)), 'Archive root differs');
@@ -380,7 +382,7 @@ export async function publishRelease({ api, context, files, previousRelease = nu
     assert.deepEqual(stableIdentity(await api.json('releases/latest')), context.stableLatest);
     // Include all identity fields on every PATCH: an omitted tag_name can cause
     // GitHub to assign a temporary untagged identity to a draft.
-    await api.json(`releases/${releaseId}`, { method: 'PATCH', body: { tag_name: context.tag, target_commitish: beforePublishTag ? 'main' : context.sourceCommit, name: `Liberty ${context.tag}`, body: `${notes}\n\nRelease ID: \`${releaseId}\` · Source commit: \`${context.sourceCommit}\` · Assets: **13**.\n`, draft: false, prerelease: true, make_latest: 'false' } });
+    await api.json(`releases/${releaseId}`, { method: 'PATCH', body: { tag_name: context.tag, target_commitish: beforePublishTag ? 'main' : context.sourceCommit, name: `Liberty ${context.tag}`, body: `${notes}\n\nRelease ID: \`${releaseId}\` · Source commit: \`${context.sourceCommit}\` · Assets: **${assets.length}**.\n`, draft: false, prerelease: true, make_latest: 'false' } });
     release = await inspect(true, false);
     assert.ok(release.published_at);
   }

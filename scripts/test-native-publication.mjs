@@ -9,6 +9,8 @@ import { candidateIdentity, candidateName, candidatePlist, fileDigest, nativeTar
 import { assembleRelease, assertCandidateRun, assertFreshSourceValidation, assertMainPublication, assertPrereleaseVersion, assertRecoveryRun, assertWorkflowArtifacts, checksums, describe, jsonBytes, latestAttemptJobs, positiveId, publishRelease, recoveryBundleNames, releaseAssetNames, releaseMarkers, releaseNotes, releaseTargets, resolveTag, restoreReleaseBackup, verifyReleaseBundle } from './lib/native-release.mjs';
 import { extractWorkflowZip, GitHubReleaseClient } from './publish-native-release.mjs';
 import { fullSuites } from './ci/plan.mjs';
+import { installerManifest, installerName } from './lib/native-installers.mjs';
+import { windowsExecutableFixture, windowsIconFixture } from './test-fixtures/native-windows.mjs';
 
 const version = '2.0.0-alpha.1';
 const sourceCommit = 'a'.repeat(40);
@@ -57,10 +59,9 @@ function fixture() {
     const mac = target.startsWith('darwin-');
     const resources = mac ? `${candidateName}.app/Contents/Resources/` : '';
     const binary = mac ? `${candidateName}.app/Contents/MacOS/liberty-native` : `${candidateName}.exe`;
-    const program = Buffer.alloc(256);
+    const program = mac ? Buffer.alloc(256) : windowsExecutableFixture();
     if (mac) { program.writeUInt32LE(0xfeedfacf); program.writeUInt32LE(nativeTargets[target].machine, 4); }
-    else { program.write('MZ'); program.writeUInt32LE(64, 0x3c); program.writeUInt32LE(0x4550, 64); program.writeUInt16LE(nativeTargets[target].machine, 68); }
-    const files = new Map([[binary, program], ['README.txt', Buffer.from('Synthetic unsigned candidate\n')], [`${resources}LICENSE`, license], [`${resources}THIRD_PARTY_NOTICES.txt`, notices], [`${resources}LOCAL_TRANSLATION_NOTICES.txt`, Buffer.from('Synthetic local translation notices\n')], [`${resources}${mac ? 'icon.icns' : 'icon.ico'}`, Buffer.from('Synthetic icon')], ...(mac ? [[`${candidateName}.app/Contents/Info.plist`, Buffer.from(candidatePlist(version))]] : [])]);
+    const files = new Map([[binary, program], ['README.txt', Buffer.from('Synthetic unsigned candidate\n')], [`${resources}LICENSE`, license], [`${resources}THIRD_PARTY_NOTICES.txt`, notices], [`${resources}LOCAL_TRANSLATION_NOTICES.txt`, Buffer.from('Synthetic local translation notices\n')], [`${resources}${mac ? 'icon.icns' : 'icon.ico'}`, mac ? Buffer.from('Synthetic icon') : windowsIconFixture], ...(mac ? [[`${candidateName}.app/Contents/Info.plist`, Buffer.from(candidatePlist(version))]] : [])]);
     const manifest = jsonBytes({ format: 1, channel: 'candidate', identity: candidateIdentity, version, target, productionReady: false, signed: false, notarized: false, defaultRuntimeProfile: 'production', availableRuntimeProfiles: ['production'], files: [...files].map(([path, bytes]) => ({ path, bytes: bytes.length, sha256: fileDigest(bytes) })) });
     files.set('candidate-manifest.json', manifest);
     const name = `liberty-native-candidate-${version}-${target}`;
@@ -69,6 +70,11 @@ function fixture() {
     payload.set(archiveName, archive);
     payload.set(`candidate-manifest-${target}.json`, manifest);
     payload.set(`native-build-manifest-${target}.json`, jsonBytes({ format: 1, sourceCommit, version, target, channel: 'candidate', productionReady: false, signed: false, notarized: false, productionSecurityClearance: false, files: [describe(archiveName, archive), describe('candidate-manifest.json', manifest)] }));
+    const installer = Buffer.alloc(1024);
+    if (mac) installer.write('koly', installer.length - 512);
+    else Buffer.from('d0cf11e0a1b11ae1', 'hex').copy(installer);
+    payload.set(installerName(version, target), installer);
+    payload.set(`installer-manifest-${target}.json`, jsonBytes(installerManifest({ version, target, sourceCommit, archive, installer })));
   }
   payload.set('native-go-NOTICES.txt', notices);
   payload.set('liberty-native.cdx.json', jsonBytes({ bomFormat: 'CycloneDX', specVersion: '1.5', metadata: { component: { name: 'Liberty Native', version } }, components: [{ 'bom-ref': 'pkg:golang/example/module@v1.0.0', purl: 'pkg:golang/example/module@v1.0.0' }] }));
@@ -266,14 +272,27 @@ test('recovery refuses missing or modified original bytes and unknown files', ()
   }
 });
 
-test('three independent archives assemble into thirteen portable verified assets', () => {
+test('three independent archives and installers assemble into nineteen verified assets', () => {
   const f = fixture();
   assert.deepEqual([...f.files.keys()].sort(), releaseAssetNames(version));
-  assert.equal(verifyReleaseBundle(f.files, f.context).length, 13);
+  assert.equal(verifyReleaseBundle(f.files, f.context).length, 19);
   const manifest = JSON.parse(f.files.get('release-manifest.json'));
   assert.equal(manifest.releaseId, undefined);
   assert.equal(manifest.createdAt, undefined);
   assert.ok(assembleRelease(f.payload, { ...f.context, publicationRunId: 999 }).get('release-manifest.json').equals(f.files.get('release-manifest.json')));
+});
+
+test('publication refuses archive-only payloads and modified installer claims or bytes', () => {
+  for (const change of [
+    payload => { payload.delete(installerName(version, 'windows-x64')); },
+    payload => { payload.delete('installer-manifest-darwin-aarch64.json'); },
+    payload => { payload.set(installerName(version, 'windows-x64'), Buffer.from('corrupt MSI')); },
+    payload => { const name = 'installer-manifest-darwin-x64.json'; const value = JSON.parse(payload.get(name)); value.notarized = true; payload.set(name, jsonBytes(value)); },
+  ]) {
+    const f = fixture();
+    change(f.payload);
+    assert.throws(() => assembleRelease(f.payload, f.context));
+  }
 });
 
 test('real repository changelog generates complete bilingual notes and publishes the bound release', async () => {
@@ -337,7 +356,7 @@ test('bot creates a draft, uploads without overwrites, checks bytes and publishe
   api.tagCommit = null;
   const result = await publish(f, api);
   assert.equal(result.publisher, 'github-actions[bot]');
-  assert.equal(result.assetCount, 13);
+  assert.equal(result.assetCount, 19);
   assert.equal(result.publicDownloadsVerified, true);
   assert.equal(api.tagCommit, sourceCommit);
   assert.deepEqual(api.stable, { id: 9, tag_name: 'v1.2.3', draft: false, prerelease: false });
@@ -350,8 +369,8 @@ test('bot creates a draft, uploads without overwrites, checks bytes and publishe
   assert.equal(patch.body.target_commitish, sourceCommit);
   assert.equal(patch.body.prerelease, true);
   assert.equal(patch.body.make_latest, 'false');
-  assert.equal(api.downloads.filter(item => item.authenticated).length, 13);
-  assert.equal(api.downloads.filter(item => !item.authenticated).length, 13);
+  assert.equal(api.downloads.filter(item => item.authenticated).length, 19);
+  assert.equal(api.downloads.filter(item => !item.authenticated).length, 19);
 });
 
 test('a published bot release is idempotent and is never overwritten', async () => {
@@ -372,7 +391,7 @@ test('upload interruption retains draft and resumes only missing exact assets', 
   const id = api.releases[0].id;
   const result = await publish(f, api);
   assert.equal(result.releaseId, id);
-  assert.equal(api.mutations.filter(item => item.method === 'UPLOAD').length, 13);
+  assert.equal(api.mutations.filter(item => item.method === 'UPLOAD').length, 19);
 });
 
 for (const [label, change] of [

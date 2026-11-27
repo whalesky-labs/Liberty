@@ -280,6 +280,8 @@ export const enUSMessages: MessageTree = {
       save: "Save Settings",
       copyright: "Copyright © 2026 Liberty. All rights reserved.",
       authorGithub: "Author west · GitHub @westng",
+      downloadUpdate: "Download Updates from GitHub",
+      updateHint: "Open GitHub Releases and choose the installer for your platform. Quit the app before updating; existing data is preserved.",
       colorLabels: {
         "#8f96a3": "Mist Gray",
         "#2f6dff": "Ocean Blue",

@@ -131,6 +131,9 @@ func settingsPage(context *ui.Context, locale, section string, content func()) {
 					if textButton(context, message("authorGithub")).Role(ui.RoleLink).Padding(0).TextColor(context.Theme().TextMuted).Clicked() {
 						context.OpenURL("https://github.com/westng/Liberty")
 					}
+					if textButton(context, message("downloadUpdate")).Role(ui.RoleLink).Padding(0).Tooltip(message("updateHint")).Clicked() {
+						context.OpenURL(presentation.ReleasesURL)
+					}
 				})
 			})
 		})

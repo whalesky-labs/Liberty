@@ -161,7 +161,7 @@ func (s *Shell) View(c *ui.Context) {
 				link := ui.ButtonBase(c).Size(24, 24).Padding(0).Center().Label(s.msg("shell.github")).Tooltip(s.msg("shell.github"))
 				link.Children(func() { ui.Icon(c, presentation.Icon("github")).Size(17, 17) })
 				if link.Clicked() {
-					c.OpenURL("https://github.com/westng/Liberty")
+					c.OpenURL(presentation.RepositoryURL)
 				}
 			})
 			width, _ := c.Size()

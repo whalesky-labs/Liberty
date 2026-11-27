@@ -215,7 +215,7 @@ func (w *Workspace) openStoreItem(key string) {
 	}
 	view := &StoreItemView{key: key, preferences: w.preferences}
 	view.selectItem(w.pet.Client.Store)
-	window := mygo.NewWindow(mygo.WindowOptions{Title: view.title(), Width: 920, Height: 640, MinWidth: 760, MinHeight: 520, Content: ui.View(view.View)})
+	window := newDesktopWindow(mygo.WindowOptions{Title: view.title(), Width: 920, Height: 640, MinWidth: 760, MinHeight: 520, Content: ui.View(view.View)})
 	w.itemView, w.itemWindow = view, window
 	w.pet.Client.SetVisible(true)
 	window.OnClosed(func() {

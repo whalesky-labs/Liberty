@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { assertNativeCandidatePayload, assertNativeWorkflow, parseNativeWorkflow, readNativeArchive, verifyNativeArtifacts } from './check-native-release-policy.mjs';
 import { candidateName, candidatePlist, fileDigest, nativeTargets } from './lib/native-package.mjs';
+import { windowsExecutableFixture, windowsIconFixture } from './test-fixtures/native-windows.mjs';
 
 const workflow = await readFile(new URL('../.github/workflows/build-native.yml', import.meta.url), 'utf8');
 const commit = 'a'.repeat(40);
@@ -85,20 +86,15 @@ async function fixture(context, target = 'windows-x64') {
   const mac = target.startsWith('darwin-');
   const resources = mac ? `${candidateName}.app/Contents/Resources/` : '';
   const binary = mac ? `${candidateName}.app/Contents/MacOS/liberty-native` : `${candidateName}.exe`;
-  const program = Buffer.alloc(256);
+  const program = mac ? Buffer.alloc(256) : windowsExecutableFixture();
   if (mac) {
     program.writeUInt32LE(0xfeedfacf, 0);
     program.writeUInt32LE(nativeTargets[target].machine, 4);
-  } else {
-    program.write('MZ');
-    program.writeUInt32LE(64, 0x3c);
-    program.writeUInt32LE(0x4550, 64);
-    program.writeUInt16LE(nativeTargets[target].machine, 68);
   }
   const files = new Map([[binary, program], ['README.txt', Buffer.from('Unsigned, unnotarized isolated candidate. Not an installer.\n')],
     [`${resources}LICENSE`, Buffer.from('Synthetic license\n')], [`${resources}THIRD_PARTY_NOTICES.txt`, Buffer.from('Synthetic notices\n')],
     [`${resources}LOCAL_TRANSLATION_NOTICES.txt`, Buffer.from('Synthetic local translation notices\n')],
-    [`${resources}${mac ? 'icon.icns' : 'icon.ico'}`, Buffer.from('Synthetic icon\n')],
+    [`${resources}${mac ? 'icon.icns' : 'icon.ico'}`, mac ? Buffer.from('Synthetic icon\n') : windowsIconFixture],
     ...(mac ? [[`${candidateName}.app/Contents/Info.plist`, Buffer.from(candidatePlist(version))]] : [])]);
   const manifest = { format: 1, channel: 'candidate', identity: 'com.westng.liberty.native-candidate', version, target,
     productionReady: false, signed: false, notarized: false, defaultRuntimeProfile: 'production', availableRuntimeProfiles: ['production'], files: [] };
@@ -163,7 +159,7 @@ async function committedFixture(context) {
   const f = await fixture(context);
   await writeFile(path.join(f.directory, '.gitignore'), 'target/\nartifacts/\n');
   await mkdir(path.join(f.directory, 'scripts/lib'), { recursive: true });
-  for (const name of ['check-native-release-policy.mjs', 'lib/native-package.mjs', 'ci/workflows.mjs', 'ci/plan.mjs', 'ci/yaml.mjs']) {
+  for (const name of ['check-native-release-policy.mjs', 'lib/native-package.mjs', 'lib/native-windows-resources.mjs', 'ci/workflows.mjs', 'ci/plan.mjs', 'ci/yaml.mjs']) {
     await mkdir(path.dirname(path.join(f.directory, 'scripts', name)), { recursive: true });
     await writeFile(path.join(f.directory, 'scripts', name), await readFile(new URL(name, import.meta.url)));
   }
@@ -242,7 +238,9 @@ for (const [name, mutate] of [
   ['missing local translation notices', async f => { f.files.delete('LOCAL_TRANSLATION_NOTICES.txt'); await rm(path.join(f.payload, 'LOCAL_TRANSLATION_NOTICES.txt')); await f.refresh(); }],
   ['modified local translation notices and stale manifest', async f => { await writeFile(path.join(f.payload, 'LOCAL_TRANSLATION_NOTICES.txt'), 'tampered'); }],
   ['modified binary and stale manifest', async f => { await writeFile(path.join(f.payload, f.binary), Buffer.from('tampered')); }],
-  ['wrong binary architecture with matching digest', async f => { f.files.get(f.binary).writeUInt16LE(0xaa64, 68); await f.refresh(); }],
+  ['wrong binary architecture with matching digest', async f => { const binary = f.files.get(f.binary); binary.writeUInt16LE(0xaa64, binary.readUInt32LE(0x3c) + 4); await f.refresh(); }],
+  ['missing embedded application icon with matching digest', async f => { f.files.get(f.binary).writeUInt32LE(0, 128 + 24 + 128); await f.refresh(); }],
+  ['tampered embedded application icon with matching digest', async f => { const binary = f.files.get(f.binary); binary[binary.length - 4] ^= 1; await f.refresh(); }],
   ['missing archive', async f => { await rm(path.join(f.parent, `${f.name}.tar.gz`)); }],
   ['unexpected sibling asset', async f => { await writeFile(path.join(f.parent, 'extra.zip'), 'bad'); }],
   ['second candidate package', async f => { await mkdir(path.join(f.directory, 'target/native/packages', `${f.name}-old`)); }],

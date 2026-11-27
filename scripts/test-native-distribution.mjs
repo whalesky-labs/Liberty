@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } f
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { windowsExecutableFixture, windowsIconFixture } from './test-fixtures/native-windows.mjs';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { assertDistributionManifest, assertMsiMetadata, assertSignedProvenance, authenticodeScript, checkDistributionHost, distributionPlan, msiQueryScript, msiVersion, parseDistributionArgs, prepareDistribution, renderWix, upgradeCodes, verifyWixBytes, wixTool } from './lib/native-distribution.mjs';
@@ -50,6 +51,9 @@ for (const target of ['windows-x64']) {
     assert.ok(result.includes(upgradeCodes[target]));
     assert.equal((result.match(/<File /g) ?? []).length, installerFiles.length);
     assert.match(result, /Name="LOCAL_TRANSLATION_NOTICES.txt"/);
+    assert.match(result, /<Icon Id="CandidateIcon\.exe" SourceFile="payload\\Liberty Native Candidate\.exe"/);
+    assert.match(result, /<Property Id="ARPPRODUCTICON" Value="CandidateIcon\.exe"/);
+    assert.match(result, /<Shortcut[^>]+Icon="CandidateIcon\.exe" IconIndex="0"/);
     assert.match(result, /Custom Action="AcceptanceRollback" After="InstallFiles"/);
     assert.match(result, /Execute="deferred" Return="check" Impersonate="yes"/);
     assert.doesNotMatch(result, /RemoveFile|DeleteFile|RemoveRegistryKey|Id="AppDataFolder"|com\.westng\.liberty[^.]/);
@@ -142,10 +146,9 @@ async function fixture(context, target) {
   const mac = target.startsWith('darwin-');
   const resources = mac ? `${candidateName}.app/Contents/Resources/` : '';
   const binary = mac ? `${candidateName}.app/Contents/MacOS/liberty-native` : `${candidateName}.exe`;
-  const program = Buffer.alloc(256);
+  const program = mac ? Buffer.alloc(256) : windowsExecutableFixture();
   if (mac) { program.writeUInt32LE(0xfeedfacf, 0); program.writeUInt32LE(nativeTargets[target].machine, 4); }
-  else { program.write('MZ'); program.writeUInt32LE(64, 0x3c); program.writeUInt32LE(0x4550, 64); program.writeUInt16LE(nativeTargets[target].machine, 68); }
-  const files = new Map([[binary, program], ['README.txt', Buffer.from('unsigned candidate fixture\n')], [`${resources}LICENSE`, Buffer.from('license')], [`${resources}THIRD_PARTY_NOTICES.txt`, Buffer.from('notices')], [`${resources}LOCAL_TRANSLATION_NOTICES.txt`, Buffer.from('local translation notices')], [`${resources}${mac ? 'icon.icns' : 'icon.ico'}`, Buffer.from('icon')], ...(mac ? [[`${candidateName}.app/Contents/Info.plist`, Buffer.from(candidatePlist(version))]] : [])]);
+  const files = new Map([[binary, program], ['README.txt', Buffer.from('unsigned candidate fixture\n')], [`${resources}LICENSE`, Buffer.from('license')], [`${resources}THIRD_PARTY_NOTICES.txt`, Buffer.from('notices')], [`${resources}LOCAL_TRANSLATION_NOTICES.txt`, Buffer.from('local translation notices')], [`${resources}${mac ? 'icon.icns' : 'icon.ico'}`, mac ? Buffer.from('icon') : windowsIconFixture], ...(mac ? [[`${candidateName}.app/Contents/Info.plist`, Buffer.from(candidatePlist(version))]] : [])]);
   const manifest = { format: 1, channel: 'candidate', identity: candidateIdentity, version, target, productionReady: false, signed: false, notarized: false, defaultRuntimeProfile: 'production', availableRuntimeProfiles: ['production'], files: [...files].map(([path, bytes]) => ({ path, bytes: bytes.length, sha256: fileDigest(bytes) })) };
   const name = `liberty-native-candidate-${version}-${target}`;
   const parent = path.join(directory, 'target/native/packages', `${name}-abcdef`);

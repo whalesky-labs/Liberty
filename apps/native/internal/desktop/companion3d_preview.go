@@ -87,7 +87,7 @@ func RunCompanion3DPreview(locale, assetDirectory string) error {
 	}, changed)
 	defer v.controller.Close()
 	mygo.App.WhenReady(func() {
-		v.window = mygo.NewWindow(mygo.WindowOptions{Title: v.text("Libby · 原生像素动作", "Libby · Native pixel actions"), Width: 940, Height: 760, MinWidth: 740, MinHeight: 650, Content: ui.View(v.view)})
+		v.window = newDesktopWindow(mygo.WindowOptions{Title: v.text("Libby · 原生像素动作", "Libby · Native pixel actions"), Width: 940, Height: 760, MinWidth: 740, MinHeight: 650, Content: ui.View(v.view)})
 		v.window.OnHide(func() { v.primaryVisible = false; v.visibility() })
 		v.window.OnMinimize(func() { v.primaryVisible = false; v.visibility() })
 		wake := func() { v.primaryVisible = true; v.visibility() }
@@ -230,7 +230,7 @@ func (v *companion3DPreview) openFloating() {
 	}
 	var pointer companionPointer
 	var floating *mygo.Window
-	floating = mygo.NewWindow(mygo.WindowOptions{Title: v.text("Libby · 原生透明预览", "Libby · Native transparent preview"), Width: 320, Height: 320, Frameless: true, Transparent: true, AlwaysOnTop: true, SkipTaskbar: true, DisableShadow: true, DisableResize: true, Content: ui.View(func(c *ui.Context) {
+	floating = newDesktopWindow(mygo.WindowOptions{Title: v.text("Libby · 原生透明预览", "Libby · Native transparent preview"), Width: 320, Height: 320, Frameless: true, Transparent: true, AlwaysOnTop: true, SkipTaskbar: true, DisableShadow: true, DisableResize: true, Content: ui.View(func(c *ui.Context) {
 		c.Root().Background(ui.Transparent)
 		v.frame(c)
 		ui.Image(c.Key("pet3d-pixel"), v.texture).Fill().Fit(ui.Contain).Label(v.text("拖动三维角色", "Drag 3D character")).HandleInput(pointer.input)

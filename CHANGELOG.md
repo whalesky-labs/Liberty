@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### 中文
+
+- 修复 Windows 原生标题栏与应用深浅主题不同步的问题；为窗口、任务栏、exe、开始菜单快捷方式及卸载列表补齐共享应用图标。
+- 恢复原生安装包交付：macOS Apple Silicon/Intel 提供临时签名 DMG，Windows x64 提供当前用户 MSI；保留便携归档及独立安装器来源、签名状态和 SHA-256 清单，不宣称已公证或具备可信发布者签名。
+- 设置加入双语 GitHub 下载更新入口；从 Releases 选择匹配平台的安装包，正常退出后更新并保留资料。此入口不在后台下载、执行或自动替换应用。
+- 为 alpha/beta/rc 到稳定版提供有序 MSI 产品版本映射，并将安装包解包、内嵌字节、架构与版本验证接入现有完整发布门禁。
+
+### English
+
+- Fixed Windows native title bars diverging from the app's light/dark appearance, and restored the shared application icon for windows, taskbar buttons, executables, Start menu shortcuts and the installed-apps list.
+- Restored native installer delivery: ad-hoc-signed DMGs for Apple Silicon/Intel Macs and a per-user MSI for Windows x64, retaining portable archives and separate installer provenance, signature status and SHA-256 records without claiming notarization or a trusted publisher signature.
+- Added a bilingual GitHub download-updates entry in Settings. Choose a matching installer from Releases and quit before upgrading; data is retained. This entry does not download, execute or replace the app in the background.
+- Added ordered MSI product versions from alpha/beta/rc through stable, and required extracted installer bytes, architecture and version verification under the existing complete release gate.
+
 ## 2.0.0-alpha.3 - 2026-11-26
 
 ### 中文

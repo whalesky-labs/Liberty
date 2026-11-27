@@ -125,7 +125,7 @@ func (w *Workspace) openNotes(parent *application.JobWindow, id, title string) {
 		}
 	})
 	view := &NotesView{Client: controller, Preferences: w.preferences}
-	window = mygo.NewWindow(mygo.WindowOptions{Title: presentation.Format(w.preferences.Locale, "windows.meetingNotesTitle", map[string]any{"title": title}), Width: 1120, Height: 860, MinWidth: 920, MinHeight: 720, Content: ui.View(view.View)})
+	window = newDesktopWindow(mygo.WindowOptions{Title: presentation.Format(w.preferences.Locale, "windows.meetingNotesTitle", map[string]any{"title": title}), Width: 1120, Height: 860, MinWidth: 920, MinHeight: 720, Content: ui.View(view.View)})
 	view.Close = window.Close
 	w.notes, w.notesView, w.notesTitle = window, view, title
 	window.OnClosed(func() {

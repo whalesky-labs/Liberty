@@ -259,6 +259,8 @@ export type MessageTree = {
     save: string;
     copyright: string;
     authorGithub: string;
+    downloadUpdate: string;
+    updateHint: string;
     colorLabels: Record<string, string>;
   };
   status: Record<JobStage, string>;

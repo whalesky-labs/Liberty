@@ -22,7 +22,7 @@ As of 2026-11-25, **the new implementation is Go + MyGo under `apps/native`; `pn
 | `apps/desktop` | Frozen React/Tauri migration reference and current production entry until Native cutover; scheduled for deletion with its release chain after all gates pass |
 | Python Runner / SQLite / shared schemas | Shared transcription, data and resource sources |
 
-See the [native module guide](apps/native/README.md) for profiles, backup and restore. Full UI, IME/accessibility, external-service, Intel/Windows device, supply-chain and upgrade/rollback acceptance remain separate requirements. This closeout delivers unsigned, unnotarized candidate archives; signing and notarization are outside its completion conditions. Candidate identity and the other acceptance requirements remain in force; see [release readiness](docs/architecture/release-readiness.md).
+See the [native module guide](apps/native/README.md) for profiles, backup and restore. Full UI, IME/accessibility, external-service, Intel/Windows device, supply-chain and upgrade/rollback acceptance remain separate requirements. Pending delivery restores ad-hoc-signed macOS DMGs and a Windows per-user MSI, retaining portable archives as technical assets. Trusted publisher signing and Apple notarization are not provided; security prompts may appear. Settings opens GitHub Releases for the user to download a matching installer and update after quitting. This does not change the already published alpha.3 assets. Candidate identity and the other acceptance requirements remain in force; see [release readiness](docs/architecture/release-readiness.md).
 
 ## Capabilities
 

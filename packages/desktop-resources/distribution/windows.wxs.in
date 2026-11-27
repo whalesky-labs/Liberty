@@ -10,6 +10,8 @@
     <Condition Message="Liberty Native Candidate supports only per-user installation.">NOT ALLUSERS</Condition>
     <Property Id="ARPNOMODIFY" Value="1" />
     <Property Id="ARPNOREPAIR" Value="1" />
+    <Icon Id="CandidateIcon.exe" SourceFile="payload\Liberty Native Candidate.exe" />
+    <Property Id="ARPPRODUCTICON" Value="CandidateIcon.exe" />
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="LocalAppDataFolder">
         <Directory Id="ProgramsDirectory" Name="Programs">
@@ -21,7 +23,7 @@
       <Directory Id="ProgramMenuFolder">
         <Directory Id="CandidateMenu" Name="Liberty Native Candidate @TARGET@">
           <Component Id="CandidateShortcut" Guid="*" Win64="@WIN64@">
-            <Shortcut Id="CandidateLaunch" Name="Liberty Native Candidate @TARGET@" Target="[INSTALLFOLDER]Liberty Native Candidate.exe" WorkingDirectory="INSTALLFOLDER" />
+            <Shortcut Id="CandidateLaunch" Name="Liberty Native Candidate @TARGET@" Target="[INSTALLFOLDER]Liberty Native Candidate.exe" WorkingDirectory="INSTALLFOLDER" Icon="CandidateIcon.exe" IconIndex="0" />
             <RemoveFolder Id="RemoveCandidateMenu" On="uninstall" />
             <RegistryValue Root="HKCU" Key="Software\Liberty\NativeCandidate\@TARGET@" Name="Shortcut" Type="integer" Value="1" KeyPath="yes" />
           </Component>
