@@ -13,7 +13,7 @@ use crate::infrastructure::{
 };
 use crate::local_db::LocalResult;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 12;
+pub const CURRENT_SCHEMA_VERSION: i64 = 13;
 const CREDENTIAL_JOURNAL_KEY: &str = "native_credential_migration_v3";
 const CREDENTIAL_JOURNAL_ERROR: &str = "无法恢复系统凭据迁移记录。";
 
@@ -777,6 +777,7 @@ mod tests {
         Migration::new(10, "test v10", test_noop),
         Migration::new(11, "test v11", test_noop),
         Migration::new(12, "test v12", test_noop),
+        Migration::new(13, "test v13", test_noop),
     ];
 
     struct TestDirectory(PathBuf);

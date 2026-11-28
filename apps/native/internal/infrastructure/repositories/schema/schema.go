@@ -344,6 +344,8 @@ func applyStep(ctx context.Context, c *sql.Conn, v int) error {
 		return executeBlocks(ctx, c, liveSessionsSQL, false)
 	case 12:
 		return executeBlocks(ctx, c, liveAutoLanguageSQL, false)
+	case 13:
+		return executeBlocks(ctx, c, meetingDraftsSQL, false)
 	default:
 		return ErrVersion
 	}

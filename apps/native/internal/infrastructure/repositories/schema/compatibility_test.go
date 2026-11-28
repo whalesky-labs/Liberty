@@ -84,15 +84,15 @@ func TestRustMigrationVersionsAndCompleteDataMatch(t *testing.T) {
 func compareDatabases(t *testing.T, got, want *sql.DB) {
 	t.Helper()
 	a, b := snapshot(t, got), snapshot(t, want)
-	if scalar(t, got, "SELECT value FROM app_meta WHERE key='schema_version'") != "12" || scalar(t, want, "SELECT value FROM app_meta WHERE key='schema_version'") != "10" {
+	if scalar(t, got, "SELECT value FROM app_meta WHERE key='schema_version'") != "13" || scalar(t, want, "SELECT value FROM app_meta WHERE key='schema_version'") != "10" {
 		t.Fatal("unexpected compatibility projection versions")
 	}
 	for index, row := range a["app_meta"] {
-		if row == `["schema_version","12"]` {
+		if row == `["schema_version","13"]` {
 			a["app_meta"][index] = `["schema_version","10"]`
 		}
 	}
-	for _, name := range []string{"live_sessions", "live_segments", "live_session_events"} {
+	for _, name := range []string{"live_sessions", "live_segments", "live_session_events", "meeting_drafts"} {
 		if rows, ok := a[name]; !ok || len(rows) != 0 {
 			t.Fatal("upgrade did not create empty live tables")
 		}

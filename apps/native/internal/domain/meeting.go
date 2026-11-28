@@ -51,12 +51,15 @@ type SourceFile struct {
 }
 
 type Result struct {
-	Summary     Summary      `json:"summary"`
-	SummaryRuns []SummaryRun `json:"summaryRuns"`
-	ProcessLog  *string      `json:"processLog"`
-	Job         JobSummary   `json:"job"`
-	Transcript  []Segment    `json:"transcriptSegments"`
-	Speakers    []Segment    `json:"speakerSegments"`
+	// Native-only evidence state, not part of remote or historical DTOs.
+	SummarySourceChanged bool          `json:"-"`
+	Draft                *MeetingDraft `json:"-"`
+	Summary              Summary       `json:"summary"`
+	SummaryRuns          []SummaryRun  `json:"summaryRuns"`
+	ProcessLog           *string       `json:"processLog"`
+	Job                  JobSummary    `json:"job"`
+	Transcript           []Segment     `json:"transcriptSegments"`
+	Speakers             []Segment     `json:"speakerSegments"`
 }
 
 // PrimarySegments is the authoritative projection used for summaries and exports.

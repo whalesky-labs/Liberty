@@ -15,19 +15,21 @@ type ResultFiles interface {
 	Export(context.Context, domain.TextExportKind, string, string) (bool, error)
 }
 type ResultActionController struct {
-	Busy      bool
-	Error     error
-	Exported  bool
-	Exporting bool
-	service   ResultActions
-	files     ResultFiles
-	confirm   func(context.Context, string, string, string) (bool, error)
-	dispatch  func(func())
-	changed   func()
-	renamed   func(string, string)
-	ctx       context.Context
-	cancel    context.CancelFunc
-	closed    bool
+	Correction                        *domain.Segment
+	CorrectionText, CorrectionSpeaker string
+	Busy                              bool
+	Error                             error
+	Exported                          bool
+	Exporting                         bool
+	service                           ResultActions
+	files                             ResultFiles
+	confirm                           func(context.Context, string, string, string) (bool, error)
+	dispatch                          func(func())
+	changed                           func()
+	renamed                           func(string, string)
+	ctx                               context.Context
+	cancel                            context.CancelFunc
+	closed                            bool
 }
 
 func NewResultActions(service ResultActions, files ResultFiles, confirm func(context.Context, string, string, string) (bool, error), dispatch func(func()), changed func(), renamed func(string, string)) *ResultActionController {

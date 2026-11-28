@@ -19,7 +19,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const SchemaVersion = "12"
+const SchemaVersion = "13"
 
 var (
 	ErrDatabase = errors.New("database_read_failed")
@@ -31,6 +31,7 @@ type Reader struct {
 	revisionMu            sync.Mutex
 	revisionConnection    any
 	dataVersion, revision uint64
+	meetingDrafts         bool
 }
 
 // Open requires an explicitly supplied file; it neither discovers the user's
@@ -61,8 +62,12 @@ func Open(ctx context.Context, path string) (*Reader, error) {
 	db.SetMaxOpenConns(1)
 	r := &Reader{db: db}
 	var version string
-	// Earlier native/legacy profiles remain readable; writers require v12.
-	if err := db.QueryRowContext(ctx, "SELECT value FROM app_meta WHERE key = 'schema_version'").Scan(&version); err != nil || (version != SchemaVersion && version != "10" && version != "11") {
+	// Earlier native/legacy profiles remain readable; writers require v13.
+	if err := db.QueryRowContext(ctx, "SELECT value FROM app_meta WHERE key = 'schema_version'").Scan(&version); err != nil || (version != SchemaVersion && version != "10" && version != "11" && version != "12") {
+		db.Close()
+		return nil, ErrSchema
+	}
+	if db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='meeting_drafts')`).Scan(&r.meetingDrafts) != nil {
 		db.Close()
 		return nil, ErrSchema
 	}
@@ -306,14 +311,19 @@ func (r *Reader) ReadResult(ctx context.Context, id string) (domain.Result, erro
 	if tx.QueryRowContext(ctx, "SELECT process_log FROM jobs WHERE id = ?", id).Scan(&log) != nil {
 		return domain.Result{}, ErrDatabase
 	}
-	if tx.Commit() != nil {
-		return domain.Result{}, ErrDatabase
-	}
 	result := domain.Result{Job: job, Transcript: transcript, Speakers: speakers, SummaryRuns: runs, ProcessLog: log}
 	if result.Job.DurationMinutes == 0 {
 		result.Job.DurationMinutes = (domain.RunnerResult{Transcript: transcript, Speakers: speakers}).Duration(0)
 	}
 	result.HydrateSummary()
+	if r.meetingDrafts {
+		if err := readMeetingDraft(ctx, tx, &result); err != nil {
+			return domain.Result{}, err
+		}
+	}
+	if tx.Commit() != nil {
+		return domain.Result{}, ErrDatabase
+	}
 	return result, nil
 }
 

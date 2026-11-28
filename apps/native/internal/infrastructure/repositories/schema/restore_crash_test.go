@@ -73,8 +73,8 @@ func restoreCrashSnapshot(t *testing.T, path string) map[string][]string {
 		names = append(names, name)
 	}
 	readErr = tables.Err()
-	if tables.Close() != nil || readErr != nil || len(names) != 35 {
-		t.Fatal("synthetic crash fixture did not expose the complete v12 table set")
+	if tables.Close() != nil || readErr != nil || len(names) != 36 {
+		t.Fatal("synthetic crash fixture did not expose the complete v13 table set")
 	}
 	snapshot := make(map[string][]string, len(names))
 	for _, name := range names {
@@ -280,7 +280,7 @@ func TestRestoreSIGKILLAfterDurableJournalBeforeSQLiteRestore(t *testing.T) {
 	if err != nil || len(records) != 1 || records[0].info.Mode().Perm() != 0600 || !reflect.DeepEqual(records[0].journal.References, wantReferences) {
 		t.Fatal("durable restore journal did not preserve the exact synthetic reference set")
 	}
-	safetyFiles, err := filepath.Glob(database + ".pre-restore-v12-*.bak")
+	safetyFiles, err := filepath.Glob(database + ".pre-restore-v13-*.bak")
 	if err != nil || len(safetyFiles) != 1 || verifyBackup(ctx, safetyFiles[0], CurrentVersion) != nil {
 		t.Fatal("synthetic restore did not retain one verified safety backup before its crash boundary")
 	}
