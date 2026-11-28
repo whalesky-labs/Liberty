@@ -302,7 +302,9 @@ async function installWix(stage) {
   verifyWixBytes(bytes);
   await writeFile(archive, bytes, { flag: 'wx' });
   const tools = path.join(stage, 'wix');
-  powershell(`Expand-Archive -LiteralPath ${ps(archive)} -DestinationPath ${ps(tools)}`);
+  // CI can launch Node from PowerShell 7, whose inherited PSModulePath would
+  // load an incompatible Archive module in this Windows PowerShell 5.1 child.
+  powershell(`Import-Module (Join-Path $PSHOME 'Modules\\Microsoft.PowerShell.Archive\\Microsoft.PowerShell.Archive.psd1') -Force; Expand-Archive -LiteralPath ${ps(archive)} -DestinationPath ${ps(tools)}`);
   return tools;
 }
 export async function compileMsi(stage, file) {
