@@ -11,23 +11,16 @@ import (
 )
 
 func TestVoiceSettingsSaveMicrophoneAndTranslationForFutureSessions(t *testing.T) {
-	optionsReady := make(chan struct{}, 1)
+	liveCallbacks := make(chan func(), 8)
 	liveService := &liveModelsSettingsService{options: application.LiveOptions{
 		Devices: []domain.AudioDevice{{ID: "synthetic-microphone", Name: "Synthetic Microphone"}}, ModelReady: true, TranslationReady: true,
 	}}
-	var live *client.LiveController
-	live = client.NewLive(liveService, nil, func(callback func()) { callback() }, func() {
-		if live != nil && live.OptionsLoaded() {
-			select {
-			case optionsReady <- struct{}{}:
-			default:
-			}
-		}
-	})
+	live := client.NewLive(liveService, nil, func(callback func()) { liveCallbacks <- callback }, func() {})
 	defer live.Close()
 	live.EnsureOptions()
 	select {
-	case <-optionsReady:
+	case callback := <-liveCallbacks:
+		callback()
 	case <-time.After(time.Second):
 		t.Fatal("microphone options did not load")
 	}
@@ -36,7 +29,8 @@ func TestVoiceSettingsSaveMicrophoneAndTranslationForFutureSessions(t *testing.T
 	}
 
 	settingsService := settingsParityService{saved: make(chan domain.Settings, 4)}
-	settings := client.NewSettings(settingsService, func(callback func()) { callback() }, func() {}, func(domain.UIPreferences) {})
+	settingsCallbacks := make(chan func(), 8)
+	settings := client.NewSettings(settingsService, func(callback func()) { settingsCallbacks <- callback }, func() {}, func(domain.UIPreferences) {})
 	settings.Loaded = true
 	settings.Draft = domain.DefaultSettings()
 	defer settings.Close()
@@ -62,6 +56,7 @@ func TestVoiceSettingsSaveMicrophoneAndTranslationForFutureSessions(t *testing.T
 	if err := tester.Click(option); err != nil {
 		t.Fatal(err)
 	}
+	flushView(t, settingsCallbacks, tester)
 	waitSavedSettingsVoice(t, settingsService.saved, applied)
 	if settings.Draft.LiveDeviceID != "synthetic-microphone" || live.Request.DeviceID != "synthetic-microphone" {
 		t.Fatal("selected microphone was not saved and applied to future sessions", settings.Draft.LiveDeviceID, live.Request.DeviceID)
@@ -72,6 +67,7 @@ func TestVoiceSettingsSaveMicrophoneAndTranslationForFutureSessions(t *testing.T
 		t.Fatal("translation toggle did not retain its saved state", translationToggle)
 	}
 	tester.ClickAt(translationToggle.Bounds.X+translationToggle.Bounds.W/2, translationToggle.Bounds.Y+translationToggle.Bounds.H/2)
+	flushView(t, settingsCallbacks, tester)
 	waitSavedSettingsVoice(t, settingsService.saved, applied)
 	if settings.Draft.LiveTranslate || live.Request.Translate {
 		t.Fatal("translation preference was not saved and applied to future sessions", settings.Draft.LiveTranslate, live.Request.Translate)
