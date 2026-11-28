@@ -44,7 +44,10 @@ for (const target of ['windows-x64']) {
     const result = renderWix(template, { target, version, files: installerFiles });
     assert.match(result, /InstallScope="perUser" InstallPrivileges="limited"/);
     assert.match(result, /Platform="x64"/);
-    assert.match(result, /Win64="yes"/);
+    const components = [...result.matchAll(/<Component\s[^>]*>/g)].map(match => match[0]);
+    assert.equal(components.length, installerFiles.length + 1);
+    for (const component of components) assert.match(component, /\bWin64="yes"/);
+    assert.doesNotMatch(result, /@[A-Z_][A-Z0-9_]*@/);
     assert.match(result, />VersionNT64<\/Condition>/);
     assert.match(result, /MajorUpgrade Schedule="afterInstallInitialize"/);
     assert.match(result, /DowngradeErrorMessage=/);
@@ -65,7 +68,7 @@ test('installer identity is isolated from production', () => {
 });
 for (const files of [installerFiles.slice(1), installerFiles.filter(name => name !== 'LOCAL_TRANSLATION_NOTICES.txt'), [...installerFiles, 'secret.txt'], [...installerFiles, '..\\escape.exe'], [...installerFiles, 'bad"/>&.exe']]) test(`refuses noncanonical installer payload ${JSON.stringify(files)}`, () => assert.throws(() => renderWix(template, { target: 'windows-x64', version, files })));
 test('refuses unknown template placeholders and wildcard deletion', () => {
-  for (const extra of ['@UNREVIEWED@', '<RemoveFile Name="*" On="uninstall" />']) assert.throws(() => renderWix(template + extra, { target: 'windows-x64', version, files: installerFiles }));
+  for (const extra of ['@UNREVIEWED@', '@UNREVIEWED64@', '<RemoveFile Name="*" On="uninstall" />']) assert.throws(() => renderWix(template + extra, { target: 'windows-x64', version, files: installerFiles }));
 });
 test('fixed WiX source is the official 3.14.1 release and rejects unverified bytes', () => {
   assert.equal(wixTool.url, 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip');

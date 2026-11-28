@@ -70,11 +70,11 @@ export function renderWix(template, { target, version, files, productVersion = m
   const win64 = 'yes';
   const components = files.map((name, index) => `            <Component Id="Payload${index}" Guid="*" Win64="${win64}">\n              <File Id="File${index}" Source="payload\\${xml(name)}" Name="${xml(name)}" Checksum="yes" />\n              <RegistryValue Root="HKCU" Key="Software\\Liberty\\NativeCandidate\\${target}" Name="File${index}" Type="integer" Value="1" KeyPath="yes" />\n            </Component>`).join('\n');
   const values = { TARGET: target, VERSION: productVersion, UPGRADE_CODE: upgradeCodes[target], PLATFORM: 'x64', WIN64: win64, ARCH_CONDITION: 'VersionNT64', COMPONENTS: components, COMPONENT_REFS: files.map((_, i) => `      <ComponentRef Id="Payload${i}" />`).join('\n') };
-  const rendered = template.replace(/@([A-Z_]+)@/g, (_, key) => {
+  const rendered = template.replace(/@([A-Z_][A-Z0-9_]*)@/g, (_, key) => {
     if (!Object.hasOwn(values, key)) throw new Error('Unknown installer template placeholder');
     return values[key];
   });
-  if (/@[A-Z_]+@/.test(rendered) || /RemoveFile|RemoveFolder[^>]*Directory=|DeleteFile|RemoveRegistryKey/.test(rendered)) throw new Error('Unsafe installer deletion policy');
+  if (/@[A-Z_][A-Z0-9_]*@/.test(rendered) || /RemoveFile|RemoveFolder[^>]*Directory=|DeleteFile|RemoveRegistryKey/.test(rendered)) throw new Error('Unsafe installer deletion policy');
   return rendered;
 }
 
