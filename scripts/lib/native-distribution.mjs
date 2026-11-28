@@ -100,6 +100,8 @@ export function wixFailureDetails(error) {
   const output = [error?.stdout, error?.stderr].map(value => String(value ?? '').slice(0, 65_536)).join('\n');
   const diagnostics = new Set();
   for (const line of output.split(/\r?\n/)) {
+    const powershellCode = /LIBERTY_POWERSHELL_ERROR=([A-Za-z0-9_.-]{1,128})(?:[\s<]|$)/.exec(line)?.[1];
+    if (powershellCode) diagnostics.add(`PowerShell ${powershellCode}`);
     const code = /\b(?:error|warning) ((?:CNDL|LGHT)\d{4})\b/.exec(line)?.[1];
     if (!code) continue;
     const location = /\binstaller\.wxs\((\d{1,6})\)/.exec(line)?.[1];
@@ -116,7 +118,8 @@ function run(command, args, { cwd = repository, input, timeout = 30 * 60_000, en
 }
 function powershell(source) {
   if (process.platform !== 'win32' || !process.env.SystemRoot) throw new Error('Windows PowerShell requires a Windows host');
-  return run(path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'), ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(`$ErrorActionPreference='Stop'; ${source}`, 'utf16le').toString('base64')]);
+  const script = `$ErrorActionPreference='Stop'; try { ${source} } catch { $id=($_.FullyQualifiedErrorId -split ',')[0]; if($id -match '^[A-Za-z0-9_.-]{1,128}$'){[Console]::Error.WriteLine('LIBERTY_POWERSHELL_ERROR=' + $id)}; exit 1 }`;
+  return run(path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'), ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')]);
 }
 function pnpm(args) {
   // Windows cannot execute a .cmd through execFile directly. These commands

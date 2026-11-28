@@ -97,6 +97,8 @@ test('WiX failures expose only bounded codes and template locations', () => {
   };
   assert.equal(wixFailureDetails(error), '; CNDL0230 at installer.wxs:17, LGHT0204 ICE64');
   assert.equal(wixFailureDetails({ stderr: 'no safe diagnostic fields' }), '');
+  assert.equal(wixFailureDetails({ stderr: 'LIBERTY_POWERSHELL_ERROR=ArchiveCmdletPathNotFound\nprivate path' }), '; PowerShell ArchiveCmdletPathNotFound');
+  assert.equal(wixFailureDetails({ stderr: 'LIBERTY_POWERSHELL_ERROR=C:\\private\\path' }), '');
   assert.equal(wixFailureDetails({ stdout: Array.from({ length: 50 }, (_, i) => `installer.wxs(${i + 1}) : error CNDL0230 : private`).join('\n') }).split(', ').length, 12);
 });
 test('Authenticode commands preserve literal paths and demand trusted signer and timestamp', () => {
