@@ -24,6 +24,16 @@ The product is free. Basic meeting workflows require no API key or paid API; AI 
 
 Native production cutover is incomplete. After the [cutover gates](docs/architecture/release-readiness.md#cutover-and-retirement) pass, the old client and its release chain are removed together. Candidates use an independent profile; importing existing data is an explicit operation.
 
+## Screenshots
+
+Captured from the running Native client on macOS on November 28, 2026: v2.0.0-alpha.4 development build, Chinese UI and dark theme. The workspace shows its actual empty state. Click an image to view it at full size.
+
+| Meeting workspace | Create a meeting task |
+| --- | --- |
+| [![Native meeting workspace with task metrics and recent activity](docs/images/screenshots/native-workspace.jpg)](docs/images/screenshots/native-workspace.jpg) | [![Create a meeting task with batch file import, language and speaker options](docs/images/screenshots/native-new-meeting.jpg)](docs/images/screenshots/native-new-meeting.jpg) |
+| **Appearance settings** | **Companion shop** |
+| [![Native appearance settings with theme, window material and accent color](docs/images/screenshots/native-appearance.jpg)](docs/images/screenshots/native-appearance.jpg) | [![Companion shop with pixel-art items and local LP rewards](docs/images/screenshots/native-pet-store.jpg)](docs/images/screenshots/native-pet-store.jpg) |
+
 ## Meeting and Companion Features
 
 - **Import and process:** single files or batches of up to 32, persistent queues, progress, logs, retries and deletion. Failed batch admissions can be retried individually.

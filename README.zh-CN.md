@@ -24,6 +24,16 @@ Liberty 将本地转写、说话人分离、逐字稿校对、会议纪要和结
 
 Native 生产切换尚未完成。[切换门槛](docs/architecture/release-readiness.md#cutover-and-retirement)全部通过后，旧端及其发布链在同一变更中删除。候选版使用独立资料目录，已有资料须显式导入。
 
+## 界面截图
+
+以下截图于 2026-11-28 实际截取自 macOS 上运行的 Native 客户端：v2.0.0-alpha.4 开发构建、中文界面、深色主题。工作台展示当前无任务的真实状态，点击图片可查看原图。
+
+| 会议工作台 | 创建会议任务 |
+| --- | --- |
+| [![原生会议工作台：任务指标与最近动态](docs/images/screenshots/native-workspace.jpg)](docs/images/screenshots/native-workspace.jpg) | [![创建会议任务：批量文件导入、语言与说话人设置](docs/images/screenshots/native-new-meeting.jpg)](docs/images/screenshots/native-new-meeting.jpg) |
+| **外观设置** | **伙伴商店** |
+| [![原生外观设置：主题、窗口材质与强调色](docs/images/screenshots/native-appearance.jpg)](docs/images/screenshots/native-appearance.jpg) | [![伙伴商店：像素风物品与本地 LP 奖励](docs/images/screenshots/native-pet-store.jpg)](docs/images/screenshots/native-pet-store.jpg) |
+
 ## 会议与陪伴能力
 
 - **导入与处理**：单文件或最多 32 个文件批量入队，持久化队列、进度、日志、重试和删除；批量创建失败项可独立重试。
