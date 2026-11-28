@@ -7,7 +7,7 @@ import test from 'node:test';
 import { windowsExecutableFixture, windowsIconFixture } from './test-fixtures/native-windows.mjs';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { assertDistributionManifest, assertMsiMetadata, assertSignedProvenance, authenticodeScript, checkDistributionHost, distributionPlan, msiQueryScript, msiVersion, parseDistributionArgs, prepareDistribution, renderWix, upgradeCodes, verifyWixBytes, wixTool } from './lib/native-distribution.mjs';
+import { assertDistributionManifest, assertMsiMetadata, assertSignedProvenance, authenticodeScript, checkDistributionHost, distributionPlan, msiQueryScript, msiVersion, parseDistributionArgs, prepareDistribution, renderWix, upgradeCodes, verifyWixBytes, wixFailureDetails, wixTool } from './lib/native-distribution.mjs';
 import { candidateIdentity, candidateName, candidatePlist, fileDigest, nativeTargets } from './lib/native-package.mjs';
 
 const template = await readFile(new URL('../packages/desktop-resources/distribution/windows.wxs.in', import.meta.url), 'utf8');
@@ -44,7 +44,10 @@ for (const target of ['windows-x64']) {
     const result = renderWix(template, { target, version, files: installerFiles });
     assert.match(result, /InstallScope="perUser" InstallPrivileges="limited"/);
     assert.match(result, /Platform="x64"/);
-    assert.match(result, /Win64="yes"/);
+    const components = [...result.matchAll(/<Component\s[^>]*>/g)].map(match => match[0]);
+    assert.equal(components.length, installerFiles.length + 2);
+    for (const component of components) assert.match(component, /\bWin64="yes"/);
+    assert.doesNotMatch(result, /@[A-Z_][A-Z0-9_]*@/);
     assert.match(result, />VersionNT64<\/Condition>/);
     assert.match(result, /MajorUpgrade Schedule="afterInstallInitialize"/);
     assert.match(result, /DowngradeErrorMessage=/);
@@ -57,20 +60,52 @@ for (const target of ['windows-x64']) {
     assert.match(result, /Custom Action="AcceptanceRollback" After="InstallFiles"/);
     assert.match(result, /Execute="deferred" Return="check" Impersonate="yes"/);
     assert.doesNotMatch(result, /RemoveFile|DeleteFile|RemoveRegistryKey|Id="AppDataFolder"|com\.westng\.liberty[^.]/);
-    assert.equal((result.match(/RemoveFolder/g) ?? []).length, 1, 'only installer-owned shortcut folder is removed');
+    assert.deepEqual([...result.matchAll(/<RemoveFolder[^>]+\/>/g)].map(match => match[0]).sort(), [
+      '<RemoveFolder Id="RemoveCandidateMenu" On="uninstall" />',
+      '<RemoveFolder Id="RemoveEmptyInstallFolder" On="uninstall" />',
+      '<RemoveFolder Id="RemoveEmptyProgramsFolder" On="uninstall" />',
+    ].sort(), 'only the empty menu, install directory and Programs parent can be removed');
+    assert.match(result, /<Directory Id="ProgramsDirectory" Name="Programs">\s*<Component Id="ProgramsFolderCleanup"[^>]*>\s*<RemoveFolder Id="RemoveEmptyProgramsFolder"/);
+    assert.match(result, /<Directory Id="INSTALLFOLDER"[^>]*>\s*<Component Id="Payload0"[^>]*>\s*<File[^>]*\/?>\s*<RemoveFolder Id="RemoveEmptyInstallFolder"/);
   });
 }
 test('installer identity is isolated from production', () => {
   assert.notEqual(candidateIdentity, distributionPlan('windows-x64').productionPromotion.productionIdentity);
 });
+test('file components with registry keypaths have stable explicit GUIDs', () => {
+  const render = (files, version) => renderWix(template, { target: 'windows-x64', version, files });
+  const result = render(installerFiles, version);
+  const components = [...result.matchAll(/<Component\s[^>]*>[\s\S]*?<\/Component>/g)].map(match => match[0]);
+  const fileComponents = components.filter(component => component.includes('<File '));
+  const guids = fileComponents.map(component => {
+    assert.match(component, /<RegistryValue[^>]+Root="HKCU"[^>]+KeyPath="yes"/);
+    const guid = /\bGuid="([A-F0-9-]{36})"/.exec(component)?.[1];
+    assert.ok(guid, 'WiX cannot auto-generate a GUID for a file component with a registry keypath');
+    return guid;
+  });
+  assert.equal(new Set(guids).size, installerFiles.length);
+  const updated = render([...installerFiles].reverse(), '9.8.8');
+  assert.deepEqual([...updated.matchAll(/<Component\s[^>]*>[\s\S]*?<\/Component>/g)].map(match => match[0]), components, 'component identity and registry keypaths must survive upgrades and directory enumeration order');
+});
 for (const files of [installerFiles.slice(1), installerFiles.filter(name => name !== 'LOCAL_TRANSLATION_NOTICES.txt'), [...installerFiles, 'secret.txt'], [...installerFiles, '..\\escape.exe'], [...installerFiles, 'bad"/>&.exe']]) test(`refuses noncanonical installer payload ${JSON.stringify(files)}`, () => assert.throws(() => renderWix(template, { target: 'windows-x64', version, files })));
 test('refuses unknown template placeholders and wildcard deletion', () => {
-  for (const extra of ['@UNREVIEWED@', '<RemoveFile Name="*" On="uninstall" />']) assert.throws(() => renderWix(template + extra, { target: 'windows-x64', version, files: installerFiles }));
+  for (const extra of ['@UNREVIEWED@', '@UNREVIEWED64@', '<RemoveFile Name="*" On="uninstall" />']) assert.throws(() => renderWix(template + extra, { target: 'windows-x64', version, files: installerFiles }));
 });
 test('fixed WiX source is the official 3.14.1 release and rejects unverified bytes', () => {
   assert.equal(wixTool.url, 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip');
   assert.equal(wixTool.sha256, '6ac824e1642d6f7277d0ed7ea09411a508f6116ba6fae0aa5f2c7daa2ff43d31');
   assert.throws(() => verifyWixBytes(Buffer.from('not a trusted compiler')));
+});
+test('WiX failures expose only bounded codes and template locations', () => {
+  const error = {
+    stdout: 'C:\\Users\\private-account\\installer.wxs(17) : error CNDL0230 : synthetic sensitive output\n',
+    stderr: 'light.exe : error LGHT0204 : ICE64: synthetic private path\nraw account details\n',
+  };
+  assert.equal(wixFailureDetails(error), '; CNDL0230 at installer.wxs:17, LGHT0204 ICE64');
+  assert.equal(wixFailureDetails({ stderr: 'no safe diagnostic fields' }), '');
+  assert.equal(wixFailureDetails({ stderr: 'LIBERTY_POWERSHELL_ERROR=ArchiveCmdletPathNotFound\nprivate path' }), '; PowerShell ArchiveCmdletPathNotFound');
+  assert.equal(wixFailureDetails({ stderr: 'LIBERTY_POWERSHELL_ERROR=C:\\private\\path' }), '');
+  assert.equal(wixFailureDetails({ stdout: Array.from({ length: 50 }, (_, i) => `installer.wxs(${i + 1}) : error CNDL0230 : private`).join('\n') }).split(', ').length, 12);
 });
 test('Authenticode commands preserve literal paths and demand trusted signer and timestamp', () => {
   const saved = process.env.LIBERTY_WINDOWS_SIGN_THUMBPRINT;

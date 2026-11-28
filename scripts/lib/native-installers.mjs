@@ -4,7 +4,7 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, symlink,
 import os from 'node:os';
 import path from 'node:path';
 import { assertNativeCandidatePayload, readNativeArchive } from '../check-native-release-policy.mjs';
-import { assertMsiMetadata, installerProductVersion, msiQueryScript, renderWix, verifyWixBytes, wixTool } from './native-distribution.mjs';
+import { assertMsiMetadata, compileMsi, installerProductVersion, msiQueryScript, renderWix } from './native-distribution.mjs';
 import { assertNativeBinary, assertNativeVersion, assertRunnableTarget, candidateIdentity, candidateName, fileDigest, nativeTargets } from './native-package.mjs';
 
 export const updatesURL = 'https://github.com/whalesky-labs/Liberty/releases';
@@ -112,18 +112,10 @@ export async function createInstaller({ files, version, target, provenance, outp
         assert.equal(run(binary, ['--version']), `Liberty Native ${version} (candidate)`);
       } finally { if (mounted) run('/usr/bin/hdiutil', ['detach', mount]); }
     } else {
-      const response = await fetch(wixTool.url, { signal: AbortSignal.timeout(120_000) });
-      if (!response.ok) throw new Error('Pinned WiX download failed');
-      const bytes = Buffer.from(await response.arrayBuffer());
-      verifyWixBytes(bytes);
-      await writeFile(path.join(stage, 'wix.zip'), bytes, { flag: 'wx' });
-      const tools = path.join(stage, 'wix');
-      powershell(`Expand-Archive -LiteralPath ${ps(path.join(stage, 'wix.zip'))} -DestinationPath ${ps(tools)}`);
       const productVersion = installerProductVersion(version);
       const template = await readFile(new URL('../../packages/desktop-resources/distribution/windows.wxs.in', import.meta.url), 'utf8');
       await writeFile(path.join(stage, 'installer.wxs'), renderWix(template, { target, version, productVersion, files: await readdir(payload) }));
-      run(path.join(tools, 'candle.exe'), ['-nologo', '-arch', 'x64', '-out', 'installer.wixobj', 'installer.wxs'], { cwd: stage });
-      run(path.join(tools, 'light.exe'), ['-nologo', '-out', file, 'installer.wixobj'], { cwd: stage });
+      await compileMsi(stage, file);
       const metadata = JSON.parse(powershell(msiQueryScript(path.join(stage, file))));
       assertMsiMetadata(metadata, target, version, { productVersion });
       const extracted = path.join(stage, 'extracted');

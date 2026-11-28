@@ -16,6 +16,17 @@ export const wixTool = Object.freeze({
 export const upgradeCodes = Object.freeze({
   'windows-x64': 'D13F1484-68EA-4ABA-B1A8-926C3DE98A02',
 });
+// WiX cannot generate GUIDs for file components with HKCU registry keypaths.
+// Keep this order and these x64 identities stable across candidate upgrades.
+const windowsPayloadGuids = Object.freeze({
+  [`${candidateName}.exe`]: '12D94A02-C916-46C1-BC9A-CEC4E65BDCFF',
+  'README.txt': '38EBE313-AA26-4718-BC18-D63EF372D8CF',
+  LICENSE: '9EBEA048-D7C7-46CF-A4B2-651BF1FA35CC',
+  'THIRD_PARTY_NOTICES.txt': '8335FA8A-F483-464E-BB62-D2B3C3072E5C',
+  'LOCAL_TRANSLATION_NOTICES.txt': '293312DD-AD2D-49B1-851D-7E3AEE6DA7E6',
+  'icon.ico': 'E347AADC-3DC3-45B5-9B78-A95A4ADB4AF7',
+  'native-distribution-provenance.json': 'C833D61C-8D09-4408-B7F1-C13C4E5E51EF',
+});
 export const productionPromotion = Object.freeze({
   productionIdentity: 'com.westng.liberty',
   requiredChange: 'Reviewed cutover must switch Go launch channel/profile, bundle identity, input manifest policy and the release entry together, then retire the old client; installer UpgradeCodes also change when an installer is delivered.',
@@ -65,16 +76,17 @@ export function installerProductVersion(version) {
 export function renderWix(template, { target, version, files, productVersion = msiVersion(version) }) {
   if (!Object.hasOwn(upgradeCodes, target)) throw new Error('MSI target must be Windows x64');
   msiVersion(productVersion);
-  const expected = [`${candidateName}.exe`, 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'LOCAL_TRANSLATION_NOTICES.txt', 'icon.ico', 'native-distribution-provenance.json'];
-  assert.deepEqual([...files].sort(), expected.sort(), 'Installer payload must be the exact verified candidate file set');
+  const expected = Object.keys(windowsPayloadGuids);
+  assert.deepEqual([...files].sort(), [...expected].sort(), 'Installer payload must be the exact verified candidate file set');
+  files = expected;
   const win64 = 'yes';
-  const components = files.map((name, index) => `            <Component Id="Payload${index}" Guid="*" Win64="${win64}">\n              <File Id="File${index}" Source="payload\\${xml(name)}" Name="${xml(name)}" Checksum="yes" />\n              <RegistryValue Root="HKCU" Key="Software\\Liberty\\NativeCandidate\\${target}" Name="File${index}" Type="integer" Value="1" KeyPath="yes" />\n            </Component>`).join('\n');
+  const components = files.map((name, index) => `            <Component Id="Payload${index}" Guid="${windowsPayloadGuids[name]}" Win64="${win64}">\n              <File Id="File${index}" Source="payload\\${xml(name)}" Name="${xml(name)}" Checksum="yes" />\n${index === 0 ? '              <RemoveFolder Id="RemoveEmptyInstallFolder" On="uninstall" />\n' : ''}              <RegistryValue Root="HKCU" Key="Software\\Liberty\\NativeCandidate\\${target}" Name="File${index}" Type="integer" Value="1" KeyPath="yes" />\n            </Component>`).join('\n');
   const values = { TARGET: target, VERSION: productVersion, UPGRADE_CODE: upgradeCodes[target], PLATFORM: 'x64', WIN64: win64, ARCH_CONDITION: 'VersionNT64', COMPONENTS: components, COMPONENT_REFS: files.map((_, i) => `      <ComponentRef Id="Payload${i}" />`).join('\n') };
-  const rendered = template.replace(/@([A-Z_]+)@/g, (_, key) => {
+  const rendered = template.replace(/@([A-Z_][A-Z0-9_]*)@/g, (_, key) => {
     if (!Object.hasOwn(values, key)) throw new Error('Unknown installer template placeholder');
     return values[key];
   });
-  if (/@[A-Z_]+@/.test(rendered) || /RemoveFile|RemoveFolder[^>]*Directory=|DeleteFile|RemoveRegistryKey/.test(rendered)) throw new Error('Unsafe installer deletion policy');
+  if (/@[A-Z_][A-Z0-9_]*@/.test(rendered) || /RemoveFile|RemoveFolder[^>]*Directory=|DeleteFile|RemoveRegistryKey/.test(rendered)) throw new Error('Unsafe installer deletion policy');
   return rendered;
 }
 
@@ -82,13 +94,32 @@ export function verifyWixBytes(bytes) {
   if (bytes.length !== wixTool.bytes || fileDigest(bytes) !== wixTool.sha256) throw new Error('WiX archive differs from pinned official 3.14.1 bytes');
 }
 
+export function wixFailureDetails(error) {
+  // Preserve only WiX diagnostic codes and generated template line numbers.
+  // Never forward paths, account names, command arguments or raw tool output.
+  const output = [error?.stdout, error?.stderr].map(value => String(value ?? '').slice(0, 65_536)).join('\n');
+  const diagnostics = new Set();
+  for (const line of output.split(/\r?\n/)) {
+    const powershellCode = /LIBERTY_POWERSHELL_ERROR=([A-Za-z0-9_.-]{1,128})(?:[\s<]|$)/.exec(line)?.[1];
+    if (powershellCode) diagnostics.add(`PowerShell ${powershellCode}`);
+    const code = /\b(?:error|warning) ((?:CNDL|LGHT)\d{4})\b/.exec(line)?.[1];
+    if (!code) continue;
+    const location = /\binstaller\.wxs\((\d{1,6})\)/.exec(line)?.[1];
+    const validation = /\bICE\d{2,3}\b/.exec(line)?.[0];
+    diagnostics.add(`${code}${validation ? ` ${validation}` : ''}${location ? ` at installer.wxs:${location}` : ''}`);
+    if (diagnostics.size === 12) break;
+  }
+  return diagnostics.size ? `; ${[...diagnostics].join(', ')}` : '';
+}
+
 function run(command, args, { cwd = repository, input, timeout = 30 * 60_000, environment = env } = {}) {
   try { return execFileSync(command, args, { cwd, env: environment, input, timeout, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }).trim(); }
-  catch { throw new Error(`Native distribution tool failed: ${path.basename(command)} ${args[0] ?? ''} (tool output withheld; may contain account information)`); }
+  catch (error) { throw new Error(`Native distribution tool failed: ${path.basename(command)} (tool output withheld)${wixFailureDetails(error)}`); }
 }
 function powershell(source) {
   if (process.platform !== 'win32' || !process.env.SystemRoot) throw new Error('Windows PowerShell requires a Windows host');
-  return run(path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'), ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(`$ErrorActionPreference='Stop'; ${source}`, 'utf16le').toString('base64')]);
+  const script = `$ErrorActionPreference='Stop'; try { ${source} } catch { $id=($_.FullyQualifiedErrorId -split ',')[0]; if($id -match '^[A-Za-z0-9_.-]{1,128}$'){[Console]::Error.WriteLine('LIBERTY_POWERSHELL_ERROR=' + $id)}; exit 1 }`;
+  return run(path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'), ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')]);
 }
 function pnpm(args) {
   // Windows cannot execute a .cmd through execFile directly. These commands
@@ -271,8 +302,15 @@ async function installWix(stage) {
   verifyWixBytes(bytes);
   await writeFile(archive, bytes, { flag: 'wx' });
   const tools = path.join(stage, 'wix');
-  powershell(`Expand-Archive -LiteralPath ${ps(archive)} -DestinationPath ${ps(tools)}`);
+  // CI can launch Node from PowerShell 7, whose inherited PSModulePath would
+  // load an incompatible Archive module in this Windows PowerShell 5.1 child.
+  powershell(`Import-Module (Join-Path $PSHOME 'Modules\\Microsoft.PowerShell.Archive\\Microsoft.PowerShell.Archive.psd1') -Force; Expand-Archive -LiteralPath ${ps(archive)} -DestinationPath ${ps(tools)}`);
   return tools;
+}
+export async function compileMsi(stage, file) {
+  const tools = await installWix(stage);
+  run(path.join(tools, 'candle.exe'), ['-nologo', '-arch', 'x64', '-out', 'installer.wixobj', 'installer.wxs'], { cwd: stage });
+  run(path.join(tools, 'light.exe'), ['-nologo', '-out', file, 'installer.wixobj'], { cwd: stage });
 }
 export function msiQueryScript(file) {
   return `$i=New-Object -ComObject WindowsInstaller.Installer; $d=$i.OpenDatabase(${ps(file)},0); $p=@{}; $q=$d.OpenView('SELECT \`Property\`,\`Value\` FROM \`Property\`'); $q.Execute(); while($r=$q.Fetch()){$p[$r.StringData(1)]=$r.StringData(2)}; $f=@(); $q=$d.OpenView('SELECT \`FileName\` FROM \`File\`'); $q.Execute(); while($r=$q.Fetch()){$f+=($r.StringData(1) -split '\\|')[-1]}; @{properties=$p;files=@($f);template=$d.SummaryInformation(0).Property(7)} | ConvertTo-Json -Depth 5 -Compress`;
@@ -312,11 +350,9 @@ async function verifyMsi(file, target, version, stage, comparePayload = false, e
   return metadata;
 }
 async function windowsBuild(stage, target, version) {
-  const tools = await installWix(stage);
   powershell(authenticodeScript(path.join(stage, 'payload', `${candidateName}.exe`), true));
-  run(path.join(tools, 'candle.exe'), ['-nologo', '-arch', 'x64', '-out', 'installer.wixobj', 'installer.wxs'], { cwd: stage });
   const file = `liberty-native-candidate-${version}-${target}.msi`;
-  run(path.join(tools, 'light.exe'), ['-nologo', '-out', file, 'installer.wixobj'], { cwd: stage });
+  await compileMsi(stage, file);
   powershell(authenticodeScript(path.join(stage, file), true));
   await verifyMsi(path.join(stage, file), target, version, stage, true);
   return { file, signed: true, notarized: false, notarization: null, installerTransactionAcceptance: false, wix: wixTool };

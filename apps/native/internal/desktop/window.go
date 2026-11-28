@@ -69,8 +69,8 @@ func ApplicationMenu(locale string, actionSets ...ApplicationMenuActions) *mygo.
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu, Submenu: applicationItems},
 		{Role: mygo.RoleFileMenu, Label: localized(locale, "文件", "File"), Submenu: fileItems},
-		{Role: mygo.RoleEditMenu, Label: localized(locale, "编辑", "Edit")},
-		{Role: mygo.RoleWindowMenu, Label: localized(locale, "窗口", "Window")},
+		{Role: mygo.RoleEditMenu, Label: localized(locale, "编辑", "Edit"), Submenu: editMenuItems(locale, runtime.GOOS)},
+		{Role: mygo.RoleWindowMenu, Label: localized(locale, "窗口", "Window"), Submenu: windowMenuItems(locale, runtime.GOOS)},
 		{Role: helpRole, Label: presentation.Message(locale, "menu.help"), Submenu: []*mygo.MenuItem{
 			{Label: presentation.Message(locale, "menu.documentation"), Icon: menuIcon("documentation"), Click: menuURLAction(actions.OpenURL, presentation.DocumentationURL)},
 			{Label: presentation.Message(locale, "menu.reportIssue"), Icon: menuIcon("reportIssue"), Click: menuURLAction(actions.OpenURL, presentation.IssuesURL)},
@@ -78,6 +78,46 @@ func ApplicationMenu(locale string, actionSets ...ApplicationMenuActions) *mygo.
 			{Label: presentation.Message(locale, "menu.checkUpdates"), Icon: menuIcon("refresh"), Disabled: actions.CheckUpdates == nil, Click: menuAction(actions.CheckUpdates)},
 		}},
 	})
+}
+
+func editMenuItems(locale, platform string) []*mygo.MenuItem {
+	items := []*mygo.MenuItem{
+		{Role: mygo.RoleUndo, Label: localized(locale, "撤销", "Undo")},
+		{Role: mygo.RoleRedo, Label: localized(locale, "重做", "Redo")},
+		mygo.Separator(),
+		{Role: mygo.RoleCut, Label: localized(locale, "剪切", "Cut")},
+		{Role: mygo.RoleCopy, Label: localized(locale, "复制", "Copy")},
+		{Role: mygo.RolePaste, Label: localized(locale, "粘贴", "Paste")},
+	}
+	if platform == "darwin" {
+		return append(items,
+			&mygo.MenuItem{Role: mygo.RolePasteAndMatchStyle, Label: localized(locale, "粘贴并匹配样式", "Paste and Match Style")},
+			&mygo.MenuItem{Role: mygo.RoleDelete, Label: localized(locale, "删除", "Delete")},
+			&mygo.MenuItem{Role: mygo.RoleSelectAll, Label: localized(locale, "全选", "Select All")},
+			mygo.Separator(),
+			&mygo.MenuItem{Label: localized(locale, "语音", "Speech"), Submenu: []*mygo.MenuItem{
+				{Role: mygo.RoleStartSpeaking, Label: localized(locale, "开始讲话", "Start Speaking")},
+				{Role: mygo.RoleStopSpeaking, Label: localized(locale, "停止讲话", "Stop Speaking")},
+			}},
+		)
+	}
+	return append(items,
+		&mygo.MenuItem{Role: mygo.RoleDelete, Label: localized(locale, "删除", "Delete")},
+		mygo.Separator(),
+		&mygo.MenuItem{Role: mygo.RoleSelectAll, Label: localized(locale, "全选", "Select All")},
+	)
+}
+
+func windowMenuItems(locale, platform string) []*mygo.MenuItem {
+	items := []*mygo.MenuItem{{Role: mygo.RoleMinimize, Label: localized(locale, "最小化", "Minimize")}}
+	if platform == "darwin" {
+		return append(items,
+			&mygo.MenuItem{Role: mygo.RoleZoom, Label: localized(locale, "缩放", "Zoom")},
+			mygo.Separator(),
+			&mygo.MenuItem{Role: mygo.RoleFront, Label: localized(locale, "前置全部窗口", "Bring All to Front")},
+		)
+	}
+	return append(items, &mygo.MenuItem{Role: mygo.RoleClose, Label: presentation.Message(locale, "common.closeWindow")})
 }
 
 func applicationSettingsMenuItem(locale string, action func()) *mygo.MenuItem {
