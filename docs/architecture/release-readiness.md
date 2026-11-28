@@ -6,7 +6,7 @@ Use the [development guide](../development.md) for commands, [CI/CD rules](ci-cd
 
 ## Native Candidate and Delivery
 
-The workspace is preparing `2.0.0-alpha.4`; its source scope, schema v13 migration and intended installer bundle are documented in the [alpha.4 preparation notes](../releases/2.0.0-alpha.4.md). Subsequent work belongs to [Unreleased](../../CHANGELOG.md#unreleased). Published alpha.1–alpha.3 retain their original assets; source preparation does not establish a new public release.
+[`2.0.0-alpha.4`](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.4) is published as a Native prerelease with 19 verified assets. Its source, publication identity, schema v13 migration and installer bundle are documented in the [alpha.4 release notes](../releases/2.0.0-alpha.4.md). Subsequent work belongs to [Unreleased](../../CHANGELOG.md#unreleased). Published alpha.1–alpha.3 retain their original assets; stable latest remains `v1.1.24`.
 
 `apps/native` is the daily development and launch entry. `apps/desktop` remains the temporary production release entry until cutover. Candidate packages retain `Liberty Native Candidate`, the separate `com.westng.liberty.native-candidate` profile and `productionReady:false`.
 

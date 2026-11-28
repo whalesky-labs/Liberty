@@ -16,7 +16,7 @@
 | 导航、主题、设置、多窗口与更新交互 | [原生界面](architecture/native-ui.md) |
 | 按改动范围运行 CI、构建及发布事务 | [CI/CD 规则](architecture/ci-cd.md) |
 | 交付格式、验收门槛与旧端退役 | [发布就绪检查](architecture/release-readiness.md) |
-| 未发布改动及当前版本记录 | [CHANGELOG](../CHANGELOG.md) / [alpha.4 发行准备](releases/2.0.0-alpha.4.md) |
+| 未发布改动及当前版本记录 | [CHANGELOG](../CHANGELOG.md) / [alpha.4 发行说明](releases/2.0.0-alpha.4.md) |
 | 修改范围与验证约束 | [AGENTS](../AGENTS.md) |
 
 日常启动用 `pnpm start`，没有候选包或需要加载源码修改时先运行 `pnpm native:package`。`native:preview` 使用退出后清理的合成资料，不用于日常数据保存。
