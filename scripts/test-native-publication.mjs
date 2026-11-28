@@ -12,7 +12,7 @@ import { fullSuites } from './ci/plan.mjs';
 import { installerManifest, installerName } from './lib/native-installers.mjs';
 import { windowsExecutableFixture, windowsIconFixture } from './test-fixtures/native-windows.mjs';
 
-const version = '2.0.0-alpha.1';
+const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const sourceCommit = 'a'.repeat(40);
 const repository = 'example/liberty';
 const license = Buffer.from('Synthetic project license\n');
@@ -299,11 +299,11 @@ test('real repository changelog generates complete bilingual notes and publishes
   const f = fixture();
   const changelog = await readFile(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
   f.notes = releaseNotes(changelog, f.context, f.files);
-  assert.match(f.notes, /^## 2\.0\.0-alpha\.1 - 2026-11-24\r?$/m);
+  assert.ok(f.notes.includes(`\n## ${version} - `));
   assert.ok(f.notes.includes('### 中文') && f.notes.includes('### English'));
-  assert.ok(!f.notes.includes('## Unreleased') && !f.notes.includes('## 1.1.24'));
+  assert.ok(!f.notes.includes('## Unreleased'));
+  assert.equal(f.notes.match(/^## /gm)?.length, 1);
   assert.ok(releaseMarkers(f.context, f.files).every(marker => f.notes.includes(marker)));
-  assert.ok(f.notes.includes(`https://github.com/${repository}/blob/${sourceCommit}/docs/architecture/release-readiness.md`));
   const api = new FakeGitHub(f);
   const result = await publish(f, api);
   assert.equal(result.publisher, 'github-actions[bot]');
@@ -324,9 +324,10 @@ test('release notes accept plain and bracketed exact version headings and stop a
 
 test('release notes contain only the version changelog and hidden provenance markers', () => {
   const f = fixture();
-  const section = `## ${version} - 2026-11-24\n\n### 中文\n\n- 合成变更。\n\n### English\n\n- Synthetic changes.\n`;
+  const section = `## ${version} - 2026-11-24\n\n### 中文\n\n- 合成变更。[交付要求](docs/architecture/release-readiness.md)\n\n### English\n\n- Synthetic changes.\n`;
   const changelog = `# Changelog\n\n## Unreleased\n\nFuture changes.\n\n${section}\n## 1.2.3\n\nPrevious changes.\n`;
-  assert.equal(releaseNotes(changelog, f.context, f.files), `${releaseMarkers(f.context, f.files).join('\n')}\n\n${section}`);
+  const expectedSection = section.replace('](docs/architecture/', `](https://github.com/${repository}/blob/${sourceCommit}/docs/architecture/`);
+  assert.equal(releaseNotes(changelog, f.context, f.files), `${releaseMarkers(f.context, f.files).join('\n')}\n\n${expectedSection}`);
 });
 
 test('release notes reject a missing exact version or bilingual content outside its section', () => {
