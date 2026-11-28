@@ -56,6 +56,7 @@ GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly go -C apps/native run ./cmd/liberty-n
 | 原生 Go 局部变更 | 相邻测试、`gofmt`；并发/生命周期变化加相关 `-race` |
 | 原生整体 | `pnpm native:check`：共享生成源漂移、打包/运行时策略自测、格式、模块校验、vet、全包普通测试；不读取旧端 inventory |
 | 原生完整本地质量入口 | `pnpm native:verify`：原生整体、Python lint/tests、Native 版本/平台/安全边界/锁/候选工作流检查与阻断自测；不调用旧前端或 Rust |
+| 旧端退役前的源码独立性 | `pnpm native:source:check`：复制当前受 Git 跟踪的 Native/共享输入到隔离目录，排除旧端、Cargo 和旧端 workflow；全新安装开发依赖，删除并重建九组生成产物，再执行 `native:verify`、`native:compat` 和三目标编译 |
 | 迁移数据/协议兼容 | `pnpm native:compat`：校验共享的冻结 Rust 黄金样本，重放 Go 迁移、查询、业务事务、重开及 XLSX/DOCX；不构建或运行旧客户端 |
 | 原生目标编译 | `pnpm native:build:matrix`：三目标主程序和测试包，只编译，不执行其他平台二进制 |
 | 旧端 TypeScript/界面 | `pnpm desktop:typecheck`；涉及 CSS、打包入口或资源解析时补 `pnpm desktop:build:web` |
@@ -66,6 +67,8 @@ GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly go -C apps/native run ./cmd/liberty-n
 | 仅文档 | `pnpm ci:docs`；另核对未跟踪新文档、标题锚点、源码路径和命令，不能把旧测试日志写成本轮通过 |
 
 黄金样本和校验边界见[样本说明](../packages/desktop-resources/fixtures/native-v10/README.md)。跨进程锁、恢复 journal 和文件写入由 Native 回归验证；当前兼容入口不执行 Go/Rust 动态互操作，完整界面和系统交互仍需实机验收。
+
+`native:source:check` 在 `target/native/source-isolation-*` 保存输入摘要、基准提交、工作区修改标记和逐项结果；源码副本放在仓库外的系统临时目录，避免向上查找时借用原工作区的 `node_modules`。成功后清理临时源码与依赖，失败时保留并输出隔离目录。它不复制工作区缓存、用户资料或 `.git`，不改当前源码；合成 ASR 阻断测试使用临时副本自己的空 Git 提交。新增业务输入须先纳入 Git 跟踪才能参加验证。工具会复用 Go 模块/编译缓存，不能称为断网或全空缓存构建；修改中的输入按摘要绑定，不能冒充已提交发行证据。此命令不打包、不运行 GUI，也不替代实机 ASR、安装回退、漏洞扫描或生产切换。
 
 `pnpm check` 先执行 `native:verify`，再通过 `legacy:check:fast:without-python`、Web 构建、Clippy、发布与 CI 策略检查完成临时生产端验证；共享 Python 只执行一次。单独 `legacy:check` 仍包含 Python，随旧端退役一起删除。完整兼容/race/matrix、真实漏洞扫描和发布验收分别执行。
 
@@ -91,7 +94,7 @@ PR 和 main 的 `quality.yml` 按改动范围选择检查，未知或高风险�
 
 远端验收变量为 `LIBERTY_REMOTE_ACCEPTANCE_URL`、`LIBERTY_REMOTE_ACCEPTANCE_CREDENTIAL_REF` 和 `LIBERTY_REMOTE_ACCEPTANCE_JOB_ID`。凭据引用指向系统凭据库中的测试条目，不在命令或文档中填写 Token。真实媒体 ASR 基准的输入和证据要求见 [benchmarks/asr](../benchmarks/asr/README.md)。
 
-便携包验收需人工或桌面自动化操作四个阶段：旧原生候选查看 `Portable baseline` 后正常退出；新候选将该人员改名为 `Portable upgraded` 并保存退出；确认恢复完成提示；回退到旧原生候选，复核 `Portable baseline` 后退出。脚本还核对失败替换没有改动数据库、恢复前安全副本仍保存升级后的记录、每次退出释放资料锁。成功时清理本轮临时目录，失败时保留现场；不要将旧 Tauri 包作为 `--previous-archive`。归档内清单、逐文件摘要、确切文件集、目标架构及实际版本输出均须通过，档案摘要随日志输出；该过程不自动证明发行源码归因、旧 schema 迁移或未来版本兼容。
+便携包验收需人工或桌面自动化操作四个阶段：旧原生候选创建自己的数据库，在人员页面新增且只保存一名 `Portable baseline` 后正常退出；新候选将该人员改名为 `Portable upgraded` 并保存退出；确认恢复完成提示；回退到旧原生候选，复核 `Portable baseline` 后退出。脚本在升级前持有资料锁，通过 SQLite 保存包含 WAL 的旧 schema 快照，随后核对升级后的当前 schema、恢复后的旧 schema、失败替换前后的数据库字节、恢复前安全副本及每次退出释放资料锁。成功时清理本轮临时目录，失败时保留现场；不要将旧 Tauri 包作为 `--previous-archive`。归档内清单、逐文件摘要、确切文件集、目标架构及实际版本输出均须通过，档案摘要随日志输出；验收结果仅覆盖所选两个包及实际 schema 路径，不自动证明发行源码归因、其他旧 schema 或未来版本兼容。
 
 ## 生成源与发布
 

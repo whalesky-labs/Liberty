@@ -211,13 +211,17 @@ export function assertWorkflow(name, source) {
   return actual;
 }
 
-export async function checkWorkflows(directory = path.join(root, '.github/workflows')) {
-  assert.deepEqual((await readdir(directory)).sort(), [...Object.keys(workflows), 'build-desktop.yml'].sort(), 'Unreviewed workflow entry');
+export async function checkNativeWorkflows(directory = path.join(root, '.github/workflows')) {
+  assert.deepEqual((await readdir(directory)).filter(name => name !== 'build-desktop.yml').sort(), Object.keys(workflows).sort(), 'Unreviewed workflow entry');
   for (const name of Object.keys(workflows)) assertWorkflow(name, await readFile(path.join(directory, name), 'utf8'));
+  assertSecurityInstaller(await readFile(path.join(root, 'scripts/ci/install-security-tools.sh'), 'utf8'));
+}
+
+export async function checkWorkflows(directory = path.join(root, '.github/workflows')) {
+  await checkNativeWorkflows(directory);
   const release = await readFile(path.join(directory, 'build-desktop.yml'), 'utf8');
   assert.ok(!/^\s*(?:schedule|pull_request_target):/m.test(release), 'Scheduled or privileged PR workflows are prohibited');
   assert.match(release, /uses: \.\/\.github\/workflows\/ci-full\.yml/, 'Release must call complete validation');
-  assertSecurityInstaller(await readFile(path.join(root, 'scripts/ci/install-security-tools.sh'), 'utf8'));
 }
 
 export function renderYaml(value, indent = 0) {

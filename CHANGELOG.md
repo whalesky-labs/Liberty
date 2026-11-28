@@ -6,11 +6,13 @@
 
 ### 中文
 
-暂无。新改动将在此记录。
+- 增加旧端退役前的独立源码验收：在仓库外的临时副本中排除旧 GUI、Cargo 和旧端 workflow，重建共享生成物并检查 Native、历史兼容与三目标编译。修复主展示生成器遗漏动画重建/校验的问题；Native 策略检查不再依赖旧端 workflow，完整发布门禁仍保留现有要求。
+- 便携升级验收改由旧候选创建自己的数据库，核对升级、快照恢复和旧版重开时的 schema，避免用当前版本预建数据库掩盖真实升级路径。
 
 ### English
 
-None yet. Future changes will be recorded here.
+- Added isolated source acceptance before retiring the old client: an external temporary copy excludes the old GUI, Cargo and desktop workflow, regenerates shared resources, and verifies Native, historical compatibility and all three build targets. Fixed omitted animation generation/validation in the presentation entry point. Native policy checks no longer depend on the desktop workflow; complete release gates retain their existing requirements.
+- Portable upgrade acceptance now lets the previous candidate create its own database and checks schema versions across upgrade, snapshot restore and reopening, instead of pre-seeding the database with the current version.
 
 ## 2.0.0-alpha.4 - 2026-11-28
 

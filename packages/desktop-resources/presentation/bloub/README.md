@@ -17,4 +17,6 @@ node scripts/generate-native-bloub.mjs --check
 
 也由 `pnpm native:presentation:generate` 和 `pnpm native:presentation:check` 调用。压缩生成物嵌入 `apps/native/internal/desktop/presentation/`，不可手工修改。修改上游版本时应重新核对源码身份、生成数据、原生/SVG 渲染对照、主题与性能。
 
+帧内数值按 Go 绘制器实际使用的 float32 精度序列化，消除宿主浮点运算尾数差异；SVG 路径、矩阵字符串和序列元数据保持上游输出。检查仍对解压后的完整 JSON 逐字节比较，不使用浮点容差放过漂移。
+
 [MIT 许可证](LICENSE)及 [NOTICE](NOTICE) 随候选包合并到 `THIRD_PARTY_NOTICES.txt`。上游明确说明许可证覆盖代码，不涵盖其模仿的 x.ai 角色设计；署名及无关联声明保留在 NOTICE 中。

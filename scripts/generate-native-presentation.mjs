@@ -6,6 +6,7 @@ import ts from "typescript";
 import { icons } from "@iconify-json/f7";
 import { getIconData, iconToSVG } from "@iconify/utils";
 import { windowsApplicationPNG } from "./lib/native-windows-resources.mjs";
+import { generateBloub } from "./generate-native-bloub.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const resources = "packages/desktop-resources";
@@ -94,4 +95,4 @@ for (const [name, bytes] of artifacts) {
   } else await writeFile(target, bytes);
 }
 console.log("Native messages, icons and mascot match the shared desktop sources.");
-await import("./generate-native-bloub.mjs");
+await generateBloub({ root, check });

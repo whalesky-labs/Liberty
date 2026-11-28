@@ -8,7 +8,7 @@ import { assertCandidateManifest, assertNativeBinary, assertNativeVersion, candi
 import { assertWindowsApplicationIcon } from './lib/native-windows-resources.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-import { assertWorkflow, checkWorkflows } from './ci/workflows.mjs';
+import { assertWorkflow, checkNativeWorkflows } from './ci/workflows.mjs';
 export { parseWorkflow as parseNativeWorkflow } from './ci/yaml.mjs';
 
 export function assertNativeWorkflow(source) {
@@ -205,7 +205,7 @@ export async function verifyNativeArtifacts({ rootDirectory = root, target, comm
 async function main() {
   const args = process.argv.slice(2);
   if (!args.length) {
-    await checkWorkflows();
+    await checkNativeWorkflows();
     console.log('Native candidates require complete quality and security, three execution targets and read-only delivery.');
     return;
   }

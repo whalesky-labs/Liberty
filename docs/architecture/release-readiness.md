@@ -26,6 +26,8 @@ Updates are user initiated. The Native update window reads the fixed repository'
 
 Before switching, all sources needed by Native must live in `apps/native`, shared packages or the Python Runner: migrations, schemas, runtime/model manifests, templates, messages, artwork and sanitized compatibility fixtures. A clean checkout must regenerate and pass Native checks without reading `apps/desktop` as a source.
 
+Run `pnpm native:source:check` to verify this boundary in an isolated copy without the old GUI, Cargo inputs or desktop workflow. It removes generated resources, regenerates them from shared sources, checks their content against the input inventory, and runs Native verification, compatibility replay and three-target compilation. Results bind the baseline commit and copied file digests, with a separate flag for working-tree changes. This is source-independence evidence, not production clearance or real-device execution.
+
 Cutover requires independent acceptance of:
 
 | Gate | Required evidence |
@@ -59,6 +61,7 @@ Keep platform assets and runtime assumptions distinct. Compilation and headless 
 | `pnpm native:verify` | Go/generated sources, shared Python lint/tests and Native version/platform/security-baseline/lock/delivery-policy checks; no old UI or Rust |
 | `pnpm check` | Native verification plus temporary production-client checks, Web build, Rust Clippy, release and CI policy; shared Python runs once |
 | `pnpm native:compat` | Verified frozen historical inputs replayed through Go, including migration, business persistence and document compatibility |
+| `pnpm native:source:check` | Regeneration, Native verification, compatibility and target compilation from isolated sources without the old client; retains input digests and per-step results |
 | Go `-race` | Concurrency and lifecycle checks, separately from ordinary tests |
 | `pnpm native:build:matrix` | Main and test compilation for all three targets |
 | `pnpm security:check`, `pnpm licenses:check` | Actual dependency scanners and license policy for the repository |
