@@ -13,12 +13,14 @@ import (
 	"liberty.local/liberty/internal/domain"
 	"liberty.local/liberty/internal/infrastructure/ai"
 	"liberty.local/liberty/internal/infrastructure/credentials"
+	"liberty.local/liberty/internal/infrastructure/device_storage"
 	"liberty.local/liberty/internal/infrastructure/diagnosticlog"
 	"liberty.local/liberty/internal/infrastructure/execution"
 	"liberty.local/liberty/internal/infrastructure/legacyjobs"
 	"liberty.local/liberty/internal/infrastructure/liveaudio"
 	"liberty.local/liberty/internal/infrastructure/managed"
 	"liberty.local/liberty/internal/infrastructure/media"
+	"liberty.local/liberty/internal/infrastructure/playback"
 	"liberty.local/liberty/internal/infrastructure/profile"
 	"liberty.local/liberty/internal/infrastructure/remote"
 	"liberty.local/liberty/internal/infrastructure/repositories/jobdb"
@@ -34,12 +36,14 @@ type Profile struct {
 	ModeMeetings  *application.ModeMeetings
 	Remote        *application.RemoteMeetings
 	Diagnostics   *application.Diagnostics
+	DeviceStorage *application.DeviceStorage
 	Runtime       *application.RuntimeManager
 	Submission    *application.Submission
 	Deleter       *application.Deleter
 	Selections    *media.Selections
 	Resources     *application.Resources
 	SpeakerWriter application.SpeakerWriter
+	Playback      application.SegmentPlayer
 	LegacyImport  application.LegacyImportResult
 	WordExport    *application.WordExport
 	Summary       *application.SummaryService
@@ -169,6 +173,7 @@ func assembleWithRuntimePlatform(ctx context.Context, database string, store *jo
 		return nil, err
 	}
 	directory := filepath.Dir(database)
+	p.DeviceStorage = application.NewDeviceStorage(directory, device_storage.Scanner{})
 	p.files, err = runner.OpenFiles(directory)
 	if err != nil {
 		return nil, err
@@ -184,6 +189,7 @@ func assembleWithRuntimePlatform(ctx context.Context, database string, store *jo
 	}
 	budget := domain.ResolveASRResourceBudget(settings.Concurrency, settings.Threads, uint32(runtime.NumCPU()), system.MemoryBytes())
 	resolver := &execution.ManagedResolver{Manager: p.Runtime, ModelPaths: installer, Settings: store, Resources: installer.Resources, Backend: installer.Platform.Backend, MemoryBytes: system.MemoryBytes}
+	p.Playback = &playback.Player{Inputs: store, Runtime: resolver, Directory: directory}
 	executor := application.NewExecutor(store, &execution.Runner{Files: p.files, Runtime: resolver}, time.Now, p.Pet)
 	p.scheduler = application.NewScheduler(executor, budget.MaxConcurrency)
 	localMeetings := application.NewMeetings(&execution.LiveReader{Reader: p.Reader, Runs: store, Files: p.files})
@@ -224,6 +230,9 @@ func (p *Profile) Start(ctx context.Context) error {
 }
 func (p *Profile) Close() {
 	p.once.Do(func() {
+		if player, ok := p.Playback.(interface{ Close() }); ok {
+			player.Close()
+		}
 		if p.Live != nil {
 			p.Live.Close()
 		}
