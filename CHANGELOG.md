@@ -6,42 +6,36 @@
 
 ### 中文
 
-- 清理已停用的 Rust 迁移样本导出器与互操作探针、弃用的圆润 3D 试制工具链和一次性制作脚本；保留冻结兼容样本、当前像素模型及现有生产入口。
-- 原生会议流程支持最多 32 个文件批量入队、失败项重试、逐句回听与倍速、正文和讲话人校对；人工纪要独立保存、关联原文并用于默认导出，schema v13 同步迁移，AI 历史保留。
-- 增加 macOS 13+ 系统声音和 Windows WASAPI 回环适配及麦克风混音，保留本地无 Key 流程；系统录音权限、设备切换及目标平台实机验收仍未闭合。
-- 系统设置新增「访问权限」，说明磁盘与麦克风的使用用途，提供 macOS/Windows 系统隐私设置入口及打开失败时的手动指引，不自动申请权限或假报授权状态。
-- 修复 Windows 原生标题栏与应用深浅主题不同步的问题；为窗口、任务栏、exe、开始菜单快捷方式及卸载列表补齐共享应用图标。
-- 恢复原生安装包交付：macOS Apple Silicon/Intel 提供临时签名 DMG，Windows x64 提供当前用户 MSI；保留便携归档及独立安装器来源、签名状态和 SHA-256 清单，不宣称已公证或具备可信发布者签名。
-- 设置加入双语 GitHub 下载更新入口；从 Releases 选择匹配平台的安装包，正常退出后更新并保留资料。此入口不在后台下载、执行或自动替换应用。
-- 为 alpha/beta/rc 到稳定版提供有序 MSI 产品版本映射，并将安装包解包、内嵌字节、架构与版本验证接入现有完整发布门禁。
+暂无。新改动将在此记录。
 
 ### English
 
-- Removed retired Rust migration-fixture exporters and interoperability probes, the discarded rounded 3D study toolchain, and one-off authoring scripts; retained frozen compatibility fixtures, current pixel models and the existing production entry.
-- Native meeting workflows now support batches of up to 32 files, failed-admission retries, segment playback and speed control, text/speaker corrections, and independent manual notes with source links and default exports. Shared schema v13 preserves AI history.
-- Added macOS 13+ system audio and Windows WASAPI loopback adapters with microphone mixing, retaining local workflows without API keys. Recording permissions, device switching and target-device acceptance remain incomplete.
-- Added Access Permissions under System settings, with disk and microphone purposes, macOS/Windows privacy-settings links and manual recovery instructions, without requesting access automatically or implying that access has been granted.
-- Fixed Windows native title bars diverging from the app's light/dark appearance, and restored the shared application icon for windows, taskbar buttons, executables, Start menu shortcuts and the installed-apps list.
-- Restored native installer delivery: ad-hoc-signed DMGs for Apple Silicon/Intel Macs and a per-user MSI for Windows x64, retaining portable archives and separate installer provenance, signature status and SHA-256 records without claiming notarization or a trusted publisher signature.
-- Added a bilingual GitHub download-updates entry in Settings. Choose a matching installer from Releases and quit before upgrading; data is retained. This entry does not download, execute or replace the app in the background.
-- Added ordered MSI product versions from alpha/beta/rc through stable, and required extracted installer bytes, architecture and version verification under the existing complete release gate.
+None yet. Future changes will be recorded here.
 
-## 2.0.0-alpha.3 - 2026-11-26
+## 2.0.0-alpha.4 - 2026-11-28
 
 ### 中文
 
-- 新增可折叠的模块菜单，收起后释放内容空间，并保留当前页面、草稿、键盘焦点与窗口内导航状态；同步中英文标签和窄窗口设置布局。
-- 调整设置数字输入、运行时状态与进度展示，并对齐宠物商店详情按钮及打工地图统计区域。
-- 修复历史字幕慢速导出阻塞另一场实时录音，以及 Word 导出阻塞其他任务窗口的问题，保留关闭、撤销与文件发布的生命周期约束。
-- 修复两端明确设置默认 AI 模型受旧排序影响、旧端模型元数据写入失败误报成功，以及原生整任务删除未取消在途 AI 摘要请求的问题。
-- 修复成长配饰卸下或替换后被商店刷新重新装备的问题，两端均保留库存中的当前装备选择。
-- 收敛原生人员导入的重复业务校验，将农场和打工的纯规则移入领域层，并按结果快照复用旧逐字稿显示与编辑资格判定。
+- 恢复三平台原生安装包交付：macOS Apple Silicon/Intel 提供 ad-hoc 临时签名 DMG，Windows x64 提供当前用户 MSI；保留便携归档、独立来源清单和 SHA-256，新增有序 MSI 产品版本与安装器解包、内嵌架构及版本核验。不宣称 Developer ID、公证或可信发布者签名。
+- 原生会议流程支持最多 32 个文件批量入队、逐项状态与失败项重试；无 Key 基础流程继续复用持久化队列与资源预算，不自动调用 AI。
+- 结果工作台新增逐句回听、倍速、正文和讲话人校对，并检查过期编辑冲突；修改后的内容进入后续导出，既有 AI 来源变化时提示复核。
+- 人工纪要独立保存、关联原文来源并用于默认 TXT/Markdown/DOCX 导出，后续 AI 完成不覆盖人工稿；共享 schema v13 同步 Go/Rust 迁移。回退 alpha.3 或更早二进制须使用兼容的升级前资料快照。
+- 增加 macOS 13+ 系统声音和 Windows WASAPI 回环适配及麦克风混音；实时输入和翻译偏好持久化，模型准备与下载入口集中到设置。系统录音权限、设备切换及长时间实机验收仍待完成。
+- 系统设置按用途分组，新增磁盘/麦克风权限指引、本地存储统计、内存分析与性能指示器开关；更新检查使用独立原生窗口，按版本和通道显示 GitHub Release 正文，处理缓存、限流与重试，用户点击后才前往下载。
+- 调整双语主题、菜单、前进/后退导航、滚动条及资源页面；修复 Windows 标题栏外观同步，补齐窗口、任务栏、可执行文件和安装快捷方式图标。
+- 调整签到、盲盒和商店布局；成功结算后展示独立盲盒结果，关闭或刷新不会重复发奖，结算后刷新失败仍保留奖励显示。
+- 清理停用的 Rust 样本导出器、互操作探针、弃用的圆润 3D 试制工具和过时文档，保留冻结兼容样本、当前像素模型、许可证与现有生产入口。
+- 仍为独立资料目录的 Native 预发行候选，未切换稳定生产入口；首次本地使用需下载运行环境与模型。GUI/无障碍、目标设备 ASR、低配置预算、安装升级/回退等验收未全部闭合。当前 Python/Torch 安全例外于 2026-11-30 到期，每次交付须重新扫描，不表示零漏洞。
 
 ### English
 
-- Added collapsible module navigation that reclaims content space while preserving the current page, drafts, keyboard focus and window navigation state, with bilingual labels and compact Settings layouts.
-- Refined Settings number inputs, runtime status and progress displays, and aligned Pet Store detail actions and work-map statistics.
-- Fixed slow historical subtitle exports blocking another live recording and Word exports blocking other job windows, preserving close, revocation and publication ordering.
-- Fixed explicit default AI model selections being overridden by list order in both clients, failed model metadata writes reporting success in the retained client, and native whole-job deletion leaving an accepted AI summary request active.
-- Fixed shop refresh restoring unequipped or replaced growth accessories; both clients now preserve the current inventory equipment choice.
-- Consolidated native member-import business validation, moved pure farm/work rules into the domain layer, and reused legacy transcript display and edit eligibility decisions per result snapshot.
+- Restored native installers for all three targets: ad-hoc-signed DMGs for Apple Silicon/Intel Macs and a Windows x64 per-user MSI. Portable archives, provenance and SHA-256 remain, with ordered MSI product versions and extracted installer architecture/version checks. This does not claim Developer ID signing, notarization or trusted publisher signing.
+- Added batches of up to 32 files, per-item admission status and retries for failed items. Basic workflows without API keys retain the durable queue and resource budget, without starting AI automatically.
+- Added segment playback, speed control, transcript and speaker corrections with stale-edit conflict checks. Saved changes flow into later exports, and changed AI source material is marked for review.
+- Added independent manual minutes with source links and default TXT/Markdown/DOCX exports; later AI completion does not overwrite them. Shared schema v13 migrates in Go and Rust. Rolling back to alpha.3 or earlier binaries requires a compatible pre-upgrade profile snapshot.
+- Added macOS 13+ system-audio and Windows WASAPI loopback adapters with microphone mixing. Live input/translation preferences persist, with model preparation and downloads organized in Settings. Recording permissions, device changes and long-session device acceptance remain pending.
+- Reorganized Settings and added disk/microphone permission guidance, local storage reports, memory analysis and performance-indicator controls. A dedicated native update window selects versions/channels, displays GitHub release notes and handles caching, rate limits and retries; downloads open only when requested.
+- Refined bilingual themes, menus, back/forward navigation, scrollbars and resource pages. Fixed Windows title-bar appearance and restored icons for windows, taskbars, executables and installed shortcuts.
+- Refined check-in, blind-box and store layouts. Committed blind-box rewards appear in a separate result dialog; dismissal or refresh does not award them again, and refresh failure does not hide a settled reward.
+- Removed retired Rust fixture exporters, interoperability probes, discarded rounded 3D authoring tools and obsolete documents while retaining frozen compatibility fixtures, current pixel models, licenses and the existing production entry.
+- This remains a Native prerelease candidate with an isolated profile, without stable production cutover. First use requires runtime/model downloads. GUI/accessibility, target-device ASR, resource budgets and installation upgrade/rollback acceptance remain incomplete. Current Python/Torch security exceptions expire on November 30, 2026; each delivery must rerun scans and does not imply zero vulnerabilities.
