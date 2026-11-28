@@ -92,7 +92,7 @@ func TestApplicationMenuProvidesWorkspaceActionsAndNativeMenus(t *testing.T) {
 		if file[2].Type != mygo.MenuItemSeparator || file[3].Role != mygo.RoleClose {
 			t.Fatalf("macOS File menu should keep Settings in the application menu: %+v", file)
 		}
-	} else if file[2].Label != presentation.Message("zh-CN", "nav.settings") || file[2].Accelerator != "CmdOrCtrl+," || file[3].Type != mygo.MenuItemSeparator || file[4].Role != mygo.RoleClose {
+	} else if file[2].Label != presentation.Message("zh-CN", "menu.settings") || file[2].Accelerator != "CmdOrCtrl+," || file[3].Type != mygo.MenuItemSeparator || file[4].Role != mygo.RoleClose {
 		t.Fatalf("non-macOS File menu should retain Settings: %+v", file)
 	}
 	for index, key := range []string{"new", "queue"} {

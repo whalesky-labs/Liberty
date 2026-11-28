@@ -97,10 +97,15 @@ func TestDeviceStorageSkeletonPulseRespectsReducedMotion(t *testing.T) {
 }
 
 func TestDeviceStorageNavigationAndReportAreAccessibleInBothLocales(t *testing.T) {
+	directory, directoryURL := "/synthetic/liberty-profile", "file:///synthetic/liberty-profile"
+	if runtime.GOOS == "windows" {
+		directory, directoryURL = `C:\synthetic\liberty-profile`, "file:///C:/synthetic/liberty-profile"
+	}
 	for _, locale := range []string{"zh-CN", "en-US"} {
 		for _, width := range []int{1440, 1100, 760} {
 			t.Run(fmt.Sprintf("%s-%d", locale, width), func(t *testing.T) {
 				view := settingsParityView(locale, "deviceStorage")
+				view.Storage.Report.Directory = directory
 				tester := ui.NewTester(view.View, width, 1800)
 				for _, key := range []string{"deviceStorageTotal", "deviceStorageDatabase", "deviceStorageJobs", "deviceStorageRuntime", "deviceStorageOther", "deviceStorageProfileDirectory"} {
 					if !tester.HasText(view.msg(key)) {
@@ -130,7 +135,7 @@ func TestDeviceStorageNavigationAndReportAreAccessibleInBothLocales(t *testing.T
 					t.Fatal(err)
 				}
 				opened := tester.OpenedURLs()
-				if len(opened) != 2 || opened[1] != "file:///synthetic/liberty-profile" {
+				if len(opened) != 2 || opened[1] != directoryURL {
 					t.Fatal("folder action did not open the profile directory", opened)
 				}
 			})
@@ -149,11 +154,12 @@ func TestDeviceStorageNavigationIsUnderSystemSettings(t *testing.T) {
 }
 
 func TestLocalDirectoryURLHandlesNativeAbsolutePaths(t *testing.T) {
-	if got, ok := localDirectoryURL(`/Users/Someone/Liberty data #1`, "darwin"); !ok || got != "file:///Users/Someone/Liberty%20data%20%231" {
-		t.Fatal("macOS folder URL was not escaped safely", got, ok)
+	directory, expected := "/synthetic/Liberty data #1", "file:///synthetic/Liberty%20data%20%231"
+	if runtime.GOOS == "windows" {
+		directory, expected = `C:\synthetic\Liberty data #1`, "file:///C:/synthetic/Liberty%20data%20%231"
 	}
-	if got, ok := localDirectoryURL(`C:\Users\Someone\Liberty data`, "windows"); !ok || got != "file:///C:/Users/Someone/Liberty%20data" {
-		t.Fatal("Windows folder URL was not formed safely", got, ok)
+	if got, ok := localDirectoryURL(directory, runtime.GOOS); !ok || got != expected {
+		t.Fatal("native folder URL was not escaped safely", got, ok)
 	}
 	if _, ok := localDirectoryURL("relative/path", runtime.GOOS); ok {
 		t.Fatal("relative folder path must not be opened")

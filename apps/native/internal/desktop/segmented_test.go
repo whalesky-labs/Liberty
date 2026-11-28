@@ -12,9 +12,31 @@ import (
 
 func assertDefaultSegmentedHeight(t *testing.T, tester *ui.Tester, label string, themes ...ui.Theme) {
 	t.Helper()
+	got, ok := tester.AccessByRole(ui.RoleRadioGroup, label)
+	if !ok {
+		t.Fatalf("segmented control %q is missing", label)
+	}
+	// Use the same labels so the reference uses identical fallback-font metrics
+	// on each platform, including mixed Chinese and Latin options.
+	var labels []string
+	inGroup := false
+	for _, item := range tester.AccessAll() {
+		if item.Role == ui.RoleRadioGroup {
+			if inGroup {
+				break
+			}
+			inGroup = item.Name == label
+		}
+		if inGroup && item.Role == ui.RoleRadio && item.Segment {
+			labels = append(labels, item.Name)
+		}
+	}
+	if len(labels) == 0 {
+		t.Fatalf("segmented control %q has no accessible options", label)
+	}
 	selected := 0
 	reference := ui.NewTester(func(c *ui.Context) {
-		render := func() { ui.Segmented(c, &selected, "First", "Second").Label("Reference") }
+		render := func() { ui.Segmented(c, &selected, labels...).Label("Reference") }
 		if len(themes) > 0 {
 			ui.Themed(c, &themes[0]).Children(render)
 		} else {
@@ -22,8 +44,7 @@ func assertDefaultSegmentedHeight(t *testing.T, tester *ui.Tester, label string,
 		}
 	}, 600, 200)
 	want, _ := reference.Find("Reference")
-	got, ok := tester.AccessByRole(ui.RoleRadioGroup, label)
-	if !ok || got.Bounds.H != want.H {
+	if got.Bounds.H != want.H {
 		t.Fatalf("%s height = %v, want MyGo default %v", label, got.Bounds.H, want.H)
 	}
 }
