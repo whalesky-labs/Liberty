@@ -345,57 +345,6 @@ mod tests {
         assert_eq!(schema_version(&conn), CURRENT_SCHEMA_VERSION);
     }
 
-    #[test]
-    #[ignore = "explicit cross-language migration fixtures via pnpm native:compat"]
-    fn export_native_migration_fixtures() {
-        let directory = std::path::PathBuf::from(
-            std::env::var_os("LIBERTY_NATIVE_FIXTURE_DIR").expect("explicit fixture directory"),
-        );
-        assert!(directory.is_absolute() && directory.is_dir());
-        for target in 0..=10 {
-            let path = directory.join(format!("migration-v{target}.sqlite3"));
-            fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&path)
-                .unwrap();
-            let conn = Connection::open(&path).unwrap();
-            let vault = TestCredentialStore::default();
-            if target > 0 {
-                populate_legacy_v1_database(&conn);
-                super::apply_baseline_schema(&conn).unwrap();
-                conn.execute_batch(
-                    "INSERT INTO pet_profile(id,name,level,experience,stage,current_mood,created_at,updated_at)
-                     VALUES('default-pet','Synthetic companion',61,5,'baby','happy','fixture','fixture');
-                     INSERT INTO jobs(id,title,created_at,lang,enable_speaker,summary_template,upload_status,asr_status,summary_status,overall_status,hotwords_json,export_formats_json)
-                     VALUES('completed','Synthetic completed','fixture','zh',1,'','completed','completed','completed','completed','[]','[]'),
-                           ('queued','Synthetic queued','fixture','en',0,'','completed','queued','idle','queued','[]','[]'),
-                           ('running','Synthetic running','fixture','zh',1,'','completed','transcribing','idle','transcribing','[]','[]'),
-                           ('failed','Synthetic failed','fixture','zh',1,'','completed','failed','idle','failed','[]','[]');
-                     INSERT INTO transcript_segments(id,job_id,segment_type,start_ms,end_ms,speaker,text,segment_order)
-                     VALUES('segment','completed','transcript',0,1234,NULL,'Synthetic transcript',0);
-                     INSERT INTO ai_summary_runs(id,job_id,status,result_json,created_at,updated_at)
-                     VALUES('summary-completed','completed','completed','{}','fixture','fixture'),
-                           ('summary-running','running','running',NULL,'fixture','fixture');"
-                ).unwrap();
-                for step in MIGRATIONS.iter().take(target).skip(1) {
-                    migrations::run_test_migration(&conn, &vault, step).unwrap();
-                }
-            }
-            let expected_path = directory.join(format!("migration-v{target}-expected.sqlite3"));
-            fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&expected_path)
-                .unwrap();
-            conn.backup(rusqlite::MAIN_DB, &expected_path, None::<fn(_)>)
-                .unwrap();
-            let expected = Connection::open(&expected_path).unwrap();
-            super::apply_schema_with_credentials(&expected, &vault).unwrap();
-            super::seed_builtin_templates(&expected).unwrap();
-        }
-    }
-
     #[derive(Default)]
     struct TestCredentialStore {
         secrets: RefCell<HashMap<String, String>>,

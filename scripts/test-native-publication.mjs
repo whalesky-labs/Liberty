@@ -12,7 +12,7 @@ import { fullSuites } from './ci/plan.mjs';
 import { installerManifest, installerName } from './lib/native-installers.mjs';
 import { windowsExecutableFixture, windowsIconFixture } from './test-fixtures/native-windows.mjs';
 
-const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+const version = '2.0.0-alpha.1';
 const sourceCommit = 'a'.repeat(40);
 const repository = 'example/liberty';
 const license = Buffer.from('Synthetic project license\n');
@@ -51,7 +51,9 @@ function runFixture() {
   return { run, jobs, artifacts };
 }
 
-function fixture() {
+function fixture(releaseVersion = version) {
+  const version = releaseVersion;
+  const tag = `v${version}`;
   const { artifacts } = runFixture();
   const context = { repository, sourceCommit, version, tag, license, candidateRunId: 123, candidateRunAttempt: 1, workflowSourceCommit: environment.GITHUB_SHA, publicationRunId: 456, artifacts, replaceReleaseId: null, stableLatest: { id: 9, tag: 'v1.2.3' } };
   const payload = new Map();
@@ -100,7 +102,7 @@ class FakeGitHub {
     if (method !== 'GET') this.mutations.push({ endpoint, method, body: options.body });
     if (endpoint === 'releases/latest') return structuredClone(this.stable);
     if (endpoint.startsWith('git/ref/tags/')) return this.tagCommit ? { object: { type: 'commit', sha: this.tagCommit } } : null;
-    if (endpoint.startsWith('releases/tags/')) return structuredClone(this.releases.find(release => release.tag_name === tag) ?? null);
+    if (endpoint.startsWith('releases/tags/')) return structuredClone(this.releases.find(release => release.tag_name === this.f.context.tag) ?? null);
     if (endpoint === 'releases' && method === 'POST') {
       if (this.failCreate) { this.failCreate = false; throw new Error('Synthetic create interruption'); }
       const release = { id: this.nextReleaseId++, ...options.body, author: { login: this.humanToken ? 'synthetic-user' : 'github-actions[bot]', type: this.humanToken ? 'User' : 'Bot' }, assets: [], published_at: null };
@@ -123,7 +125,7 @@ class FakeGitHub {
     const release = this.releases.find(release => release.id === releaseId);
     assert.ok(release && release.draft);
     assert.ok(!release.assets.some(asset => asset.name === name), 'No overwrites');
-    const asset = { id: this.nextAssetId++, name, state: 'uploaded', size: bytes.length, digest: `sha256:${fileDigest(bytes)}`, browser_download_url: `https://github.com/${repository}/releases/download/${tag}/${name}` };
+    const asset = { id: this.nextAssetId++, name, state: 'uploaded', size: bytes.length, digest: `sha256:${fileDigest(bytes)}`, browser_download_url: `https://github.com/${repository}/releases/download/${this.f.context.tag}/${name}` };
     release.assets.push(asset);
     this.bytes.set(asset.id, bytes);
     return structuredClone(asset);
@@ -134,6 +136,7 @@ class FakeGitHub {
     return this.bytes.get(asset.id);
   }
   addManual(f, id = 99) {
+    const { tag } = f.context;
     f.context.replaceReleaseId = id;
     f.notes = releaseMarkers(f.context, f.files).join('\n') + '\nSynthetic migrated release\n';
     const before = JSON.parse(f.files.get('release-manifest.json'));
@@ -296,10 +299,18 @@ test('publication refuses archive-only payloads and modified installer claims or
 });
 
 test('real repository changelog generates complete bilingual notes and publishes the bound release', async () => {
-  const f = fixture();
-  const changelog = await readFile(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
+  const [packageSource, changelog] = await Promise.all([
+    readFile(new URL('../package.json', import.meta.url), 'utf8'),
+    readFile(new URL('../CHANGELOG.md', import.meta.url), 'utf8'),
+  ]);
+  const currentVersion = JSON.parse(packageSource).version;
+  const f = fixture(currentVersion);
+  const heading = changelog.split(/\r?\n/).find(line => line.startsWith(`## ${currentVersion} - `));
+  assert.ok(heading, 'Current source version must have a dated changelog section');
+  const section = changelog.slice(changelog.indexOf(heading)).split(/\r?\n## /)[0].trim();
   f.notes = releaseNotes(changelog, f.context, f.files);
-  assert.ok(f.notes.includes(`\n## ${version} - `));
+  const expected = section.replaceAll('](docs/architecture/', `](https://github.com/${repository}/blob/${sourceCommit}/docs/architecture/`);
+  assert.equal(f.notes, `${releaseMarkers(f.context, f.files).join('\n')}\n\n${expected}\n`);
   assert.ok(f.notes.includes('### 中文') && f.notes.includes('### English'));
   assert.ok(!f.notes.includes('## Unreleased'));
   assert.equal(f.notes.match(/^## /gm)?.length, 1);
@@ -307,6 +318,7 @@ test('real repository changelog generates complete bilingual notes and publishes
   const api = new FakeGitHub(f);
   const result = await publish(f, api);
   assert.equal(result.publisher, 'github-actions[bot]');
+  assert.equal(api.releases[0].tag_name, `v${currentVersion}`);
   assert.ok(api.releases[0].body.includes(f.notes));
 });
 
@@ -324,10 +336,10 @@ test('release notes accept plain and bracketed exact version headings and stop a
 
 test('release notes contain only the version changelog and hidden provenance markers', () => {
   const f = fixture();
-  const section = `## ${version} - 2026-11-24\n\n### 中文\n\n- 合成变更。[交付要求](docs/architecture/release-readiness.md)\n\n### English\n\n- Synthetic changes.\n`;
+  const section = `## ${version} - 2026-11-24\n\n### 中文\n\n- 合成变更。\n\n### English\n\n- Synthetic changes.\n\nSee [release gates](docs/architecture/release-readiness.md).\n`;
   const changelog = `# Changelog\n\n## Unreleased\n\nFuture changes.\n\n${section}\n## 1.2.3\n\nPrevious changes.\n`;
-  const expectedSection = section.replace('](docs/architecture/', `](https://github.com/${repository}/blob/${sourceCommit}/docs/architecture/`);
-  assert.equal(releaseNotes(changelog, f.context, f.files), `${releaseMarkers(f.context, f.files).join('\n')}\n\n${expectedSection}`);
+  const expected = section.replace('](docs/architecture/', `](https://github.com/${repository}/blob/${sourceCommit}/docs/architecture/`);
+  assert.equal(releaseNotes(changelog, f.context, f.files), `${releaseMarkers(f.context, f.files).join('\n')}\n\n${expected}`);
 });
 
 test('release notes reject a missing exact version or bilingual content outside its section', () => {

@@ -6,6 +6,7 @@
 
 ### 中文
 
+- 清理已停用的 Rust 迁移样本导出器与互操作探针、弃用的圆润 3D 试制工具链和一次性制作脚本；保留冻结兼容样本、当前像素模型及现有生产入口。
 - 原生会议流程支持最多 32 个文件批量入队、失败项重试、逐句回听与倍速、正文和讲话人校对；人工纪要独立保存、关联原文并用于默认导出，schema v13 同步迁移，AI 历史保留。
 - 增加 macOS 13+ 系统声音和 Windows WASAPI 回环适配及麦克风混音，保留本地无 Key 流程；系统录音权限、设备切换及目标平台实机验收仍未闭合。
 - 系统设置新增「访问权限」，说明磁盘与麦克风的使用用途，提供 macOS/Windows 系统隐私设置入口及打开失败时的手动指引，不自动申请权限或假报授权状态。
@@ -16,6 +17,7 @@
 
 ### English
 
+- Removed retired Rust migration-fixture exporters and interoperability probes, the discarded rounded 3D study toolchain, and one-off authoring scripts; retained frozen compatibility fixtures, current pixel models and the existing production entry.
 - Native meeting workflows now support batches of up to 32 files, failed-admission retries, segment playback and speed control, text/speaker corrections, and independent manual notes with source links and default exports. Shared schema v13 preserves AI history.
 - Added macOS 13+ system audio and Windows WASAPI loopback adapters with microphone mixing, retaining local workflows without API keys. Recording permissions, device switching and target-device acceptance remain incomplete.
 - Added Access Permissions under System settings, with disk and microphone purposes, macOS/Windows privacy-settings links and manual recovery instructions, without requesting access automatically or implying that access has been granted.

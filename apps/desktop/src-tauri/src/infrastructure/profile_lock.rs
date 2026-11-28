@@ -57,21 +57,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "cross-language ownership probe via pnpm native:compat"]
-    fn native_profile_probe() {
-        let directory = std::env::var_os("LIBERTY_NATIVE_LOCK_PROBE_DIR")
-            .expect("explicit synthetic profile directory");
-        let expected = std::env::var("LIBERTY_NATIVE_LOCK_PROBE_EXPECT")
-            .expect("explicit expected ownership state");
-        let result = ProfileLock::acquire(Path::new(&directory));
-        match expected.as_str() {
-            "locked" => assert!(matches!(result, Err("profile_in_use"))),
-            "available" => assert!(result.is_ok()),
-            _ => panic!("invalid probe expectation"),
-        }
-    }
-
-    #[test]
     fn owner_excludes_another_open_and_releases_on_drop() {
         let root =
             std::env::temp_dir().join(crate::infrastructure::ids::timestamped_id("profile-test"));

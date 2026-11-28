@@ -57,8 +57,6 @@ mod job_deletions;
 mod jobs;
 mod legacy;
 mod model;
-#[cfg(test)]
-mod native_fixture;
 mod pet_growth;
 pub(crate) mod pet_leveling;
 mod progress;
