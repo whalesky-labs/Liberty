@@ -2,6 +2,19 @@
 
 本页维护当前共享图片的来源、分层约束和同步方式。旧客户端截图、一次性生成提示词及制作日志已清理；应用实际消费的素材保留在共享资源目录。清单以生成器输入为准。
 
+## README 界面截图
+
+`screenshots/` 中四张图片于 2026-11-28 从运行中的 Go + MyGo 原生客户端直接截取，窗口为 `Liberty Native Dev`，界面版本为 `v2.0.0-alpha.4`，平台为 macOS Apple Silicon，使用中文和深色主题。它们展示真实开发构建，不作为发行包、其他平台或完整功能验收的证明。
+
+| 图片 | 展示内容 |
+| --- | --- |
+| [native-workspace.jpg](screenshots/native-workspace.jpg) | 无任务状态下的会议工作台 |
+| [native-new-meeting.jpg](screenshots/native-new-meeting.jpg) | 未选择文件的任务创建页面 |
+| [native-appearance.jpg](screenshots/native-appearance.jpg) | 当前主题、窗口材质和强调色设置 |
+| [native-pet-store.jpg](screenshots/native-pet-store.jpg) | 伙伴商店与本地 LP 物品 |
+
+四张图均为 1440 × 960 的窗口截图，保留原始像素内容，仅移除 EXIF 等附带元数据；没有拼接、补绘、模拟会议内容或添加装饰。画面不含会议正文、用户媒体路径或凭据。中英文根 README 共用这些文件；更新时从当前原生窗口重新截图并核对隐私、版本和展示状态。
+
 ## 来源与同步
 
 | 内容 | 当前来源 | 原生同步 |
