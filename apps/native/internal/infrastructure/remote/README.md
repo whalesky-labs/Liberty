@@ -24,4 +24,4 @@ GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly go test -race ./internal/infrastructu
 
 `decoding_test.go` 用回环 HTTP 服务验证大小写别名无法授权删除，且列表、详情、结果送入实际文本导出后只包含正式字段。相邻测试覆盖连接与能力变化、持久化设置、凭据引用、本地隔离、响应限额和拒绝重定向。所有输入均为合成数据。
 
-真实外部服务的只读验收沿用原生根 README 中的 `pnpm native:remote:acceptance`，需要单独配置测试服务。回环测试不代替该验收，也不代表已执行真实远端删除或其他平台客户端。
+真实外部服务的只读验收使用 `pnpm native:remote:acceptance`，环境与副作用见[开发指南](../../../../../docs/development.md#需要显式环境的验收)，需要单独配置测试服务。回环测试不代替该验收，也不代表已执行真实远端删除或其他平台客户端。

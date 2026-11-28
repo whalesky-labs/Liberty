@@ -13,6 +13,6 @@
 | `templates/meeting-minutes.docx` | Word 会议纪要模板 | `pnpm native:export:generate` |
 | `fixtures/native-v10/` | Rust 旧实现导出的合成数据库、JSON、XLSX 和 DOCX 黄金样本 | `pnpm native:compat` 校验并在隔离目录重放 |
 
-修改来源后执行对应生成命令和 `pnpm native:check`。旧端 inventory 脚本、基线及专用测试已移除，历史路由和 command 数量只保留为迁移记录，不代表当前持续检查。图片规范见[素材说明](../../docs/images/README.md)，运行时和发布要求见[发布就绪检查](../../docs/architecture/release-readiness.md)。
+修改来源后执行对应生成命令和 `pnpm native:check`。图片规范见[素材说明](../../docs/images/README.md)，运行时和发布要求见[发布就绪检查](../../docs/architecture/release-readiness.md)。这里的生成器输入、兼容样本和第三方声明仍有用途，不随旧文档清理。
 
 Native 生成器从共享来源读取输入，迁移由自己的 schema 执行器完成。兼容测试使用[冻结黄金样本](fixtures/native-v10/README.md)，不再构建或执行旧 Rust 客户端；当前检查证明历史格式重放与 Native 自身行为，不再提供向旧客户端回写的动态互操作证明。候选锁额外由 `native:check` 按清单核验名称、大小、SHA-256 和锁文件格式。

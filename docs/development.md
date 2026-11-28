@@ -1,6 +1,6 @@
 # 开发、验证与候选启动
 
-最后核实：2026-11-23。命令依据根 `package.json`、`scripts/run-native.mjs`、`scripts/package-native.mjs` 和当前质量/候选工作流。本页是操作说明，不表示以下所有检查已在某台设备执行。
+文档核对：2026-11-28。命令依据根 `package.json`、`scripts/run-native.mjs`、`scripts/package-native.mjs` 和当前质量/候选工作流。本页是操作说明，不表示以下所有检查已在某台设备执行。
 
 ## 工具链
 
@@ -58,18 +58,20 @@ GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly go -C apps/native run ./cmd/liberty-n
 | 原生完整本地质量入口 | `pnpm native:verify`：原生整体、Python lint/tests、Native 版本/平台/安全边界/锁/候选工作流检查与阻断自测；不调用旧前端或 Rust |
 | 迁移数据/协议兼容 | `pnpm native:compat`：校验共享的冻结 Rust 黄金样本，重放 Go 迁移、查询、业务事务、重开及 XLSX/DOCX；不构建或运行旧客户端 |
 | 原生目标编译 | `pnpm native:build:matrix`：三目标主程序和测试包，只编译，不执行其他平台二进制 |
+| 旧端 TypeScript/界面 | `pnpm desktop:typecheck`；涉及 CSS、打包入口或资源解析时补 `pnpm desktop:build:web` |
 | Rust | 相邻测试、`pnpm rust:fmt:check`；公共路径加 workspace tests 与 `pnpm rust:clippy` |
 | 跨层、数据库、权限、发布 | `pnpm check` 加原生及专项检查 |
 | 真实依赖安全与许可证 | `pnpm security:check`、`pnpm licenses:check`；必须有固定扫描器 |
 | 原生独立供应链 | `pnpm native:security:check`、`pnpm native:licenses:check`、`pnpm native:sbom:generate`；不读取 Cargo，不调用 cargo-deny；真实漏洞扫描仍会阻断未获豁免的发现 |
+| 仅文档 | `pnpm ci:docs`；另核对未跟踪新文档、标题锚点、源码路径和命令，不能把旧测试日志写成本轮通过 |
 
-黄金样本和校验边界见[样本说明](../packages/desktop-resources/fixtures/native-v10/README.md)。跨进程锁、恢复 journal 和文件写入由 Native 回归验证；历史 Go/Rust 双向互读仅是原测试流程的历史证据。旧 `native:inventory` 命令、基线和专用测试已移除，完整界面差分仍需实机验收。
+黄金样本和校验边界见[样本说明](../packages/desktop-resources/fixtures/native-v10/README.md)。跨进程锁、恢复 journal 和文件写入由 Native 回归验证；当前兼容入口不执行 Go/Rust 动态互操作，完整界面和系统交互仍需实机验收。
 
 `pnpm check` 先执行 `native:verify`，再通过 `legacy:check:fast:without-python`、Web 构建、Clippy、发布与 CI 策略检查完成临时生产端验证；共享 Python 只执行一次。单独 `legacy:check` 仍包含 Python，随旧端退役一起删除。完整兼容/race/matrix、真实漏洞扫描和发布验收分别执行。
 
 PR 和 main 的 `quality.yml` 按改动范围选择检查，未知或高风险改动执行 `ci-full.yml`；没有定时任务，也不自动构建候选。`ci-gate` 汇总所有所需结果，取消的未验证改动会保留在后续 main 提交的检查范围中。操作和分类规则见 [CI/CD 说明](architecture/ci-cd.md)。
 
-`.github/workflows/build-native.yml` 只供手动或显式调用，选择单个目标或全部三目标。它先执行共同完整门禁，包含 Native、临时生产端、冻结兼容、race、三目标编译、实际系统测试与隔离凭据验收、真实漏洞扫描、许可证/SBOM。全部通过后才打包，执行解包后的版本检查，并独立核对候选文件集合、架构、manifest、归档与 SHA-256。此工作流只有读取仓库的权限，没有发布 Release、写标签或签名的步骤。配置存在不等于某次 GitHub 执行已通过。
+`.github/workflows/build-native.yml` 只供手动或显式调用，选择单个目标或全部三目标。它先执行共同完整门禁，包含 Native、临时生产端、冻结兼容、race、三目标编译、实际系统测试与隔离凭据验收、真实漏洞扫描、许可证/SBOM。全部通过后才打包，执行解包后的版本检查，并独立核对候选文件集合、架构、manifest、归档与 SHA-256，再制作并核验社区 DMG/MSI。此工作流只有读取仓库的权限，不发布 Release 或写标签；macOS 使用无需证书的 ad-hoc 临时签名，不提供 Developer ID 签名或公证。配置存在不等于某次 GitHub 执行已通过。
 
 只改文档时核对源码、相对链接、Markdown 围栏、命令存在性和历史状态即可；不把旧日志冒充本轮构建结果。
 
@@ -95,21 +97,29 @@ PR 和 main 的 `quality.yml` 按改动范围选择检查，未知或高风险�
 
 双语文案、SQLite 迁移 SQL、内置总结模板、展示和宠物素材、运行时清单与模型版本均在共享目录维护。改共享来源后运行对应 `*:generate` 并检查生成差异。契约变更分别用 `pnpm contracts:generate` 和 `pnpm native:contracts:generate` 生成两端类型。退役前必须让 Native 和共享目录独立提供所有仍需的生成输入与脱敏夹具，再删除旧端读取路径。完整映射见[桌面共享资源](../packages/desktop-resources/README.md)和[原生架构](architecture/native-desktop-architecture.md)。
 
+### 候选归档
+
 候选打包支持 `darwin-arm64`、`darwin-x64`、`windows-x64`。manifest 的 macOS ARM 平台 ID 是 `darwin-aarch64`，Go 架构是 `arm64`，不能把三个命名位置混用。Native 包版本只由根 `package.json` 与 Native host 版本决定；默认 `release:check-versions` 仍核对当前生产 Release 的全部来源。`native:package` 的 Windows 输出为便携包。
 
 Windows 打包从共享 `packages/desktop-resources/presentation/icon.ico` 生成确定性的 x64 COFF 图标资源，在隔离的 `.mygo` 临时 main 包中链接进 exe，完成或失败后清理，不把 `.syso` 留在源码目录。原生窗口使用同源生成的 PNG；修改图标后运行 `pnpm native:presentation:generate`。打包和独立资产检查均拒绝缺失或篡改的 PE 图标，MSI 开始菜单和卸载列表也引用该共享图标。macOS 继续使用原有 ICNS。
+
+### 社区安装包
 
 社区安装交付使用 `pnpm native:installers:check` 和 `pnpm native:installers:build --target <target> --commit <40位SHA> --input artifacts/native/<target>`。后者要求干净且提交匹配的源码，并消费前一步 `check-native-release-policy.mjs verify-artifacts` 生成的四份已验证文件；在匹配主机制作 macOS ad-hoc 临时签名 DMG 或未做可信发布者签名的 Windows per-user MSI。每份安装器均重新挂载或解包，比对内嵌文件并执行其中程序的 `--version`；输出安装器、`installer-manifest.json` 并扩展原 `SHA256SUMS`。清单绑定源码、输入归档、安装器字节、真实签名状态和固定 GitHub Releases 更新地址。此命令不发布 Release、不授予 Git 写权限，不宣称公证、无安全提示、安装升级事务或数据库回退已验收。`build-native.yml` 在完整门禁后调用它；历史候选归档和可选可信证书安装器的检查不削弱。
 
 Windows 社区及证书安装器共用有序产品版本编码：`major.minor.(patch*1000+rank)`，alpha 为序号 1–299，beta 加 300，rc 加 600，稳定版使用 999。major/minor 最大 255、patch 最大 64，超界或不能映射的 SemVer 明确拒绝；原始版本保留在文件名、应用输出及清单中。该规则避免 alpha 升级互相覆盖或稳定版被识别为降级，真实 MSI 升级/卸载仍需 Windows 验收。
 
+### 可选证书签名安装包
+
 原生分发入口为 `pnpm native:distribution:check`、`native:distribution:prepare`、`native:distribution:build`、`native:distribution:verify` 和 `native:distribution:accept-install`。后三类产物操作使用确切 `--target`、`--commit <40位SHA>`、`--output <新目录>`；`accept-install` 另需 `--previous <较旧已签名MSI>`。prepare 只生成不可分发的安装输入。build 在匹配目标平台强制执行质量、兼容、race、平台、供应链和凭据检查，再制作 macOS Developer ID 签名/公证 DMG 或 Windows Authenticode 签名的 per-user MSI。verify 重新校验签名、信任、摘要、架构、版本和签名覆盖的源码归因。Windows 事务验收覆盖失败升级回滚、成功升级、阻止降级、卸载和旧安装器回退；不证明数据库回滚。证书缺失或检查失败会阻断，不能跳过。凭据变量和生产切换条件见[发布就绪检查](architecture/release-readiness.md)。
+
+### 资产核验与版本
 
 独立复核已生成的候选资产（输出目录须为空）使用 `node scripts/check-native-release-policy.mjs verify-artifacts --target <manifest平台ID> --commit <40位Git提交> --output <输出目录>`。该命令不重新编译、不启动 GUI；候选文件清单与归档任一不一致均失败。
 
 提交、推送、标签和发布不是构建命令的后续默认动作。版本一致性包括两个 `package.json`、Tauri 配置、`Cargo.toml`、`Cargo.lock` 与 Go `host.Version`；发布变更同时维护双语 CHANGELOG。
 
-### 本地实时翻译验收
+## 本地实时翻译验收
 
 用户流程、离线模型与候选构建见[实时翻译](live-translation.md)。真实链路回放使用已准备的隔离 `funasr-upgrade` 目录及固定公开音频，不能指向生产资料。隔离目录必须带有 `.native-funasr-upgrade-acceptance` 标记，内容为 `isolated-funasr-upgrade-v1` 加换行；该标记只用于专门准备的测试目录。基础运行时与流式模型先由 `managed/upgrade_acceptance_test.go` 验证并安装。
 

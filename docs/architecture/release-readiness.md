@@ -1,651 +1,143 @@
 # Release Readiness
 
-Last verified: 2026-11-27 against the current checkout, root `package.json` scripts and pinned dependency scanners. Security-scan findings below retain their stated scan dates.
+Maintained against repository policy and source on 2026-11-28. This page defines the current delivery requirements and unresolved acceptance boundaries; it is not a log of historical test runs or evidence that the working tree has passed them.
 
-Use the [documentation index](../README.md), [development guide](../development.md)
-and [native architecture](native-desktop-architecture.md) for navigation and
-implementation details. This page defines release gates. The 2026-11-20
-documentation refresh did not rerun external scans, publish a release or
-approve cutover; subsequent scan runs are dated below.
+Use the [development guide](../development.md) for commands, [CI/CD rules](ci-cd.md) for workflow execution and publication recovery, and [Native guide](../../apps/native/README.md) for profiles and backups.
 
-## Native Migration Candidate
+## Native Candidate and Delivery
 
-The `2.0.0-alpha.3` release uses Native candidate archives and a GitHub
-prerelease with `make_latest=false`. It retains candidate identity and does not
-declare production cutover. The old Tauri publishing workflow accepts only stable
-1.x tags and rejects any 2.x/prerelease manual publication before reserving a
-Release. Alpha notes and asset expectations are in the
-[version notes](../releases/2.0.0-alpha.3.md). Building candidates does not itself
-create a tag or publish a Release. The separate `release-native.yml` workflow
-is explicitly dispatched from main and publishes through the Actions bot.
+The workspace version is `2.0.0-alpha.3`; subsequent work belongs to [Unreleased](../../CHANGELOG.md#unreleased). The versioned [alpha.3 notes](../releases/2.0.0-alpha.3.md) describe that release's source boundary, including schema v12. The current workspace uses schema v13. New installer or feature code does not change previously published assets.
 
-The production entry remains `apps/desktop`. `pnpm native:package` creates an
-unsigned, unnotarized, isolated Go + MyGo candidate for the local host or an
-explicit target. Candidate startup defaults to a separate profile identity;
-the existing Tauri profile is read-only even with explicit `--default-profile`.
-Offline `--import-profile <source> --profile-directory <new-target>` takes a
-WAL-consistent SQLite snapshot from a quiescent source, migrates the independent
-target and rebinds active credentials without deleting source references. It
-does not copy media or installed runtimes. Import retries preserve staged
-compensation evidence, keep the live credential set consistent after partial
-cleanup, and never overwrite an existing target. Idle and failed runtime
-operations do not block import; active work and unknown operation states do.
-Restore is limited
-to independent Native profiles: `--restore-backup` validates a same-directory
-SQLite snapshot under the profile lock, checks referenced credentials, and
-preserves a pre-restore safety snapshot. Package
-compilation and archive hash verification do not prove native UI parity,
-Windows/Intel execution, signing, notarization, installer upgrade/rollback,
-security-scan clearance, or production readiness. Keep the current client and
-profile only as a temporary migration safeguard until every cutover condition
-in the approved refactor design is independently accepted; this is not a
-permanent compatibility promise.
+`apps/native` is the daily development and launch entry. `apps/desktop` remains the temporary production release entry until cutover. Candidate packages retain `Liberty Native Candidate`, the separate `com.westng.liberty.native-candidate` profile and `productionReady:false`.
+
+| Delivery path | Output and requirements |
+| --- | --- |
+| `pnpm native:package` | Unsigned, unnotarized candidate archives; macOS `.app` or Windows portable directory. Verify file inventory, architecture, version, manifests and SHA-256. |
+| `pnpm native:installers:build` | Community macOS DMG with ad-hoc signing, or Windows per-user MSI without trusted publisher signing. Consumes verified candidate inputs on the matching host. |
+| `pnpm native:distribution:build` | Optional Developer ID/notarized macOS DMG or Authenticode-signed Windows MSI. Certificates, full gates and independent verification are mandatory. |
+
+Community installers report `signed:false`, `notarized:false` and explicit `signature:adhoc` or `signature:none`; `signed` means trusted publisher signing. They may trigger OS security prompts. Missing certificates do not block the community delivery scope, but cannot be bypassed when building the optional signed format.
+
+Installer preparation alone is non-distributable. Installer build and verification mount or extract the package, compare embedded bytes and source provenance, and execute the contained program on the target host. This does not prove installation, upgrade, uninstall or database rollback. Uninstall must retain meetings, models, credentials and profile directories.
+
+Updates are user initiated. The Native update window reads the fixed repository's Releases API and compares semantic versions and channels; only the download action opens a release page. There is no background download, installer execution or self-replacement. Quit before replacing the app or running an upgrade. Runtime/model downloads remain a separate first-use operation.
 
 ## Cutover and Retirement
 
-On 2026-11-25, the project owner excluded code signing and notarization from
-the current refactor closeout. Its delivery scope is unsigned candidate
-archives. Missing signing certificates or notarization credentials therefore
-do not block this closeout, and signing is not a condition for its eventual
-cutover. This scope decision does not establish production readiness or waive
-business, accessibility, platform, dependency-security, data-recovery or
-upgrade/rollback acceptance. The optional signed DMG/MSI commands below still
-require their certificates and verification; no signing check is bypassed and
-no archive may claim to be signed or notarized.
+Before switching, all sources needed by Native must live in `apps/native`, shared packages or the Python Runner: migrations, schemas, runtime/model manifests, templates, messages, artwork and sanitized compatibility fixtures. A clean checkout must regenerate and pass Native checks without reading `apps/desktop` as a source.
 
-On 2026-11-27, installer delivery was restored for subsequent releases: ad-hoc-signed macOS DMGs and a Windows per-user MSI, retaining portable archives as verified technical inputs. This supersedes archive-only delivery, not the pending cutover gates. The community path uses no certificate secrets and reports `signed:false`, `notarized:false` plus an explicit `signature:adhoc` or `signature:none`; `signed` denotes trusted publisher signing here. System security prompts may appear. The optional certificate-backed DMG/MSI path retains its trust and notarization requirements. Existing alpha.1–alpha.3 public assets are not rewritten or supplemented from a different source commit.
+Cutover requires independent acceptance of:
 
-Settings opens the canonical GitHub Releases list for user-initiated update downloads, including prereleases. Users quit before replacing the application or running the next MSI. This is not an automatic updater: there is no background download, installer execution or self-replacement. Runtime/model installation remains a separate online first-use step.
+| Gate | Required evidence |
+| --- | --- |
+| Business behavior | Import/record, queue/retry/delete, speakers, playback/correction, manual minutes, optional AI and exports; durable results after reopening and no automatic paid calls |
+| UI and accessibility | Chinese/English, light/dark, all relevant states, keyboard/IME, screen readers, native dialogs, auxiliary-window focus/close and unsaved edits |
+| Runtime and platforms | Fresh installation, fixed models and actual execution on each promised target and minimum OS; CPU and all child-process memory included |
+| Quality and supply chain | Complete quality gate, real security and license scans, hash-locked inputs, source identity and reviewed distribution inventories |
+| Data recovery | Profile locks, sequential schema upgrades, failed migration/retry, credential rotation, snapshot restore and interruption recovery |
+| Upgrade and rollback | Transactions for the selected delivery format, retained previous installer/archive and compatible data snapshot; installer rollback alone is insufficient |
+| Production observation | Explicitly reviewed acceptance evidence and observation of the candidate selected for promotion |
 
-The old React/Tauri client is retained only until the Native cutover gates are
-closed. It must not become a second production track or an excuse to leave
-unverified behavior in the migration. Before switching, move every required
-fact source out of `apps/desktop`: schema and migration inputs, runtime and
-model manifests, templates, messages, artwork, and compatibility fixtures must
-be owned by `apps/native`, `packages/desktop-resources`, or an independent
-fixture package. A clean checkout must regenerate and pass the Native checks
-without reading the old client as a source.
+After all gates pass, perform one reviewed change that switches the launch channel/profile, bundle identity, input-manifest policy and production release entry; installer UpgradeCodes also change when delivering installers. Run startup, migration, lock, recovery and rollback smoke tests against that exact candidate.
 
-After all business, UI/accessibility, platform, security, data-recovery,
-upgrade/rollback for the selected distribution format, and production-observation
-gates pass, perform one reviewed cutover change that:
-
-1. switches the default production entry and release workflow to Native;
-2. runs the Native startup, profile-lock, migration, recovery, and rollback
-   smoke tests against the production candidate; and
-3. deletes `apps/desktop` React/Tauri/Rust GUI code, Tauri capabilities and
-   commands, old build/release workflows, and dependencies or checks used only
-   by that client.
-
-Keep the SQLite migration logic, shared resources, and sanitized cross-language
-golden fixtures needed to read and upgrade existing user data. Do not keep an
-old Tauri executable or a permanent compatibility release after this change.
-
-Normal model/token rotation must retain credentials still referenced by a
-restorable snapshot and keep a durable retirement intent for eventual cleanup.
-
-## Native Quality and Candidate Delivery
-
-`pnpm native:verify` is the complete local Native quality entry: Go checks and
-shared generated sources, Python lint/tests, Native version and three-target
-policy, required security regressions, lock integrity, candidate workflow policy,
-and failure fixtures. It does not invoke the old UI or Rust. The root `pnpm check`
-runs it before completing the temporary production-client and CI policy checks,
-executing shared Python checks once. Legacy checks remain until retirement.
-
-PR and main checks select validation suites by changed paths. High-risk changes,
-manual full validation and releases call `ci-full.yml`, covering both clients,
-frozen compatibility fixtures, race, target compilation, actual platform tests,
-isolated system-vault acceptance, Go notices, security and both SBOM inventories.
-There are no scheduled runs. See the [CI/CD rules](ci-cd.md).
-
-`.github/workflows/build-native.yml` is only manually triggered or explicitly
-called. It requires the complete gate, including real security scans, to succeed
-before packaging one selected target or all three. Each package runs its extracted
-version check and verifies exact archive contents, manifest, architecture and
-SHA-256 before upload. Ordinary commits do not build candidate archives. Candidate
-jobs have read-only repository permissions; there is no Release publication,
-Git-ref mutation, certificate-backed signing or notarization step. It additionally creates community DMG/MSI installers, verifies mounted/extracted bytes and executes the contained program on the target host; macOS uses ad-hoc signing without credentials.
-The separate `.github/workflows/release-native.yml` checks a successful
-three-platform candidate run and requires its exact source commit to belong
-to main history. It revalidates that source with the complete gate, verifies
-the original artifact ZIP digests and all 19 assembled assets (including three installers and three installer manifests), and preserves
-the bundle before giving only its publish job write permission. The job uses
-`GITHUB_TOKEN`, binds the returned draft ID, rejects asset overwrites, and
-checks all public downloads, the bot author, immutable tag and stable latest.
-The optional exact `replace_release_id` is a deliberate migration of a
-verified manual prerelease to the bot, with original bytes preserved before
-deletion and a new Release ID. It cannot replace a stable release or move a
-tag. See the [transaction and recovery rules](ci-cd.md#native-bot-发布事务).
-For an existing tag, `target_commitish:main` is unused creation metadata; the
-resolved tag and verified manifests remain the source authority. If publication
-code must be repaired after deletion, the exact `recovery_run_id` imports and
-revalidates the prior immutable backup under a new complete source gate before
-the publish job receives write permission.
-`native:security:check`, `native:licenses:check` and `native:sbom:generate` use
-the explicit Native governance mode without Cargo. Complete CI combines shared
-dependency scans while retaining Cargo coverage until the old client's retirement.
-
-The Native SBOM describes locked Go modules, three production Python targets,
-Python development tools and the transitive root Node build tools. It retains
-the FunASR upstream 1.3.9 identity alongside local2 and its dependency edge and
-source/output hashes. It excludes the old desktop importer and Rust, and is not
-an installed or packaged inventory of interpreters, FFmpeg or models. The
-2026-11-22 regeneration contains 135 components; older 123-component artifacts
-precede the production runtime changes below.
-
-`native:distribution:check` validates the installer policy and refusal fixtures.
-The distribution CLI supports prepare/build/verify and Windows accept-install.
-macOS builds require `LIBERTY_MAC_SIGN_IDENTITY` (Developer ID certificate SHA-1),
-`LIBERTY_MAC_TEAM_ID` and `LIBERTY_MAC_NOTARY_PROFILE` (notarytool keychain profile).
-Windows builds require `LIBERTY_WINDOWS_SIGN_THUMBPRINT` for a usable CurrentUser
-code-signing certificate. Values identify system-held credentials; do not put
-private keys or passwords in source or logs. The build runs the full Native
-quality, compatibility, race, platform, security and license gates in a clean
-checkout before signing freshly built input. Signed embedded provenance binds
-the exact source commit and input manifest; editing an outer JSON file cannot
-relabel an installer. Windows uses the fixed official WiX 3.14.1 ZIP with its
-reviewed full digest. Installer transaction checks require an older signed MSI
-and an otherwise uninstalled candidate. macOS verification mounts a DMG read-only
-and checks the contained application, notarization, Gatekeeper, version and
-architecture. These implementations require actual certificate/platform runs;
-the candidate identity and `productionReady:false` remain until cutover.
-On 2026-11-22, the distribution policy and its 66 tests passed, including
-verified synthetic archive preparation for the targets configured at that time, dirty-source and symlink-path
-refusals, and signed-provenance claim checks. These are not signed installer
-builds or installation acceptance. No certificate-backed DMG/MSI build,
-notarization, Windows upgrade/uninstall transaction, or distribution CI execution
-has been accepted. Promotion still requires one reviewed change to the launch
-channel/profile, bundle identity, manifest policy, installer UpgradeCodes and
-release entry, followed by retirement of the old client under the gates above.
-
-Unreadable or invalid snapshots must block deletion. Restore preflight checks
-existing credential references in early schemas as well as current schemas.
-Explicit restore preserves live and pending credential references in a strict,
-versioned external record before replacing SQLite. Importing retirement intents
-must retain existing metadata and finish a FULL commit, WAL checkpoint and
-main-file synchronization before removing that record, even on a no-op replay.
-Interrupted import and blocked checkpoints must retain retry evidence. This
-branch also merges snapshot-retained v3 migration journal entries on retry.
-
-The macOS ARM isolated system-store acceptance now covers model/token rotation,
-SQLite restore, reopen, pre-restore safety-snapshot retention and eventual
-reclamation of only non-live credentials. Synthetic host regressions cover
-business data and cleanup intent preservation. These results do not establish
-physical power-loss or installation rollback. The later 2026-11-23 CI records
-below extend isolated system-store acceptance to Intel Mac and Windows x64.
-Old distributed clients do not gain this protocol retroactively.
+The same change removes the React/Tauri/Rust GUI, capabilities, commands, old build/release chain and dependencies or checks used only by that client. Preserve SQLite upgrades, shared resources and frozen compatibility inputs needed to read existing data. The old client is a temporary migration safeguard, not a permanent second release track.
 
 ## Required Platforms
 
-Every release candidate must account for these desktop targets:
+| Platform | Manifest ID | Go target | Retained Rust target |
+| --- | --- | --- | --- |
+| macOS Apple Silicon | `darwin-aarch64` | `darwin/arm64` | `aarch64-apple-darwin` |
+| macOS Intel | `darwin-x64` | `darwin/amd64` | `x86_64-apple-darwin` |
+| Windows x64 | `windows-x64` | `windows/amd64` | `x86_64-pc-windows-msvc` |
 
-| Platform | Manifest platform ID | Rust target | Go target | Validation |
-| --- | --- | --- | --- | --- |
-| macOS Apple Silicon | `darwin-aarch64` | `aarch64-apple-darwin` | `darwin/arm64` | primary |
-| macOS Intel | `darwin-x64` | `x86_64-apple-darwin` | `darwin/amd64` | primary |
-| Windows x64 | `windows-x64` | `x86_64-pc-windows-msvc` | `windows/amd64` | primary |
+Keep platform assets and runtime assumptions distinct. Compilation and headless target tests do not establish real native interaction, managed ASR or installation on target devices.
 
-The supported desktop scope is macOS Apple Silicon, macOS Intel and Windows x64.
-Each target requires independent runtime and native UI acceptance.
-The 2026-11-23 scope cleanup passed the full local `pnpm check`, 198 focused
-packaging/launch/distribution/runtime policy tests, and compilation of all three
-main programs and test suites with matching binary architectures. These local
-results do not replace target execution or signed installation acceptance.
+## Quality and Evidence Gates
 
-## Automated Checks
-
-Run before release:
-
-```bash
-pnpm check
-```
-
-This includes:
-
-- complete local Native quality and candidate-delivery policy checks
-- generated-contract drift checks
-- frontend type checking, unit tests, and production build
-- Python Ruff and pytest
-- Rust formatting check
-- Rust tests
-- Rust clippy with warnings denied
-- release version, platform-matrix, Tauri security-baseline, and runtime-lock checks
-- dependency-governance and ASR-validation blocking fixtures
-
-`pnpm check` validates the governance code and its blocking fixtures, but it does
-not replace a real dependency scan, controlled-media benchmark, native platform
-smoke, signing, notarization, installer test, or published-asset verification.
-
-Native changes also require the appropriate `pnpm native:compat`, Go race checks
-and `pnpm native:build:matrix`. The root quality workflow selects suites or calls
-complete validation; candidate packaging uses a separate manual entry. Matrix
-compilation is not execution on those devices. Candidate packaging verifies
-version, identity, architecture and archive contents; Windows portable packages
-are not installers.
-
-## External Evidence Gates
-
-Run the real scanners in an environment with the pinned prerequisites:
-
-```bash
-pnpm security:check
-pnpm licenses:check
-```
-
-For the Go migration client, `pnpm native:licenses` checks reviewed module
-versions against `apps/native/go.mod`, verifies module checksums and collects
-upstream notices. The supply-chain job publishes the notice file alongside
-the CycloneDX artifact. OSV also scans `apps/native/go.mod`. All dependency
-ecosystems must pass the security gate before switching the production client.
-
-The historical 2026-11-19 production scan was blocking: each of the three Python locks
-had 54 unsuppressed vulnerability groups (75 OSV records) under the existing
-exception policy. Those counts overlap across platforms and must not be added
-as distinct vulnerabilities. The 31 Python exceptions expire on 2026-11-30.
-The configured Rust, pnpm and native Go lock scans and the existing Rust/Go
-license gates passed in that run. An additional Go source-analysis diagnostic failed
-because the pinned scanner cannot process Go 1.27 sources; this is unverified
-source analysis, not a clean analysis result or a substitute for the lock scan.
-The 2026-11-22 production scan below supersedes these old lock findings for the
-current inputs; it does not change what the historical scans observed.
-
-On 2026-11-21, the fixed `cargo-deny 0.20.2` and `osv-scanner 2.5.0`
-release binaries were verified against their upstream release SHA-256 digests
-and run from a temporary tool directory. Rust advisories/bans/sources and the
-pnpm/native Go dependency scans passed. `pnpm security:check` then exited 1 on
-the first production Python lock; independent scans of the other two locks
-also exited 1. Each lock still reported 54 unsuppressed vulnerability groups
-across three packages: `filelock`, `pillow` and `transformers` (6 critical,
-29 high, 16 medium, 2 low and 1 unknown). These platform counts overlap and
-must not be summed. The production locks and exception policy were unchanged;
-this rerun did not repeat Go source analysis, license or runtime installation
-acceptance. `pnpm check` and `pnpm native:check` passed separately and do not
-clear this security gate.
-
-A patched or vendored runtime package must retain its upstream identity for
-scanning, source and patch digests, reproducible output digest, and license
-notices. Verify its immutable delivery path, fresh hash-locked installation,
-default model paths, minimum OS compatibility, and rollback on each promised
-runtime platform. An exception-filtered scan does not resolve the underlying
-vulnerabilities or extend an exception's expiration date.
-
-The native runtime experiment has a checked-in, fixed FunASR wheel recipe and
-standard-library builder; see the [vendor build instructions](../../python/funasr-runner/vendor/README.md).
-It produces the candidate, patch, provenance and an upstream-identity source
-SBOM. This source SBOM is not the full runtime dependency inventory. Reproducing
-the candidate does not establish immutable delivery or pass the production
-security and installation gates described above.
-
-The native candidate also has an explicit, pinned sidecar delivery path. The
-single runtime manifest retains its production root and declares the separate
-`security-candidate` profile, Python assets and eight input digests. The
-repository contains the [three candidate locks](../../packages/desktop-resources/runtime/candidates/security-candidate).
-Preparation verifies those locks and the five outputs from the pinned vendor
-recipe. Packaging with `--runtime-input-directory` runs the candidate security
-gate before copying and revalidating those bytes. Each platform scan checks
-coverage of the complete dependency inventory and the upstream FunASR source
-identity. Both current-policy and unfiltered results are retained. On
-2026-11-21, all eight
-inputs matched their manifest digests after rebuilding the five vendor outputs.
-The three candidate scans passed with the existing exceptions. Each unfiltered
-scan still reported findings, and the separate production scans failed.
-
-The candidate `filelock 4.2.1`, `Pillow 13.0.0`, and `Transformers 5.23.0`
-require Python 3.11 or later. At that review date, production pinned Python
-3.10.17; the 2026-11-22 production update below replaces that pin. A 2026-11-21
-review of the [Torch](https://pypi.org/pypi/torch/json) and
-[Torchaudio](https://pypi.org/pypi/torchaudio/json) release inventories found
-2.2.2 was the latest stable release of each with a non-yanked CPython 3.11
-Intel or universal2 macOS wheel. The candidate Transformers Torch backend
-requires Torch 2.6 or later. Any alternative Intel build needs reproducible
-provenance, license and installed inventory review, pinned delivery and
-actual runtime tests. Check installation on the minimum supported macOS
-version as well, since the candidate SciPy lock includes wheels with different
-minimum macOS versions.
-
-On 2026-11-20, configured archive endpoints were independently probed using
-HTTPS HEAD and one-byte Range requests. The official Python/macOS FFmpeg
-archives responded successfully, but the then-configured Python archive URLs
-on the NJU mirror and both previous Windows FFmpeg release URLs returned 404.
-The dead NJU package URLs have been removed; NJU remains available as a PyPI
-index and Python archive selection now falls back to the checksum-pinned
-official URL.
-
-The Windows x64 FFmpeg pin uses a fixed FFmpeg-Builds release asset. Its
-endpoint returned HEAD 200 and one-byte Range 206; the retained local ZIP
-matched its full SHA-256, passed ZIP integrity checks and contained a matching
-x64 PE32+ executable. The upstream asset is a GPL build, the GitHub release is
-not immutable, and retention is time-limited. SHA-256 rejects changed bytes but
-does not guarantee endpoint availability. No Windows executable was run in
-that probe: installation, media conversion, minimum-OS behavior and rollback
-still require Windows x64 acceptance. Existing valid managed installations may
-be reused; a manifest change does not prove they were upgraded.
-
-The `production` runtime profile is the default; selecting `security-candidate`
-remains explicit and requires an isolated writable profile.
-The application locates inputs relative to its exact executable, validates them
-before opening the database, and materializes the verified bytes into a private
-content-addressed resource directory. Candidate generations, downloads, logs and
-models use a separate profile root; ready markers bind the profile and input
-digest. Missing or changed inputs fail instead of falling back. The production
-installer downloads the fixed upstream wheel and reproduces the five authenticated
-vendor outputs before hash-locked dependency installation. The explicit candidate
-sidecar bundles its vendor wheel. Both paths still require online installation.
-Minimum-OS, Intel/Windows execution and installer rollback gates still apply.
-
-On 2026-11-20, the macOS ARM candidate completed a fresh hash-locked managed
-installation, all four pinned model downloads and offline warmup, and both
-speaker modes through the original Runner and real native host. Host results
-and workflow rewards survived shutdown and reopening. The collected 82-package
-installed inventory passed pip check, exact-lock comparison and the same
-upstream-aware current-policy scan; its unfiltered scan still reported findings.
-Transformers disables its Torch backend because that backend requires >=2.6;
-the successful model evidence covers only the fixed FunASR path. This is neither
-multi-speaker accuracy evidence nor a performance or other-platform result.
-
-On 2026-11-21, the versioned production and `.2` security-candidate caches each
-passed the pinned Runner and real host checks for both speaker modes, including
-results and workflow rewards after reopening. The candidate's 82-package
-installed inventory passed exact-lock comparison and the current-policy scan;
-its unfiltered scan retained findings. A later candidate package repeated all
-three platform input scans with complete coverage and unchanged exception
-policy. Those runs did not clear the production Python findings recorded then.
-The separate meeting-window acceptance was incomplete at that date after an
-interrupted UI session. The 2026-11-23 interactive acceptance below supersedes
-that result for its explicitly tested macOS ARM workflow.
-
-### 2026-11-22 Production Runtime Update
-
-The shared manifest now defaults to runtime `2026.11.22-python311-security.1`,
-CPython 3.11.18 and FunASR `1.3.9+liberty.local2`. The three production locks
-use the corrected dependency set, including `filelock 4.2.1`, `Pillow 13.0.0`
-and `Transformers 5.23.0`. The fixed metadata patch removes `oss2` from the
-default dependency set into an explicit extra and adds `six`; the upstream
-FunASR identity, unchanged Python payload and source/output hashes remain
-available for review in the [vendor build instructions](../../python/funasr-runner/vendor/README.md).
-The managed CPython 3.11.18 build reproduced all five pinned vendor outputs.
-
-With pinned OSV Scanner 2.5.0, all three current production lock inventories
-and the 82-distribution macOS ARM installed inventory passed the existing
-exception policy with complete coverage. Each corresponding unfiltered scan
-exited 1 and retained 20 vulnerability groups covering 24 OSV records, all
-attributed to Torch 2.2.2. The same findings overlap across the three targets and
-the installed inventory; do not add them as distinct vulnerabilities. The 31
-existing exceptions were not expanded or extended and still expire on
-2026-11-30. These results supersede the 2026-11-19/21 findings for the old
-production locks; they establish current-policy passage, not an absence of
-vulnerabilities or unconditional production clearance.
-
-On macOS Apple Silicon, a fresh default-production managed installation passed
-the pinned runtime/model/audio acceptance (201.64 seconds), installed inventory
-acceptance (14.05 seconds), and real Native host acceptance (78.02 seconds).
-Both speaker modes completed through the application and Runner; their results
-and workflow rewards survived profile shutdown and reopening. The installed
-inventory matched the lock and passed the current-policy scan; its unfiltered
-findings remain as described above. This run used the default production
-profile rather than a successful historical candidate cache.
-
-Transformers 5.23.0's Torch backend remains disabled because it requires Torch
-2.6 or later, while Intel macOS remains pinned to its final official Torch 2.2.2
-wheel. The accepted path is limited to the four pinned FunASR
-Paraformer/VAD/punctuation/speaker models using Torch directly. It does not
-establish support for arbitrary Transformers models. The runtime and host
-results do not prove GUI meeting/summary/export acceptance, CER/WER/DER or
-performance thresholds, minimum-OS behavior, Intel/Windows execution,
-certificate-backed distribution, installer rollback, or production observation.
-Those gates remain open, and the old production entry has not been replaced.
-
-Scanner exit code `2` means the required tool is unavailable, not that the scan
-passed. When the ASR engine, runtime, model, or supported-platform assumptions
-change, also run the controlled fixture, benchmark, platform-smoke, and accepted
-evidence workflow documented under `benchmarks/asr/`; missing media, annotations,
-registered devices, or digest-bound evidence remains blocking.
-
-### 2026-11-23 Source and Interactive Acceptance
-
-Commit `5e055a6e729b5e856f1011ed4f559fa1e14abce1` was tracked and pushed to
-`codex/native-architecture`, then checked out into a clean detached worktree.
-Fresh frozen root Node tooling, a separate hash-locked Python development
-environment, Native verification, licenses, the 135-component SBOM and Go module
-verification passed without changing the checkout. A real ARM candidate archive
-was built, extracted and executed with `--version`; distribution preparation
-bound the exact commit and archive while retaining `distributable:false` and
-false quality/security publication claims. This does not establish signing.
-
-The macOS ARM meeting-window acceptance passed with the default production
-runtime: system file selection, synthetic speech transcription into four segments
-and verified speakers, summary generation against a local authenticated fixture,
-saved minutes, and complete-result export through the system save dialog.
-After normal application shutdown, the test verified the completed job, one
-published summary, expected export text and exactly one of each workflow reward.
-The final run also removed only its own temporary database and attachments.
-An initial cleanup failure was reproduced as the external filesystem changing
-its provisional inode on first write; the fixture now compares the current path
-with its retained original file descriptor. This synthetic GUI run does not
-prove external-service acceptance, human ASR quality, all-page accessibility,
-IME composition, or other operating systems.
-
-Actual CI initially found non-desktop runtime/profile test assumptions and two
-new Rust advisories. `cookie` 0.18.3 and `url` 2.5.9 (with `form_urlencoded` 1.2.3)
-passed a fresh cargo-deny advisories/bans/sources scan and the full legacy checks.
-Linux ARM container execution verifies the corrected host/runtime tests and the
-offline CLI restore against explicit synthetic directories. The first three CI
-runs also exposed the frozen fixtures' original UTC+08 clock assumption and a
-synthetic host runtime lacking the required production input binding. The fixes
-are limited to explicit test setup; production runtime ownership and the frozen
-golden bytes remain enforced.
-
-Commit `b8ff0baf720ef8444c4e9634a36c2548b9236b2b` passed the full root
-`pnpm check` and the complete frozen compatibility replay with `TZ=UTC`.
-A second clean detached checkout built candidate archives for the configured
-targets and prepared their installer inputs. Each archive's architecture, exact source provenance
-and SHA-256 were checked; only the ARM candidate was executed locally. All
-prepared inputs remain non-distributable. The checkout stayed clean.
-CI run `45164966173` targeted this same commit with `publish_release=false`.
-Independent Native quality, both real security jobs, and the ARM and Intel Mac
-candidate jobs passed, including real system-vault recovery and extracted
-candidate execution. The Windows jobs failed. The failures exposed a missing
-Windows handle-based hard-link check, invalid synthetic filenames/SQLite URIs,
-and an animation-index overflow; their fixes require another target run.
-
-The implementation commit verified in this historical run is
-`22aaabbe74eb4958b86e5db7233186fd7eaeb087`. It passes a fresh full root check and
-CLI/managed race checks. Unsupported GUI architectures now return bilingual
-recovery guidance before profile resolution or creation; offline import/restore
-and version metadata remain available. An isolated Linux process verified that
-refusal without creating its requested profile. The intermediate Windows run
-confirmed the hard-link, fixture-path and animation fixes, then exposed a
-read-only snapshot cleanup permission issue corrected in this final commit.
-The final run is [45175760469](https://github.com/whalesky-labs/Liberty/actions/runs/45175760469),
-with publication disabled and a final conclusion of **failure**. Its Native
-quality and both real security jobs passed. Apple Silicon, Intel Mac and Windows
-x64 passed all ordinary target tests, actual isolated
-system-store rotation/restore/reclamation, extracted candidate execution and
-archive verification. This historical run also included a now-retired target
-that failed; its overall conclusion remains failure. All three successful
-candidate artifacts were downloaded and independently checked against GitHub's ZIP digest, their exact
-file inventories, architecture, source commit and embedded/outer SHA-256 records.
-The failed historical workflow skipped release reservation, bundle and
-publication jobs. No tag or Release was created.
-A fresh detached checkout of the same commit installed frozen
-root tooling, packaged and executed the ARM candidate, and verified archive
-SHA-256 `238121c0686dffa1260f5e0e480f6aba24a7162e4174502331953bff1e0ce6d9`.
-The checkout remained clean and the candidate remains unsigned and non-production.
-
-| Final CI candidate | Target execution and system store | Downloaded archive SHA-256 |
-| --- | --- | --- |
-| macOS Apple Silicon | Passed | `c40406ced76aea6f04618d7f05c058c51b21fa19d2e229f63c840621e8b22c4b` |
-| macOS Intel | Passed | `18df4d1d64e2d4f282b785f39d0a11af41a500079625d4b535ec7486985a3f78` |
-| Windows x64 | Passed | `2de890b9529a1fb1c545de83d26fa1242850acf1d7ab2269d21aa1fa87370de3` |
-
-These target checks do not prove native GUI interaction, Intel/Windows managed
-ASR, minimum operating systems, certificate-backed
-distribution, controlled ASR quality, 8 GiB performance or production observation.
-
-Additional macOS ARM page acceptance covered English dark and Chinese light
-themes, settings categories and diagnostics, member and custom-template saves,
-required model fields, pet growth, one daily check-in and one blind-box draw.
-The factory practice completed with keyboard input, replayed, paused with Escape
-and returned without a work reward. Reopening the synthetic database verified
-the saved resources and single reward records. The widened English Encourage
-button was visibly verified in the later candidate; normal quit completed.
-This bounded page sample does not establish every state, IME composition,
-screen-reader behavior or gameplay calibration.
-
-### 2026-11-25 Native Closeout
-
-This local verification used the `c8c6d4c3` checkout plus the uncommitted Native
-window-title correction. Changing language now updates the open workbench,
-summary and notes window titles; a result window opened after an asynchronous
-lookup uses the current language. No commit, tag, release or production cutover
-was performed. Signing/notarization is outside this closeout's scope, as recorded
-under Cutover and Retirement.
-
-| Check | Observed result and boundary |
+| Check | What it covers |
 | --- | --- |
-| `pnpm check` | Passed again after the UI correction, including Native, Python, temporary legacy, release and CI policy checks. Existing external-filesystem cache-copy and web bundle-size warnings remain. |
-| `pnpm native:compat` | Passed the frozen migration, business, profile-lock, XLSX and DOCX compatibility replay, including SQLite reopen and credential recovery. |
-| `pnpm native:build:matrix` | Passed again after the correction; main and test binaries compiled for macOS ARM, Intel and Windows x64. This is not target GUI execution. |
-| Go race checks | All internal packages and the CLI passed. The first desktop-package run hit the command's default 10-minute timeout during rasterized UI tests, without a reported data race; the corrected package passed with CI's existing `-timeout=30m` (477.019 seconds). No CI timeout or test coverage was relaxed. |
-| `pnpm native:credentials:acceptance` | Passed five isolated macOS system-store tests, including rotation, SQLite restore, retained snapshots and eventual reclamation. |
-| `pnpm native:runtime:acceptance` | Passed using the existing isolated production runtime cache: four fixed models, both Runner and host speaker modes, results/rewards after reopen, and the 82-distribution installed inventory. This rerun does not claim a fresh installation. |
-| `pnpm native:meeting:acceptance` | Passed on macOS ARM with synthetic speech, system file selection, four transcript segments and verified speaker results, one local fixture summary, notes viewing, full-result export and normal quit. The test reopened SQLite, verified result/export content and exactly one of each workflow reward, then removed only its temporary database and attachments. |
-| `pnpm security:check` and `pnpm licenses:check` | Passed with pinned OSV Scanner 2.5.0 and cargo-deny 0.20.2, whose local binaries were checked against upstream release assets. No exception was expanded or extended. |
-| `pnpm native:package` | Built and verified the local ARM candidate archive; its executable reported `Liberty Native 2.0.0-alpha.1 (candidate)`. It remains unsigned, unnotarized and `productionReady:false`. |
-| Runtime download endpoints | All six production Python/FFmpeg official URLs returned HTTP 200 to HEAD probes; this does not prove Intel/Windows installation or future availability. |
-| `pnpm native:bench:reads` | Completed the frozen-data read benchmarks. Other checks were active, so this is a diagnostic sample, not an isolated performance comparison or 8 GiB ASR acceptance. |
-| `pnpm asr:fixtures:check` | Blocked: the controlled local media/annotation manifest is absent. No synthetic substitute was counted as human ASR quality evidence. |
+| `pnpm native:verify` | Go/generated sources, shared Python lint/tests and Native version/platform/security-baseline/lock/delivery-policy checks; no old UI or Rust |
+| `pnpm check` | Native verification plus temporary production-client checks, Web build, Rust Clippy, release and CI policy; shared Python runs once |
+| `pnpm native:compat` | Verified frozen historical inputs replayed through Go, including migration, business persistence and document compatibility |
+| Go `-race` | Concurrency and lifecycle checks, separately from ordinary tests |
+| `pnpm native:build:matrix` | Main and test compilation for all three targets |
+| `pnpm security:check`, `pnpm licenses:check` | Actual dependency scanners and license policy for the repository |
+| `pnpm native:security:check`, `pnpm native:licenses:check` | Explicit Native supply-chain mode without Cargo |
+| `pnpm native:licenses`, `pnpm native:sbom:generate` | Reviewed Go notices and Native CycloneDX inventory |
+| Dedicated acceptance commands | Real system credentials, runtime, meeting GUI, remote service, portable update/restore and controlled ASR evidence |
 
-The three production lock inventories and the installed ARM inventory passed
-the current security policy. Each unfiltered scan still reported the same
-20 Torch 2.2.2 vulnerability groups / 24 records; these overlapping inventories
-must not be summed. The exception deadline remains 2026-11-30. Fresh checks of
-the [Torch](https://pypi.org/pypi/torch/json) and
-[Torchaudio](https://pypi.org/pypi/torchaudio/json) release inventories found
-2.2.2 was still their newest stable, non-yanked CPython 3.11 macOS x86_64 or
-universal2 wheel. A supported Intel runtime replacement therefore needs its
-own implementation and acceptance; updating a version field or extending the
-exception does not resolve this gate.
+`pnpm check` does not replace real vulnerability scans, complete compatibility/race/matrix runs, device interaction, signing or publication verification. A missing scanner or failed scan is not a clean result.
 
-The same isolated native UI session verified required-field focus, Chinese
-member text via paste, keyboard Tab navigation, resource save/readback, and
-cancel/discard behavior for an unsaved editor. English/dark and Chinese/light
-preferences were exercised with the result, summary and notes windows open;
-the system Window menu showed all three titles updating in both directions
-while retaining their meeting title. This verifies the title correction in
-real native windows. Direct automation of Chinese keystrokes did not produce
-text, whereas paste did; no conclusion about IME composition or screen-reader
-speech is inferred from that automation or the accessibility tree.
+PR/main checks select suites by changed paths. High-risk changes, manual full checks and releases use `ci-full.yml`, including both clients until retirement, compatibility, race, target execution, isolated credentials, security and inventories. No scheduled runs or ordinary-commit candidate packaging are configured. Full details are in [CI/CD rules](ci-cd.md).
 
-Intel/Windows native interaction and managed ASR, complete IME/screen-reader
-coverage, an external remote test service, controlled ASR media/annotations,
-distribution upgrade/rollback and production observation remain open. The old
-client has not been retired. The public alpha was independently confirmed as a
-non-draft prerelease with 13 assets, including three Native archives; this
-metadata check did not repeat full public-asset download verification.
+## Runtime and Supply Chain
 
-The subsequent 2026-11-25 portable exercise passed on macOS ARM using Native
-1.1.24 and the corrected 2.0.0-alpha.1 archive. It executed both versions in the
-same disposable install location, retained the previous application before a
-replacement, verified a failed replacement left the database bytes intact,
-saved a resource through the upgraded GUI, restored the initial SQLite snapshot
-through the candidate CLI and native result dialog, and reopened the prior
-version with the restored resource. The pre-restore safety snapshot still held
-the post-upgrade resource. Both inputs used schema v10; this is not an old-schema
-migration, MSI transaction, quarantine/Gatekeeper or other-device result.
-The new `native:portable:acceptance` command makes this exercise repeatable on
-matching hosts. Successful runs remove only their own temporary installation
-and profile; failed runs retain them for diagnosis.
+The [runtime manifest](../../packages/desktop-resources/runtime/runtime-manifest.json) and [model registry](../../packages/desktop-resources/runtime/models.json) are the version and asset authorities. Current defaults are runtime `2026.11.22-python311-security.1`, Python `3.11.18` and FunASR `1.3.9+liberty.local2`. Platform locks retain hashes.
 
-The same run verified the repaired native Close Window shortcut: Cmd+W
-prompted for an unsaved resource, Cancel retained the draft, saving followed
-by Cmd+W closed without another discard prompt, and discarded changes did not
-replace the saved row. The optional signed installer commands still enforce
-certificate verification; their shared promotion metadata now follows the
-unsigned-closeout scope instead of requiring signing/notarization. Other
-production and security gates remain in force.
+Production installation verifies the fixed upstream wheel and reproduces the five authenticated vendor outputs before hash-locked pip installation. The [vendor recipe](../../python/funasr-runner/vendor/README.md) retains upstream identity, patch/source/output digests and licenses. The metadata patch moves `oss2` to an explicit extra and adds `six`; local package naming must not hide upstream advisories.
 
-A further isolated macOS ARM input session used native key events with the
-configured Pinyin input source. It visibly showed marked composition, committed
-`ceshi` to `测试` with Space, cancelled an appended `bumen` composition with
-Escape without changing the committed name, and entered `部门` in the next
-field. After saving and normal exit, SQLite contained exactly those name and
-department values. The application menu headings also changed between Chinese
-and English, and the File menu exposed Close Window. This closes this basic
-macOS Pinyin path; multiline composition, other input methods, screen-reader
-speech and Intel/Windows interactions remain separate acceptance work.
+`security-candidate` and `funasr-upgrade` remain explicit isolated profiles. Their locks, sidecar inputs and private runtime roots are validated independently; missing or changed inputs fail instead of falling back. Bundled input files do not make installation fully offline. See [Native runtime preparation](../../apps/native/README.md#运行时与安全候选) and [FunASR upgrade](../live-translation.md#funasr-升级候选).
 
-Security policy was narrowed after the rerun: 11 unused Transformers exception
-entries were removed. Fresh full dependency scans passed with the remaining
-20 Torch entries, all still expiring on 2026-11-30. The unfiltered three-platform
-results retain 20 Torch vulnerability groups / 24 records. Historical references
-to 31 exceptions above describe the earlier policy and are not current counts.
+As recorded in the current [Python exception policy](../../python/funasr-runner/osv-scanner.toml), 20 Torch-related exceptions expire on **2026-11-30**. This is a policy-file observation, not a new scan result. Each release must rerun the pinned scanners, retain filtered and unfiltered findings, and reject expired exceptions. A policy-filtered pass does not mean no vulnerabilities; overlapping platform inventories must not be summed as distinct findings.
 
-An isolated replacement experiment found a newer Intel path through conda-forge:
-Torch 2.14.1 with the current pinned FunASR models ran both speaker modes under
-Rosetta, and all 93 Python inventory identities passed an unfiltered OSV scan.
-The solved environment includes `readline` with a license denied by current
-project policy, and the Python scan does not cover every native Conda library.
-No production runtime inputs changed. Exact versions, hashes and the remaining
-integration/license/device boundaries are recorded in the
-[Intel runtime experiment](../ai/research/2026-11-25-intel-runtime-replacement.md).
+The scanner versions come from [dependency governance](../../config/dependency-governance.json). Native SBOM generation includes locked Go, production/development Python and root Node tooling, with FunASR upstream provenance. It excludes the old desktop importer and Rust, and is not the installed inventory of interpreters, ffmpeg, models or all native libraries. Full CI keeps Cargo coverage until retirement.
 
-## Manual Desktop Workflow Checks
+Current locks retain Torch 2.2.2; the pinned Transformers 5.x Torch backend requires a newer Torch and is disabled. Supported model evidence must cover the four fixed FunASR models, not arbitrary Transformers models. An Intel runtime replacement requires reproducible sources, native-library licenses, pinned delivery, installed inventory and real device tests; an isolated experiment is not approval to change the default.
 
-- Start the exact native candidate application, confirm its `liberty-native`
-  process and native window, and avoid running a second instance against the
-  same SQLite database.
-- Confirm the dashboard loads aggregate metrics, trends, completeness, recent
-  jobs, and local resource state without loading every full job result.
-- Confirm completed jobs open the scoped `job-workbench` directly, while active
-  or failed jobs open details; legacy result routes must redirect to the
-  completed-job queue.
-- Confirm a workbench can access only its bound source and job, rejects an invalid
-  or replaced capability, and can request AI-summary or meeting-notes windows
-  only for that same job. The trusted main shell creates auxiliary native windows
-  using process-local capabilities. Cancellation during a resource lookup and resource-service
-  shutdown must prevent editor authorization issuance or renewal.
-- In the native candidate, change the remote endpoint or rotate the credential
-  while its workbench stays open. The old grant must not access a same-ID job on
-  the new connection. Keep an independent local notes window open during a slow
-  remote read and confirm that closing it remains responsive. Switching only
-  processing mode must preserve the original remote connection.
-- Import a legacy JSON task whose ID already exists in SQLite, and one with a
-  durable deletion intent. Preserve the existing result and deletion; import only
-  missing tasks. A colliding summary ID must roll back the entire batch and leave
-  the completion marker unset. Check both native and this branch's Rust importer.
-- Export an old unstructured summary to Word twice, with a restart between
-  exports. Preserve its body and source-summary identity after payload backfill;
-  do not repopulate an already saved payload from stale AI text. Dismissed,
-  cancelled or revoked exports must preserve the previous artifact and award no
-  export reward.
-- Confirm `completed`, `unavailable`, `failed`, and `legacy_unverified`
-  diarization states remain distinct. Missing diarization must preserve the
-  transcript and must not synthesize a speaker label in UI, AI prompts, or
-  exports.
-- Confirm Settings can independently display and operate Python, ffmpeg, and
-  model resources, including source selection, progress, failure, repair, and
-  validation states where supported.
-- Compare every legacy route with the native route using the same synthetic
-  records, locale, theme, viewport, and interaction state. Route-map tests prove
-  navigation coverage only; they do not prove visual or behavioral parity.
-- Exercise native keyboard, IME, file dialogs, auxiliary-window focus/close,
-  accessibility tree and screen-reader paths on each promised desktop platform.
-- Keep remote task creation explicitly unavailable until the service upload
-  protocol is specified and tested. The current legacy submission path also
-  reports that secure chunked upload is not implemented; a visible legacy form
-  is not evidence of a successful remote create workflow.
+Before delivery:
 
-## Manual Release Checks
+- Probe configured Python/ffmpeg URLs and verify actual bytes against SHA-256. A fixed digest rejects replacements but does not guarantee endpoint availability.
+- Check the exact CPython version before pip, dependency integrity, offline model warmup and the model directory. Startup must detect an interpreter replaced in place and rerun its version probe.
+- Validate each target's actual installation, minimum OS, media conversion and rollback. Reusing an installed cache is not fresh-installation evidence.
+- Review runtime binaries, translation engines/models and their native dependencies separately; preserve all required licenses, attribution and notices.
+- For ASR changes, use the [controlled-media contract](../../benchmarks/asr/README.md): fixed media and annotations, CER/WER/DER, failures, latency, full process-tree resources and matching commit/model/device identities. 8 GiB is a performance evidence tier, not an established minimum requirement.
 
-- Confirm the [shared runtime manifest](../../packages/desktop-resources/runtime/runtime-manifest.json) has explicit entries for each supported platform ID, and the [model registry](../../packages/desktop-resources/runtime/models.json) pins all four default model revisions.
-- Confirm configured Python and ffmpeg asset URLs are reachable with a cheap HEAD or byte-range probe before publishing them to users.
-- Confirm managed installation verifies final CPython `X.Y.Z` against the manifest before pip and validates the platform lock. In Go, confirm startup rejects an interpreter replaced in place. Reconciliation checks the executable fingerprint and repeats the version probe when the fingerprint changes. System Python follows its separate capability policy.
-- Confirm placeholder or unavailable runtime sources are not advertised in the client.
-- Confirm macOS Intel and Apple Silicon artifacts are separate.
-- Confirm the Windows x64 application, runtime and installer architectures match.
-- Confirm the Environment & Models settings flow can list configured download sources and surface runtime-install logs.
-- Confirm diagnostics report shows the expected current platform and schema version.
-- Confirm no API keys, tokens, or local source paths appear in exported diagnostics.
-- Confirm desktop-pet diagnostic log export redacts sensitive paths and includes useful runtime/resource state.
+## Data, Credentials and Recovery
+
+Candidate profiles are independent. `--default-profile` is read-only; existing production data is imported offline into a new Native directory. Import takes a WAL-consistent snapshot from a quiescent source, migrates the target and rebinds active credentials without deleting source references. It does not copy media or installed runtime files.
+
+Restore accepts a validated same-directory snapshot under the profile lock and preserves a pre-restore safety copy. Old binaries must not write an upgraded schema. Use a compatible pre-upgrade snapshot or the retained old profile for rollback; current Native changes are not reverse-synchronized.
+
+API keys and tokens stay in the system store. Rotation retains references needed by live records and restorable snapshots, with durable cleanup intent. Restore preserves credential references in a versioned external record across SQLite replacement, and completes validation, FULL commit, WAL checkpoint and file synchronization before removing it. Invalid snapshots block cleanup. A failure after restore writing starts does not guarantee unchanged database bytes.
+
+Test interruption, retry, blocked checkpoints, lock release and delayed credential reclamation. Never delete the database, lock, recovery record or credentials to make a test pass. Old distributed clients do not gain the current recovery protocol retroactively. Detailed operational rules remain in the [Native guide](../../apps/native/README.md#生产资料接管与离线恢复).
+
+## Native Workflow Acceptance
+
+Use synthetic or explicitly approved test data and the exact candidate path. Confirm the process and native window, then validate observable results and persistence:
+
+- Dashboard aggregates, queue paging and source-scoped detail/result windows; completed and active/failed jobs follow their intended navigation.
+- Batch partial failures and retry without duplicates; playback bounds, correction conflicts, independent manual notes, source links and default versus historical AI export.
+- `completed`, `unavailable`, `failed` and `legacy_unverified` speaker states remain distinct. Missing diarization never invents labels in UI, AI input or exports.
+- Window capabilities reject revoked or changed source/job identities. Endpoint/token changes invalidate remote grants; slow remote reads do not block unrelated window close.
+- Legacy import preserves existing tasks and durable deletion intent; conflicting summary identity rolls back the batch. Compatibility inputs remain frozen.
+- Cancelled, failed or revoked exports preserve the prior file and award no reward; old unstructured summaries retain their body and identity.
+- Settings and models expose progress, validation, repair and failure; queued saves apply successful state and retain later failed drafts.
+- Live capture handles permissions, refusal/recovery, device changes, microphone/system mixing, bounded queues, pause/end and child-process cleanup. Test numeric/name/term translations and long sessions.
+- Exercise keyboard, IME, screen readers, native dialogs, focus, unsaved edits and close on each target. Component accessibility trees do not replace screen-reader operation.
+- Companion animation, multi-window behavior, maps and optional assembly care remain independent of meeting progress and economic reward computation.
+- Diagnostics include useful platform/schema/runtime state without keys, tokens, transcript content or user media paths. Remote upload remains unavailable until its protocol is implemented and tested.
+
+## Publication and Installer Verification
+
+`build-native.yml` waits for the complete gate, builds selected targets, verifies extracted executable versions and exact archive contents, then creates and validates community installers. It has no public Release or Git-ref write step.
+
+`release-native.yml` is dispatched from main with a successful three-platform candidate run. It verifies the candidate source belongs to main history, reruns that exact source's complete gate, checks original artifact ZIP digests, and stages the bundle before granting only the publish job write permission.
+
+The current installer-inclusive bundle contains **19 assets**: three archives, six platform manifests, three installers, three installer manifests, Native SBOM, notices, release manifest and `SHA256SUMS`. Older 13-asset releases remain unchanged. Never supplement an old tag with binaries from another source commit.
+
+Publication binds the returned draft Release ID, rejects overwrites/unknown assets, verifies real uploaded bytes before public release, then checks unauthenticated downloads, the resolved tag commit, bot author, prerelease status and stable latest. Native 2.x prereleases use `prerelease:true` and `make_latest:false`; the old Tauri publishing path accepts only stable 1.x. Transaction recovery and explicit manual-to-bot replacement are governed by [CI/CD publication rules](ci-cd.md#native-bot-发布事务), including immutable backup and fresh-gate requirements.
+
+Optional signed distribution additionally requires:
+
+- macOS: `LIBERTY_MAC_SIGN_IDENTITY`, `LIBERTY_MAC_TEAM_ID`, `LIBERTY_MAC_NOTARY_PROFILE`; verify Developer ID, notarization and Gatekeeper on the actual host.
+- Windows: `LIBERTY_WINDOWS_SIGN_THUMBPRINT` for a usable CurrentUser certificate and the fixed WiX toolchain; verify Authenticode and embedded provenance.
+- `native:distribution:accept-install`: an older signed MSI and isolated matching host; exercise failed upgrade rollback, successful upgrade, downgrade refusal, uninstall and older-installer recovery. Database rollback is a separate gate.
+
+Credential variables identify system-held credentials; private keys or passwords do not belong in source or logs. Preparation, building, publishing and production promotion are distinct actions.
+
+## Outstanding Acceptance
+
+Full production cutover remains open. Required evidence still includes complete GUI/IME/screen-reader coverage; Intel/Windows managed ASR and native interactions; external remote services; microphone/system-audio permissions and device recovery; controlled recognition/translation quality and 8 GiB resource budgets; fresh installation and selected-format upgrade/rollback; and production observation.
+
+The [active meeting plan](../ai/plans/2026-11-28-meeting-workflow-improvements.md) retains its dated failures and incomplete checks. The [3D plan](../ai/designs/2026-11-25-native-companion-interaction-3d.md) covers separate companion integration and performance work. Neither source availability, historical logs nor documentation cleanup closes these gates.

@@ -8,80 +8,39 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-Liberty brings local transcription, speaker diarization, AI summaries, meeting minutes and exports into one desktop workflow, with a separate local companion and work-game system.
+Liberty combines local transcription, speaker diarization, transcript correction, meeting minutes and exports in a desktop application. Optional companions and work games provide a separate local activity.
 
-## Refactor Status
+The product is free. Basic meeting workflows require no API key or paid API; AI summarization is optional, starts only when requested, and may incur charges from the provider you choose. Runtime and model setup is managed by the app. CPU operation and ordinary computers are the target; minimum hardware and performance still require device measurements.
 
-This source is **v2.0.0-alpha.3**, targeting Native candidate archives for Apple Silicon Macs, Intel Macs and Windows x64. See the [alpha.3 notes](docs/releases/2.0.0-alpha.3.md) for changes, profile upgrades and known limitations; publication status is recorded in the [GitHub Release](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.3).
+## Current Status
 
-As of 2026-11-25, **the new implementation is Go + MyGo under `apps/native`; `pnpm start` (equivalent to `pnpm native:launch`) starts an already packaged native candidate without compiling source.** The table below describes the current migration roles; the native client remains a candidate, and neither full UI acceptance nor production cutover is complete. The React/Tauri client is frozen only as a temporary production and migration reference. Once the Native gates close, one reviewed cutover retires and deletes that client and its release chain.
+The workspace version is **2.0.0-alpha.3**, with subsequent changes under [Unreleased](CHANGELOG.md#unreleased). This README describes current source, which can include features absent from the [versioned GitHub Release](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.3).
 
-| Implementation | Role |
+| Implementation | Current role |
 | --- | --- |
-| `apps/native` | Go/MyGo native client; only daily development, verification and candidate packaging entry |
-| `apps/desktop` | Frozen React/Tauri migration reference and current production entry until Native cutover; scheduled for deletion with its release chain after all gates pass |
-| Python Runner / SQLite / shared schemas | Shared transcription, data and resource sources |
+| `apps/native` | Go + MyGo + SQLite candidate; daily development, launch and candidate packaging |
+| `apps/desktop` | Frozen React/Tauri implementation; temporary production release entry and migration reference |
+| Shared resources and Python Runner | Runtime, models, schemas, templates, messages, artwork and transcription protocol |
 
-See the [native module guide](apps/native/README.md) for profiles, backup and restore. Full UI, IME/accessibility, external-service, Intel/Windows device, supply-chain and upgrade/rollback acceptance remain separate requirements. Pending delivery restores ad-hoc-signed macOS DMGs and a Windows per-user MSI, retaining portable archives as technical assets. Trusted publisher signing and Apple notarization are not provided; security prompts may appear. Settings opens GitHub Releases for the user to download a matching installer and update after quitting. This does not change the already published alpha.3 assets. Candidate identity and the other acceptance requirements remain in force; see [release readiness](docs/architecture/release-readiness.md).
+Native production cutover is incomplete. After the [cutover gates](docs/architecture/release-readiness.md#cutover-and-retirement) pass, the old client and its release chain are removed together. Candidates use an independent profile; importing existing data is an explicit operation.
 
-## Capabilities
+## Meeting and Companion Features
 
-- **Meeting workflow:** dashboard metrics and trends, single-file local jobs, queue search/filtering, progress and logs, retry and deletion.
-- **Result workbench:** dedicated windows for transcripts, verified-speaker filtering/renaming, AI summaries and read-only minutes. Missing diarization preserves the transcript without inventing speaker labels.
-- **AI summaries:** OpenAI-compatible models, templates, durable runs and chunks, explicit retry and historical result selection. Users initiate summarization; transcription does not trigger it automatically.
-- **Exports and members:** transcript TXT, notes Markdown, bundled Markdown and formal DOCX; Excel member import/export, departments, ordering and recorder metadata.
-- **Settings:** appearance, Chinese/English, themes, runtime overview, processing defaults, Python/ffmpeg/models, remote compatibility and diagnostics. Native Settings and main navigation share color styling.
-- **Resources:** model, template and member cards with dedicated editors; keys and tokens remain in the system credential store.
-- **Local companion:** multiple pet windows, 255-level growth, LP, store/inventory, check-in/makeup, free daily blind boxes, gift boxes, signed redemption, farm and work maps. Factory care can optionally use assembly practice; the original one-click action remains and scores never affect rewards.
+- **Import and process:** single files or batches of up to 32, persistent queues, progress, logs, retries and deletion. Failed batch admissions can be retried individually.
+- **Listen and correct:** segment playback with speed control, text corrections, speaker reassignment and verified-speaker filtering/renaming. Unavailable diarization preserves the transcript without inventing speaker labels.
+- **Write minutes:** independent manual notes with source links, optional OpenAI-compatible AI summaries, templates and saved summary history. AI completion does not overwrite manual notes.
+- **Export and manage resources:** TXT, Markdown and formal DOCX; Excel member import/export, departments, recorder metadata, models and templates.
+- **Live transcription and translation:** local Chinese/English microphone transcription, automatic offline translation, history editing, retries and bilingual SRT/VTT/TXT. System-audio and mixed-input adapters exist, with permissions and target-device acceptance still pending.
+- **Settings:** Chinese/English, appearance, runtime/model installation, processing defaults, storage, permissions, diagnostics and user-initiated update checks.
+- **Local companion:** 255-level growth, LP, store/inventory, check-in/makeup, free daily blind boxes, gift boxes, signed redemption, farm and work maps. Optional factory assembly practice uses the existing care action without changing rewards.
 
-Companion features are best-effort and must not block meeting work. LP, boxes and redemption do not introduce payments, top-ups, trading or leaderboards. See the [pet system](docs/pet-system.md).
+See [meeting workflows](docs/meeting-workflow.md), [live translation](docs/live-translation.md) and [pet rules](docs/pet-system.md). Companion failures must not block meeting work; LP and rewards have no payments, trading or leaderboard semantics. The 3D companion remains a development preview.
 
-## Modes and Boundaries
+## Install, Launch and Update
 
-Native source supports live Chinese/English microphone transcription and offline Chinese–English translation with automatic direction switching, without third-party services or API keys, plus history editing, translation retries and bilingual subtitle export; audio is not saved. See [live translation](docs/live-translation.md) for usage and current limits. FunASR 1.4.29 is evaluated in an isolated `funasr-upgrade` profile and has not replaced the default runtime.
+Use the assets actually available on [GitHub Releases](https://github.com/whalesky-labs/Liberty/releases), selecting your platform. The current delivery pipeline prepares ad-hoc-signed macOS DMGs and Windows per-user MSIs, alongside portable candidate archives. Trusted publisher signing and Apple notarization are not provided by this community path. Older releases keep their original assets.
 
-The `processingMode` setting selects local or remote operation. `backendUrl` configures a remote connection; a nonempty address does not switch modes automatically.
-
-Local mode uses SQLite, managed or explicitly configured Python, ffmpeg and model assets. The default runtime pins Python 3.11.18 and a hash-verified FunASR dependency patch; the shared [runtime-manifest.json](packages/desktop-resources/runtime/runtime-manifest.json) defines exact versions, platforms and downloads. The explicit `security-candidate` profile remains isolated. Updating default dependencies does not establish Native production cutover. The four pinned FunASR models and remaining Torch security exceptions are described in [release readiness](docs/architecture/release-readiness.md). Configured concurrency is a resource upper bound; 8 GiB devices default to one local job.
-
-Remote mode negotiates `liberty-meeting` v1 operations for listing, details, results, retry, deletion and speaker renaming. Remote upload/creation and AI-summary writes are not exposed by the current client. An operation appearing in a protocol enum does not establish UI support.
-
-AI models use OpenAI-compatible services under trusted-address, DNS, redirect and response-size constraints. API keys and remote tokens use macOS Keychain / Windows Credential Manager; SQLite stores references.
-
-## Architecture and Layout
-
-| Layer | Native implementation |
-| --- | --- |
-| UI and windows | MyGo native rendering |
-| Application and domain | Go application/domain/client |
-| SQLite | `modernc.org/sqlite`, typed repositories |
-| Platform services | Go profile/credentials/system adapters |
-| Shared sources | JSON Schema, Python Runner, runtime manifest, DOCX template, messages and assets |
-
-```text
-apps/native/                  Go + MyGo candidate
-  cmd/liberty-native/         Launch options and channel
-  internal/desktop/           Windows, layouts and native dialogs
-  internal/client/            UI controllers and asynchronous state
-  internal/application/       Use cases, ports, scheduling and scopes
-  internal/domain/            Types and business policies
-  internal/infrastructure/    SQLite, runtime, HTTP, files and platform adapters
-  internal/host/              Composition, startup recovery and shutdown
-apps/desktop/                 Temporary production client and migration reference
-packages/desktop-resources/   Shared sources, artwork and frozen synthetic regression fixtures
-packages/shared-types/        Versioned JSON Schema and generated types
-python/funasr-runner/          Runner, validators and platform dependency locks
-scripts/                      Development, generation, acceptance and packaging
-benchmarks/asr/                ASR fixture and platform-evidence contracts
-config/                       Platform, security and license policies
-docs/                         Maintained guides and historical process records
-```
-
-The database is schema v12, including live-session/caption tables and automatic translation direction. Native generates migration definitions from shared sources and replays the historical Rust implementation's frozen synthetic databases and expected outputs in `packages/desktop-resources/fixtures/native-v10`; it no longer builds or runs the Rust oracle. Before cutover, a clean checkout must regenerate and test without reading `apps/desktop`. See [native architecture](docs/architecture/native-desktop-architecture.md) for module boundaries and source mappings.
-
-## Development and Verification
-
-Use pinned `pnpm@10.30.3`, Go `1.27.4` and Rust `1.94.0`. Environment and command details are in the [development guide](docs/development.md).
+For source development, use pinned `pnpm@10.30.3`, Go `1.27.4` and Rust `1.94.0`:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -90,41 +49,43 @@ pnpm native:package
 pnpm start
 ```
 
-`start` and `native:launch` verify packaged files and select the highest SemVer for the current platform, using package-directory modification time to break ties. They do not rebuild source, stop running processes or launch the old React/Tauri client; a different running native executable path blocks launch. On macOS they use the exact `.app` path and activate an existing instance of that build. The Windows launcher does not implement existing-window activation; bring a running candidate to the foreground instead of launching again. Root aliases that could start the old UI are removed; explicit old-client maintenance uses its directory scripts, as described in the [development guide](docs/development.md). Candidates use a separate profile by default. macOS candidates are unsigned/unnotarized; Windows packages are portable directories. Exit normally before loading a new build; running windows do not reload automatically.
+`pnpm start` launches a verified, already packaged Native candidate; it does not compile source. The launcher selects the highest candidate version for the current platform and activates an existing instance of that build. A different running executable blocks launch. Quit normally before loading a new build. See the [Native guide](apps/native/README.md) for platform behavior, profiles, backups and restore.
 
-Synthetic preview and compatibility checks:
+Initial local processing requires runtime and model downloads. Update checks run only when requested; downloading and installing an update remain user actions. Never run two clients against the same writable profile.
 
-```sh
-pnpm native:preview --writable --theme light
-pnpm native:compat
-pnpm native:build:matrix
-```
+| Platform | Go target | Packaging argument |
+| --- | --- | --- |
+| macOS Apple Silicon | `darwin/arm64` | `darwin-arm64` |
+| macOS Intel | `darwin/amd64` | `darwin-x64` |
+| Windows x64 | `windows/amd64` | `windows-x64` |
 
-`native:preview` first verifies and replays the shared frozen golden fixtures through Go, then opens temporary synthetic data and cleans it on exit. It does not run the old client. This is not full UI or production acceptance. `native:build:matrix` establishes three-target compilation, not execution on other platforms.
+Target compilation does not establish native interaction, ASR quality, minimum-OS support or installer acceptance. Remaining requirements are maintained in [release readiness](docs/architecture/release-readiness.md).
 
-For cross-layer changes and shared-source checks:
+## Data and Runtime
 
-```sh
-pnpm check
-```
+Local mode uses SQLite and app-managed Python, ffmpeg and models. The [runtime manifest](packages/desktop-resources/runtime/runtime-manifest.json) pins versions and downloads; the default remains Python 3.11.18 and FunASR `1.3.9+liberty.local2`. `security-candidate` and `funasr-upgrade` are explicit isolated profiles. Schema v13 includes live captions and independent manual meeting drafts. Older binaries require a compatible pre-upgrade snapshot for rollback.
 
-`pnpm check` runs Native and temporary production-client checks, with shared Python checks executed once. PR and main CI select checks by changed paths; high-risk changes, manual full validation and releases run the complete gate. There are no scheduled runs or automatic candidate packages on ordinary commits. The manual `build-native.yml` workflow requires the complete gate before packaging and verifying the selected targets. See [CI/CD rules](docs/architecture/ci-cd.md) and the [development guide](docs/development.md) for compatibility, race, security, device and release acceptance. Legacy checks are removed with the old client in the retirement change.
+The `processingMode` setting selects local or remote processing; entering `backendUrl` alone does not switch modes. Remote `liberty-meeting` v1 operations cover existing-job queries, retry, deletion and speaker renaming, subject to negotiated capabilities. Remote upload and AI-summary writes are not exposed. API keys and remote tokens use the system credential store; SQLite stores references.
 
-## Platforms
+## Development and Documentation
 
-| Platform | Go target | Candidate package argument | Runtime boundary |
-| --- | --- | --- | --- |
-| macOS Apple Silicon | `darwin/arm64` | `darwin-arm64` | FunASR; local evidence is limited to tested scenarios |
-| macOS Intel | `darwin/amd64` | `darwin-x64` | Independent runtime and UI device acceptance required |
-| Windows x64 | `windows/amd64` | `windows-x64` | Independent runtime and UI device acceptance required |
+| Path | Responsibility |
+| --- | --- |
+| `apps/native/` | Native UI, controllers, use cases, domain, infrastructure and host |
+| `packages/desktop-resources/` | Shared resources and frozen synthetic compatibility fixtures |
+| `packages/shared-types/` | Versioned JSON Schema and generated contracts |
+| `python/funasr-runner/` | Runner, validators and platform dependency locks |
+| `scripts/`, `config/` | Development, generation, validation and delivery policy |
+| `benchmarks/asr/` | Controlled-media and target-device evidence contracts |
+| `docs/` | Maintained guides and active work |
 
-## Documentation
+Start with the [documentation index](docs/README.md) and [development guide](docs/development.md). Architecture lives in [Native architecture](docs/architecture/native-desktop-architecture.md); [CI/CD rules](docs/architecture/ci-cd.md) define automated gates.
 
-- [Documentation index](docs/README.md): maintained guides, module references and archives.
-- [Development guide](docs/development.md): launch, checks, generation and acceptance.
-- [Native architecture](docs/architecture/native-desktop-architecture.md).
-- [Native candidate guide](apps/native/README.md) / [release readiness](docs/architecture/release-readiness.md).
-- [Pet system](docs/pet-system.md) / [process-document index](docs/ai/README.md).
+`pnpm native:verify` checks Native and shared Python. `pnpm native:compat` replays frozen compatibility fixtures, and `pnpm native:build:matrix` compiles three targets. Cross-layer changes use `pnpm check`, which also checks the temporary production client. Real dependency scans, device interaction and release verification are separate gates. Documentation-only checks use `pnpm ci:docs`.
+
+## Organization
+
+Liberty is hosted under [whalesky-labs](https://github.com/whalesky-labs). [Repository](https://github.com/whalesky-labs/Liberty) · [Issues](https://github.com/whalesky-labs/Liberty/issues) · [Releases](https://github.com/whalesky-labs/Liberty/releases).
 
 ## License
 
