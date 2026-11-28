@@ -1,6 +1,4 @@
 mod client;
-#[cfg(test)]
-mod native_fixture;
 mod prompt;
 mod response;
 mod summary_runs;

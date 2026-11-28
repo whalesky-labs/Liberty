@@ -54,7 +54,7 @@ func TestWriteRustCheckInMakeupMilestoneAndReopen(t *testing.T) {
 	ctx := context.Background()
 	directory := os.Getenv("LIBERTY_NATIVE_FIXTURE_DIR")
 	if directory == "" {
-		t.Fatal("run the Rust export_native_checkin_compatibility_fixture with LIBERTY_NATIVE_FIXTURE_DIR")
+		t.Fatal("run pnpm native:compat to unpack the frozen compatibility fixtures")
 	}
 	var fixture struct {
 		ClockMode      string              `json:"clockMode"`

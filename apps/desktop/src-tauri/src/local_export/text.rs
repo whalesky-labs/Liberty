@@ -217,65 +217,6 @@ mod tests {
     use super::*;
     use crate::domain::asr::DiarizationStatus;
 
-    #[test]
-    #[ignore = "explicit cross-language export fixtures via pnpm native:compat"]
-    fn export_native_text_fixtures() {
-        use std::{fs::OpenOptions, io::Write, path::PathBuf};
-        let directory = PathBuf::from(
-            std::env::var_os("LIBERTY_NATIVE_FIXTURE_DIR").expect("explicit fixture directory"),
-        );
-        assert!(directory.is_absolute() && directory.is_dir());
-        let mut cases = Vec::new();
-        for locale in ["en-US", "zh-CN"] {
-            let labels = if locale == "en-US" {
-                labels()
-            } else {
-                TextExportLabels {
-                    unknown_speaker: "未知讲话人".into(),
-                    transcript_heading: "## 逐字稿".into(),
-                    summary_heading: "## 摘要".into(),
-                    topics_heading: "## 议题".into(),
-                    decisions_heading: "## 结论".into(),
-                    action_items_heading: "## 行动项".into(),
-                    risks_heading: "## 风险".into(),
-                    follow_ups_heading: "## 跟进事项".into(),
-                    empty_summary: "没有总结".into(),
-                }
-            };
-            for status in [
-                DiarizationStatus::Completed,
-                DiarizationStatus::LegacyUnverified,
-                DiarizationStatus::Unavailable,
-            ] {
-                let mut sample = job();
-                sample.diarization_status = status;
-                sample.transcript_segments[0].start_ms = 86_401_500;
-                sample.transcript_segments[0].end_ms = 90_062_999;
-                sample.transcript_segments[0].speaker = Some("   ".into());
-                sample.transcript_segments[0].text = "合成多行\ntranscript <&>".into();
-                for empty in [false, true] {
-                    if empty {
-                        sample.summary = MeetingSummary::default();
-                    }
-                    for kind in ["transcript", "notes", "bundle"] {
-                        cases.push(serde_json::json!({
-                            "locale":locale, "kind":kind, "labels":labels,
-                            "result":{"job":sample, "transcriptSegments":sample.transcript_segments, "speakerSegments":sample.speaker_segments, "summary":sample.summary},
-                            "expected":render_text_export(&sample,TextExportKind::parse(kind).unwrap(),&labels)
-                        }));
-                    }
-                }
-            }
-        }
-        OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(directory.join("text-exports.json"))
-            .unwrap()
-            .write_all(serde_json::to_string(&cases).unwrap().as_bytes())
-            .unwrap();
-    }
-
     fn job() -> MeetingJob {
         MeetingJob {
             title: "Weekly Sync".into(),
