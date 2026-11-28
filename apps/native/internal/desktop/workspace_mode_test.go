@@ -92,7 +92,7 @@ func TestWorkspaceProcessingModeSwitchRefreshesBoundViews(t *testing.T) {
 	workspace := &Workspace{
 		controller:   meetings,
 		view:         view,
-		dashboard:    &DashboardView{Client: dashboard, period: "7d"},
+		dashboard:    NewDashboardView(dashboard, "en-US"),
 		newJob:       &NewJobView{Client: &client.SubmissionController{}},
 		newJobAction: action,
 	}

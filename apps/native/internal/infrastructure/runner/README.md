@@ -37,4 +37,4 @@ GOTOOLCHAIN=go1.27.4 GOFLAGS=-mod=readonly go test -race ./internal/infrastructu
 
 这些检查不代表全部 JSON 接受范围、其他操作系统实机或真实 Python/FunASR 运行时已经重新验收。
 
-`translation.go` 与 `translation_runner.py` 使用独立 `liberty-local-translation` v1 协议。仅加载受校验的本地 CTranslate2/Argos 文件；固定 CPU int8、单线程，单段有长度/时间上限。异常序号、重复或大小写别名字段、截断、取消及超时均失败关闭并回收 worker；一个会话复用一个翻译进程，结束后释放。无需 HTTP 或凭据。
+`translation.go` 与 `translation_runner.py` 使用独立 `liberty-local-translation` v1 协议。仅加载受校验的本地 CTranslate2/Argos 文件；固定 CPU int8、单线程，单段有长度/时间上限。异常序号、重复或大小写别名字段、截断、取消及超时均失败关闭并回收 worker；两个翻译方向按需启动各自进程，在会话内复用，结束后释放。无需 HTTP 或凭据。

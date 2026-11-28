@@ -46,7 +46,7 @@ func TestThemeAndAccentContrastFollowAppearancePreferences(t *testing.T) {
 	p.ThemeMode = "dark"
 	p.AccentColor = "#f0e0a0"
 	got := PreferenceColors(false, p)
-	if !got.Theme.Dark || got.Content != systemColors(true).TextBackground || got.Theme.AccentText != ui.Hex("#14151a") {
+	if !got.Theme.Dark || got.Content != systemColors(true).TextBackground.Mix(ui.Hex("#000000"), 0.2) || got.Theme.AccentText != ui.Hex("#14151a") {
 		t.Fatal("dark/custom accent preferences lost")
 	}
 	p.ThemeMode = "light"

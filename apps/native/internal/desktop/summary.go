@@ -53,7 +53,7 @@ func (v *SummaryView) View(c *ui.Context) {
 			panel(c, func() {
 				ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
 					ui.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
-						ui.Text(c, title).FontSize(21).Bold().Role(ui.RoleHeading).Level(1).Selectable().PreserveSpaces()
+						ui.Text(c, title).FontSize(21).Role(ui.RoleHeading).Level(1).Selectable().PreserveSpaces()
 						ui.Text(c, v.format("heroCopy", map[string]any{"count": count})).FontSize(12).TextColor(c.Theme().TextMuted)
 					})
 					statusBadge(c, v.Locale, status)
@@ -89,7 +89,7 @@ func (v *SummaryView) View(c *ui.Context) {
 					v.Client.Retry()
 				}
 			}
-			body := ui.Scroll(c).FillWidth().Grow(1).MinHeight(0).Label(v.msg("heroTitle")).Busy(v.Client.Loading || v.Client.Busy)
+			body := contentScroll(c).FillWidth().Grow(1).MinHeight(0).Label(v.msg("heroTitle")).Busy(v.Client.Loading || v.Client.Busy)
 			if v.Client.Result != nil {
 				body.Focusable()
 			}
@@ -118,7 +118,7 @@ func (v *SummaryView) View(c *ui.Context) {
 						side.Children(func() {
 							panel(c, func() { v.configuration(c, count) })
 							panel(c, func() {
-								ui.Text(c, v.msg("history")).FontSize(16).Bold().Role(ui.RoleHeading).Level(2)
+								ui.Text(c, v.msg("history")).FontSize(16).Role(ui.RoleHeading).Level(2)
 								if len(v.Client.Runs) == 0 {
 									ui.Text(c, v.msg("emptyRuns")).FontSize(12)
 								}
@@ -145,7 +145,7 @@ func (v *SummaryView) View(c *ui.Context) {
 func (v *SummaryView) configuration(c *ui.Context, count int) {
 	busy := v.Client.Busy || v.Client.Running()
 	speaker := v.Client.Result != nil && v.Client.Result.Job.DiarizationStatus == "completed" && len(v.Client.Result.Speakers) > 0
-	ui.Text(c, v.msg("currentConfig")).FontSize(16).Bold().Role(ui.RoleHeading).Level(2)
+	ui.Text(c, v.msg("currentConfig")).FontSize(16).Role(ui.RoleHeading).Level(2)
 	labels, ids := []string{v.msg("chooseModel")}, []string{""}
 	for _, m := range v.Client.Options.Models {
 		if m.Enabled {
@@ -235,7 +235,7 @@ func (v *SummaryView) selectOption(c *ui.Context, id *string, labels, ids []stri
 		}
 	}
 	ui.Text(c, v.msg(key)).FontSize(12)
-	if ui.Select(c, &selected, labels).FillWidth().Label(v.msg(key)).Disabled(disabled).Changed() {
+	if selectControl(c, &selected, labels).FillWidth().Label(v.msg(key)).Disabled(disabled).Changed() {
 		for i, label := range labels {
 			if selected == label {
 				*id = ids[i]
@@ -306,7 +306,7 @@ func (v *SummaryView) history(c *ui.Context, run domain.SummaryRun, position int
 	b.Children(func() {
 		ui.Column(c).FillWidth().Gap(5).Children(func() {
 			ui.Row(c).FillWidth().Gap(6).Children(func() {
-				ui.Text(c, template).Grow(1).MinWidth(0).FontSize(12).Bold()
+				ui.Text(c, template).Grow(1).MinWidth(0).FontSize(12)
 				if marker != "" {
 					ui.Text(c, marker).FontSize(10)
 				}
@@ -344,7 +344,7 @@ func (v *SummaryView) preview(c *ui.Context) {
 		previewStatus = summaryDisplayStatus(v.Client.Result, latestSummary(v.Client.Runs))
 	}
 	ui.Row(c).FillWidth().Gap(12).Justify(ui.Center).Children(func() {
-		ui.Text(c, v.msg("preview")).FontSize(16).Bold().Role(ui.RoleHeading).Level(2)
+		ui.Text(c, v.msg("preview")).FontSize(16).Role(ui.RoleHeading).Level(2)
 		statusBadge(c, v.Locale, previewStatus)
 	})
 	if run != nil {
@@ -387,7 +387,7 @@ func (v *SummaryView) preview(c *ui.Context) {
 				continue
 			}
 			label := presentation.Message(v.Locale, "notes."+section.key)
-			ui.Text(c, label).Bold().Role(ui.RoleHeading).Level(3)
+			ui.Text(c, label).Role(ui.RoleHeading).Level(3)
 			items := ui.Column(c.Key(section.key)).FillWidth().Gap(14)
 			if section.key != "summary" {
 				items.Role(ui.RoleList).Label(label)

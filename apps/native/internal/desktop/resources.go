@@ -29,53 +29,15 @@ func (v *ResourcesView) msg(key string) string {
 }
 func (v *ResourcesView) View(c *ui.Context) {
 	width, _ := c.Size()
-	contentWidth := width
 	if v.ContentWidth != nil {
-		contentWidth = v.ContentWidth(c)
+		width = v.ContentWidth(c)
 	}
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Padding(12, 8, 32).Gap(20).Children(func() {
-			header := ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(24)
-			if width <= 720 {
-				header.Column().AlignItems(ui.Start)
-			}
-			header.Children(func() {
-				ui.Column(c).Grow(1).MinWidth(0).Gap(6).Children(func() {
-					ui.Text(c, v.msg("title")).FontSize(26).Bold().Role(ui.RoleHeading).Level(1)
-					ui.Text(c, v.msg("copy")).FillWidth().FontSize(14).TextColor(c.Theme().TextMuted)
-				})
-				actions := ui.Row(c).Gap(8).AlignItems(ui.Center)
-				if width <= 720 {
-					actions.FillWidth().Wrap()
-				}
-				actions.Children(func() {
-					if v.Kind == application.Members && v.Files != nil {
-						if ui.Button(c, presentation.Message(v.Locale, "common.import")).Disabled(v.Client.Busy).Clicked() {
-							v.Client.Import(v.Files)
-						}
-						if ui.Button(c, presentation.Message(v.Locale, "common.export")).Disabled(v.Client.Busy).Clicked() {
-							v.Client.Export(v.Files)
-						}
-					}
-					if ui.PrimaryButton(c, v.msg("add")).Disabled(v.Open == nil).Clicked() {
-						v.Open(v.Kind, "")
-					}
-				})
-			})
-			labels, values := v.metrics()
-			metricColumns := 4
-			if width <= 720 {
-				metricColumns = 2
-			}
-			ui.Grid(c).FillWidth().Columns(metricColumns).GapX(max(28, min(72, width*.05))).GapY(20).Padding(0, 2).Children(func() {
-				for i := range labels {
-					ui.Column(c.Key(labels[i])).FillWidth().MinWidth(0).Gap(6).Children(func() {
-						ui.Text(c, labels[i]).FontSize(14).TextColor(c.Theme().TextMuted).SingleLine()
-						ui.Text(c, values[i]).FontSize(26).Bold().SingleLine().Tooltip(values[i])
-					})
-				}
-			})
-			separator(c)
+	width = min(width, shellContentMaxWidth)
+	state := ui.Local(c.Root(), "resource-browser-"+string(v.Kind), func() resourceBrowseState { return resourceBrowseState{} })
+	contentScroll(c).Fill().Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(shellContentMaxWidth).AlignSelf(ui.Center).Padding(16, 8, 32).Gap(24).Children(func() {
+			v.pageHeader(c, width)
+			v.overview(c, width)
 			if v.Client.Error != nil {
 				ui.Text(c, resourceError(v.Locale, v.Client.Error)).FillWidth().TextColor(c.Theme().Danger).Role(ui.RoleAlert)
 				if textButton(c, localized(v.Locale, "刷新", "Refresh")).Disabled(v.Client.Busy).Clicked() {
@@ -86,45 +48,35 @@ func (v *ResourcesView) View(c *ui.Context) {
 				ui.Text(c, localized(v.Locale, "已保存，旧凭据清理将在下次启动时重试。", "Saved. Retired credentials will be cleaned up on the next start.")).FillWidth().TextColor(c.Theme().Warning).Role(ui.RoleStatus)
 			}
 			if v.Kind == application.Members {
-				ui.Text(c, v.msg("importHint")).FillWidth().FontSize(12).TextColor(c.Theme().TextMuted)
-				if v.Client.ImportResult != nil {
-					result := v.Client.ImportResult
-					ui.Text(c, presentation.Format(v.Locale, "members.importSuccess", map[string]any{"created": result.Created, "updated": result.Updated})).FillWidth().FontSize(12).Role(ui.RoleStatus)
+				if result := v.Client.ImportResult; result != nil {
+					ui.Text(c, presentation.Format(v.Locale, "members.importSuccess", map[string]any{"created": result.Created, "updated": result.Updated})).FillWidth().FontSize(13).Role(ui.RoleStatus)
 				}
 				if v.Client.Exported {
-					ui.Text(c, localized(v.Locale, "人员信息已导出。", "Members exported.")).FillWidth().FontSize(12).Role(ui.RoleStatus)
+					ui.Text(c, localized(v.Locale, "人员信息已导出。", "Members exported.")).FillWidth().FontSize(13).Role(ui.RoleStatus)
 				}
-				v.members(c, max(0, contentWidth-16))
+			}
+			if v.count() == 0 {
+				v.emptyState(c, width)
 				return
 			}
-			count := len(v.Client.Models)
-			if v.Kind == application.Templates {
-				count = len(v.Client.Templates)
-			}
-			if count == 0 {
-				v.emptyState(c)
-				return
-			}
-			columns := min(count, max(1, int(contentWidth/336)))
-			ui.Grid(c).FillWidth().Columns(columns).Gap(16).Role(ui.RoleList).Label(v.msg("listTitle")).Busy(v.Client.Busy).Children(func() {
-				for index := 0; index < count; index++ {
-					v.card(c, index)
+			ui.Column(c).FillWidth().Gap(16).Children(func() {
+				v.listToolbar(c, width, state)
+				indices := v.visibleIndices(*state)
+				if len(indices) == 0 {
+					v.noMatches(c, state)
+				} else if v.Kind == application.Members {
+					v.members(c, max(0, width-16), indices)
+				} else {
+					columns := min(v.count(), max(1, int(width/336)))
+					ui.Grid(c).FillWidth().Columns(columns).Gap(16).Role(ui.RoleList).Label(v.msg("listTitle")).Busy(v.Client.Busy).Children(func() {
+						for _, index := range indices {
+							v.card(c, index)
+						}
+					})
 				}
+				ui.Text(c, v.layoutCopy().footer).FillWidth().FontSize(12).TextColor(c.Theme().TextMuted)
 			})
 		})
-	})
-}
-func (v *ResourcesView) emptyState(c *ui.Context) {
-	if v.Client.Error != nil {
-		return
-	}
-	ui.Column(c).FillWidth().MinHeight(180).Padding(40, 16).Gap(8).Center().Role(ui.RoleStatus).Busy(v.Client.Busy).Children(func() {
-		if v.Client.Busy {
-			ui.Text(c, localized(v.Locale, "正在读取…", "Loading…")).TextColor(c.Theme().TextMuted)
-			return
-		}
-		ui.Text(c, v.msg("empty")).FontSize(16).Bold()
-		ui.Text(c, v.msg("copy")).FillWidth().TextColor(c.Theme().TextMuted)
 	})
 }
 func (v *ResourcesView) metrics() ([]string, []string) {
@@ -183,13 +135,13 @@ func (v *ResourcesView) metrics() ([]string, []string) {
 	}
 }
 func (v *ResourcesView) card(c *ui.Context, index int) {
-	var id, name, detail, updated, avatar, tag string
+	var id, name, detail, updated, tag string
 	tagColor := c.Theme().TextMuted
 	deletable := true
 	defaultModel := false
 	if v.Kind == application.Models {
 		m := v.Client.Models[index]
-		id, name, detail, updated, avatar = m.ID, m.Name, m.Model, m.UpdatedAt, "AI"
+		id, name, detail, updated = m.ID, m.Name, m.Model, m.UpdatedAt
 		tag = v.msg("disabledTag")
 		if m.Enabled {
 			tag = v.msg("enabledTag")
@@ -198,7 +150,7 @@ func (v *ResourcesView) card(c *ui.Context, index int) {
 		defaultModel = m.IsDefault
 	} else {
 		m := v.Client.Templates[index]
-		id, name, detail, updated, avatar = m.ID, m.Name, m.Description, m.UpdatedAt, "T"
+		id, name, detail, updated = m.ID, m.Name, m.Description, m.UpdatedAt
 		if detail == "" {
 			detail = v.msg("emptyDescription")
 		}
@@ -209,15 +161,17 @@ func (v *ResourcesView) card(c *ui.Context, index int) {
 			tagColor = palette(c).NavAccent
 		}
 	}
-	card := ui.Column(c.Key(id)).FillWidth().FillHeight().MinWidth(0).MinHeight(226).Radius(10).Background(palette(c).Subpanel).Role(ui.RoleListItem).Label(name).Focusable()
+	card := ui.Column(c.Key(id)).FillWidth().FillHeight().MinWidth(0).MinHeight(226).Radius(12).Border(1, palette(c).Separator).Background(palette(c).Panel).Role(ui.RoleListItem).Label(name).Focusable()
 	if card.Hovered() {
-		card.Background(palette(c).Subpanel.Mix(c.Theme().Accent, .06))
+		card.Background(palette(c).Subpanel)
 	}
 	card.Children(func() {
 		ui.Column(c).FillWidth().Padding(18, 18, 0).Gap(14).Children(func() {
 			ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Center).Children(func() {
-				ui.Row(c).Size(40, 40).Shrink(0).Radius(8).Background(palette(c).Selected).AlignItems(ui.Center).Justify(ui.Center).Children(func() { ui.Text(c, avatar).Bold().TextColor(palette(c).NavAccent) })
-				title := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(17).Bold().Tooltip(name)
+				ui.Row(c).Size(40, 40).Shrink(0).Radius(8).Background(palette(c).Selected).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+					ui.Icon(c, presentation.Icon(v.layoutCopy().icon)).Size(20, 20).TextColor(palette(c).NavAccent)
+				})
+				title := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(17).Tooltip(name)
 				if v.Kind == application.Templates {
 					title.Role(ui.RoleHeading).Level(3)
 				}
@@ -229,27 +183,18 @@ func (v *ResourcesView) card(c *ui.Context, index int) {
 				}
 			})
 		})
-		ui.Column(c).FillWidth().Grow(1).Padding(18).Gap(14).Children(func() {
-			key := "model"
+		ui.Column(c).FillWidth().Grow(1).Padding(18).Gap(12).Children(func() {
 			if v.Kind == application.Templates {
-				key = "description"
+				ui.Text(c, detail).FillWidth().FontSize(14).TextColor(c.Theme().TextMuted).MaxLines(3).MinHeight(60).Tooltip(detail)
+			} else {
+				ui.Text(c, v.msg("model")).FontSize(12).TextColor(c.Theme().TextMuted)
+				ui.Text(c, detail).FillWidth().FontSize(15).SingleLine().Tooltip(detail)
 			}
-			ui.Row(c).FillWidth().Gap(16).Children(func() {
-				ui.Text(c, v.msg(key)).Width(76).Shrink(0).FontSize(13).TextColor(c.Theme().TextMuted)
-				text := ui.Text(c, detail).Grow(1).MinWidth(0).FontSize(14).Tooltip(detail)
-				if v.Kind == application.Templates {
-					text.MaxLines(2).MinHeight(42)
-				} else {
-					text.SingleLine()
-				}
-			})
-			ui.Row(c).FillWidth().Gap(16).Children(func() {
-				ui.Text(c, v.msg("updatedAt")).Width(76).Shrink(0).FontSize(13).TextColor(c.Theme().TextMuted)
-				ui.Text(c, resourceUpdatedText(v.Locale, updated)).Grow(1).MinWidth(0).SingleLine().FontSize(14)
-			})
 		})
-		ui.Row(c).FillWidth().Padding(0, 14, 14).Gap(4).Justify(ui.End).Children(func() {
-			v.actions(c, id, name, deletable)
+		separator(c)
+		ui.Row(c).FillWidth().Padding(10, 14).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, resourceUpdatedText(v.Locale, updated)).Grow(1).MinWidth(0).SingleLine().FontSize(11).TextColor(c.Theme().TextMuted).Tooltip(v.msg("updatedAt"))
+			ui.Row(c).Shrink(0).Gap(4).Children(func() { v.actions(c, id, name, deletable) })
 		})
 	})
 	keyboardOpen := card.Focused() && card.Shortcut(0, ui.KeyEnter) && !c.ShortcutRepeated()
@@ -291,34 +236,31 @@ var memberColumns = []struct {
 	key   string
 	width float32
 }{
-	{"name", 260}, {"department", 240}, {"sortOrder", 110}, {"role", 150}, {"updatedAt", 170},
+	{"name", 200}, {"department", 160}, {"sortOrder", 80}, {"role", 150}, {"updatedAt", 170},
 }
 
-func (v *ResourcesView) members(c *ui.Context, availableWidth float32) {
-	if len(v.Client.Members) == 0 {
-		v.emptyState(c)
-		return
-	}
-	const minWidth, actionsWidth = 1090, 160
+func (v *ResourcesView) members(c *ui.Context, availableWidth float32, indices []int) {
+	const minWidth, actionsWidth = 920, 160
 	width := max(minWidth, availableWidth)
-	ui.ScrollHorizontal(c).FillWidth().Shrink(0).Radius(10).Children(func() {
-		ui.Column(c).Width(width).Role(ui.RoleTable).Label(v.msg("listTitle")).Busy(v.Client.Busy).RowCount(len(v.Client.Members) + 1).ColumnCount(6).Children(func() {
+	ui.ScrollHorizontal(c).FillWidth().Shrink(0).Radius(12).Children(func() {
+		ui.Column(c).Width(width).Role(ui.RoleTable).Label(v.msg("listTitle")).Busy(v.Client.Busy).RowCount(len(indices) + 1).ColumnCount(6).Children(func() {
 			ui.Row(c).Height(44).Shrink(0).AlignItems(ui.Center).Background(palette(c).Subpanel).Role(ui.RoleRow).RowIndex(1).Children(func() {
 				for index, column := range memberColumns {
 					columnWidth := column.width
 					if index == 0 {
 						columnWidth += width - minWidth
 					}
-					ui.Text(c, v.msg(column.key)).Width(columnWidth).Shrink(0).Padding(0, 12).FontSize(14).TextColor(c.Theme().TextMuted).Bold().Role(ui.RoleColumnHeader).RowIndex(1).ColumnIndex(index + 1)
+					ui.Text(c, v.msg(column.key)).Width(columnWidth).Shrink(0).Padding(0, 12).FontSize(14).TextColor(c.Theme().TextMuted).Role(ui.RoleColumnHeader).RowIndex(1).ColumnIndex(index + 1)
 				}
 				ui.Row(c).Width(actionsWidth).FillHeight().Shrink(0).Padding(0, 12).Justify(ui.End).AlignItems(ui.Center).Background(palette(c).Subpanel).Sticky().Right(0).Role(ui.RoleColumnHeader).Label(v.msg("actions")).RowIndex(1).ColumnIndex(6).Children(func() {
-					ui.Text(c, v.msg("actions")).FontSize(14).Bold().TextColor(c.Theme().TextMuted)
+					ui.Text(c, v.msg("actions")).FontSize(14).TextColor(c.Theme().TextMuted)
 				})
 			})
-			for index, member := range v.Client.Members {
+			for index, sourceIndex := range indices {
+				member := v.Client.Members[sourceIndex]
 				rowIndex := index + 2
 				row := ui.Row(c.Key(member.ID)).FillWidth().Height(58).Shrink(0).AlignItems(ui.Center).Role(ui.RoleRow).RowIndex(rowIndex).Label(member.Name).Focusable()
-				rowColor := palette(c).Content
+				rowColor := palette(c).Panel
 				if row.Hovered() {
 					rowColor = rowColor.Mix(c.Theme().Accent, .05)
 				}
@@ -356,9 +298,9 @@ func (v *ResourcesView) memberCell(c *ui.Context, member domain.MeetingMember, k
 		}
 		ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Size(36, 36).Shrink(0).Radius(18).Background(palette(c).Selected).Center().Children(func() {
-				ui.Text(c, initial).FontSize(14).Bold().TextColor(palette(c).NavAccent)
+				ui.Text(c, initial).FontSize(14).TextColor(palette(c).NavAccent)
 			})
-			ui.Text(c, member.Name).Grow(1).MinWidth(0).SingleLine().FontSize(15).Bold().Tooltip(member.Name)
+			ui.Text(c, member.Name).Grow(1).MinWidth(0).SingleLine().FontSize(15).Tooltip(member.Name)
 		})
 	case "department":
 		department := member.Department
@@ -409,7 +351,7 @@ func (v *ResourceEditorView) View(c *ui.Context) {
 	p := presentation.PreferenceColors(c.Theme().Dark, v.Preferences)
 	ui.Themed(c, &p.Theme).Fill().Children(func() {
 		ui.Column(c).Fill().Background(p.Window).Role(ui.RoleRegion).Label(resourceEditorTitle(v.Client.Draft.Kind, v.Locale, v.Client.Draft.ID())).Busy(v.Client.Busy).Children(func() {
-			ui.Scroll(c).FillWidth().Grow(1).MinHeight(0).Children(func() {
+			contentScroll(c).FillWidth().Grow(1).MinHeight(0).Children(func() {
 				ui.Column(c).FillWidth().Padding(16).Gap(16).Children(func() {
 					if v.Client.Error != nil {
 						message := resourceError(v.Locale, v.Client.Error)
@@ -460,7 +402,7 @@ func (v *ResourceEditorView) field(c *ui.Context, key string, value *string, rea
 	var input ui.Element
 	ui.Column(c.Key(key)).FillWidth().Gap(10).Children(func() {
 		label := ui.Text(c, v.msg(key)).FontSize(13)
-		input = ui.TextInput(c, value).FillWidth().MinHeight(34).Padding(7, 9).Radius(7).LabelledBy(label).ReadOnly(readonly).Disabled(v.Client.Busy)
+		input = ui.TextInput(c, value).FillWidth().Radius(7).LabelledBy(label).ReadOnly(readonly).Disabled(v.Client.Busy)
 		if v.Client.Draft.Kind == application.Models || v.Client.Draft.Kind == application.Members {
 			input.Placeholder(v.msg(key + "Placeholder"))
 		}
@@ -508,7 +450,7 @@ func (v *ResourceEditorView) model(c *ui.Context) {
 		if m.ID != "" {
 			placeholder = "apiKeyKeepPlaceholder"
 		}
-		input := ui.TextInput(c, &v.Client.Password).Password().FillWidth().MinHeight(34).Padding(7, 9).Radius(7).LabelledBy(label).Placeholder(v.msg(placeholder)).Disabled(v.Client.Busy)
+		input := ui.TextInput(c, &v.Client.Password).Password().FillWidth().Radius(7).LabelledBy(label).Placeholder(v.msg(placeholder)).Disabled(v.Client.Busy)
 		v.validateField(input, "apiKey")
 		if input.Changed() {
 			v.Client.ClearCredential = false

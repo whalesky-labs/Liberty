@@ -231,7 +231,7 @@ func (w *Workspace) allowWorkspaceClose(resume func()) bool {
 			w.lastAppPath = w.tab
 		}
 		w.tab = "/settings"
-		if w.settings.section == "" || w.settings.section == "localRuntime" || w.settings.section == "diagnostics" {
+		if profileIndependentSection(w.settings.section) || w.settings.section == "" || runtimeSettingsSection(w.settings.section) || w.settings.section == "diagnostics" {
 			w.settings.section = "processingDefaults"
 		}
 		w.main.Focus()

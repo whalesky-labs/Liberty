@@ -39,6 +39,7 @@ type SettingsController struct {
 	failure                      settingsFailure
 	afterSave                    []func(error)
 	onSaved                      func(domain.Settings)
+	onLoaded                     func(domain.Settings)
 	Confirming                   bool
 	startup                      StartupPreferences
 	selections                   preferenceSelections
@@ -78,6 +79,9 @@ func (c *SettingsController) Load() {
 				c.Draft.UIPreferences = c.selections.apply(c.Draft.UIPreferences)
 				c.original = value
 				c.Loaded = true
+				if c.onLoaded != nil {
+					c.onLoaded(value)
+				}
 				c.applyPreferences(value.UIPreferences)
 				if (c.queued || len(c.afterSave) > 0) && c.Dirty() {
 					c.save()
@@ -106,6 +110,11 @@ func (c *SettingsController) SaveFailed() bool {
 // queued edits finish. SaveThen and Flush wait for the entire draft instead.
 func (c *SettingsController) OnSaved(callback func(domain.Settings)) {
 	c.onSaved = callback
+}
+
+// OnLoaded applies persisted non-UI settings when a snapshot is read.
+func (c *SettingsController) OnLoaded(callback func(domain.Settings)) {
+	c.onLoaded = callback
 }
 
 func (c *SettingsController) Retry() {
@@ -301,6 +310,9 @@ func rebaseSettings(base, draft, remote domain.Settings) domain.Settings {
 	mergeSetting(base.ThemeMode, draft.ThemeMode, &remote.ThemeMode)
 	mergeSetting(base.LiquidGlassStyle, draft.LiquidGlassStyle, &remote.LiquidGlassStyle)
 	mergeSetting(base.AccentColor, draft.AccentColor, &remote.AccentColor)
+	mergeSetting(base.HidePerformanceIndicators, draft.HidePerformanceIndicators, &remote.HidePerformanceIndicators)
+	mergeSetting(base.LiveDeviceID, draft.LiveDeviceID, &remote.LiveDeviceID)
+	mergeSetting(base.LiveTranslate, draft.LiveTranslate, &remote.LiveTranslate)
 	mergeSetting(base.Locale, draft.Locale, &remote.Locale)
 	mergeSetting(base.BackendURL, draft.BackendURL, &remote.BackendURL)
 	mergeSetting(base.ProcessingMode, draft.ProcessingMode, &remote.ProcessingMode)

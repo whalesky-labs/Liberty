@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"strings"
 
 	"liberty.local/liberty/internal/application"
@@ -20,6 +19,7 @@ type MediaPicker interface {
 type SubmissionController struct {
 	Form              application.CreateMeeting
 	Media             *application.SelectedMedia
+	Batch             []BatchItem
 	Busy, Picking     bool
 	Unavailable       bool
 	Error             error
@@ -85,10 +85,20 @@ func (c *SubmissionController) Pick() {
 	revision := c.selectionRevision
 	c.changed()
 	go func() {
-		selected, err := c.picker.Pick(c.ctx)
+		var selections []application.SelectedMedia
+		var err error
+		if picker, ok := c.picker.(batchMediaPicker); ok {
+			selections, err = picker.PickMany(c.ctx)
+		} else {
+			var selected application.SelectedMedia
+			selected, err = c.picker.Pick(c.ctx)
+			if selected.Token != "" {
+				selections = []application.SelectedMedia{selected}
+			}
+		}
 		c.dispatch(func() {
 			if c.closed || revision != c.selectionRevision {
-				if selected.Token != "" {
+				for _, selected := range selections {
 					c.picker.Release(selected.Token)
 				}
 				return
@@ -96,13 +106,19 @@ func (c *SubmissionController) Pick() {
 			c.Picking = false
 			if err != nil {
 				c.Error = &MediaPickError{Cause: err}
-			} else if selected.Token != "" {
+			} else if len(selections) > 0 {
 				c.Error = nil
 				c.clear()
+				selected := selections[0]
 				c.Media = &selected
 				c.Form.Selection = selected.Token
 				if strings.TrimSpace(c.Form.Title) == "" {
-					c.Form.Title = strings.TrimSpace(strings.TrimSuffix(selected.Name, filepath.Ext(selected.Name)))
+					c.Form.Title = mediaTitle(selected)
+				}
+				if len(selections) > 1 {
+					for _, media := range selections {
+						c.Batch = append(c.Batch, BatchItem{Media: media, Title: mediaTitle(media)})
+					}
 				}
 			}
 			c.changed()
@@ -110,9 +126,14 @@ func (c *SubmissionController) Pick() {
 	}()
 }
 func (c *SubmissionController) clear() {
-	if c.Media != nil {
+	if len(c.Batch) > 0 {
+		for _, item := range c.Batch {
+			c.picker.Release(item.Media.Token)
+		}
+	} else if c.Media != nil {
 		c.picker.Release(c.Media.Token)
 	}
+	c.Batch = nil
 	c.Media = nil
 	c.Form.Selection = ""
 }
@@ -126,13 +147,17 @@ func (c *SubmissionController) Clear() {
 	c.changed()
 }
 func (c *SubmissionController) Submit() {
-	if c.closed || c.Unavailable || c.Busy || c.Picking || c.Media == nil || strings.TrimSpace(c.Form.Title) == "" {
+	if !c.CanSubmit() {
 		return
 	}
 	c.Busy = true
 	c.Error = nil
 	form := c.Form
 	c.changed()
+	if len(c.Batch) > 0 {
+		c.submitBatch(form)
+		return
+	}
 	go func() {
 		id, err := c.service.Create(c.ctx, form)
 		c.dispatch(func() {

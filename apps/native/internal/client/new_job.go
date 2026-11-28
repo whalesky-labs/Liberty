@@ -25,7 +25,7 @@ func (c *SubmissionController) SetHotwords(value string) {
 }
 
 func (c *SubmissionController) SubmitWithDefaults(fallbackTemplate string) {
-	if c.closed || c.Unavailable || c.Busy || c.Picking || c.Media == nil || strings.TrimSpace(c.Form.Title) == "" {
+	if !c.CanSubmit() {
 		return
 	}
 	form, previous := c.Form, c.defaults
@@ -64,6 +64,10 @@ func (c *SubmissionController) SubmitWithDefaults(fallbackTemplate string) {
 			form.SummaryTemplate = defaults.SummaryTemplate
 			c.Form, c.defaults = form, defaults
 			c.changed()
+			if len(c.Batch) > 0 {
+				c.submitBatch(form)
+				return
+			}
 			go func() {
 				id, err := c.service.Create(c.ctx, form)
 				c.dispatch(func() {

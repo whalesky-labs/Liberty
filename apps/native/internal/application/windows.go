@@ -55,6 +55,7 @@ type WindowScopes struct {
 	word    *WordExport
 	summary *SummaryService
 	pet     PetWorkflow
+	player  SegmentPlayer
 }
 
 func (s *WindowScopes) EnableExportRewards(pet PetWorkflow) {

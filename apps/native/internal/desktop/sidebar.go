@@ -65,7 +65,7 @@ func (s *Shell) moduleButton(c *ui.Context, key, icon, label, path string, activ
 	button.Children(func() {
 		ui.Icon(c, presentation.Icon(icon)).Size(20, 20).TextColor(iconColor)
 		if active {
-			ui.Box(c).Absolute().Left(1).Top(15).Width(2).Height(14).Radius(1).Background(palette(c).NavAccent)
+			ui.Box(c).Absolute().Left(1).Top(15).Width(2).Height(14).Radius(1).Background(iconColor)
 		}
 	})
 	// Clicking the current module must not reset a detail page or an active draft.
@@ -82,7 +82,7 @@ func (s *Shell) moduleSidebar(c *ui.Context) {
 			mascot = presentation.Mascot.Frame(c)
 		}
 		ui.Image(c, mascot).Size(28, 28).Label(localized(s.Locale, "Liberty 吉祥物", "Liberty mascot"))
-		ui.Text(c, "Liberty").FontSize(17).Bold()
+		ui.Text(c, "Liberty").FontSize(17)
 	})
 	ui.Scroll(c.Key(section.Key)).FillWidth().Grow(1).MinHeight(0).
 		Role(ui.RoleNavigation).Label(localized(s.Locale, "模块菜单", "Module navigation")).Children(func() {

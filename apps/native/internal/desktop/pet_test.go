@@ -219,8 +219,8 @@ func TestBlindBoxStagePositionsButtonAndRendersDrawPhases(t *testing.T) {
 	state.RemainingToday = 0
 	tester.SetPreferences(ui.Preferences{ReduceMotion: true})
 	tester.Frame()
-	if !tester.HasText("No Attempts Left") || !tester.HasText("Latest Reward") || !tester.HasText(item.NameEn) {
-		t.Fatal("missing settled reward or daily limit")
+	if !tester.HasText("No Attempts Left") || tester.HasText("Latest Reward") || !tester.HasText(item.NameEn) {
+		t.Fatal("missing settled scene or daily limit, or result text is still inline")
 	}
 	settled := bytes.Clone(tester.Image().Pix)
 	tester.Advance(200 * time.Millisecond)

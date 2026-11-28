@@ -19,6 +19,7 @@ type PetView struct {
 	Locale, Route     string
 	Navigate          func(string)
 	OpenItem          func(string)
+	ContentWidth      func(*ui.Context) float32
 	VisibleCompanions func() int
 	// Platform desktop-pet operations are enabled only after a real adapter is
 	// attached. Persisted settings must not imply that a desktop window exists.
@@ -39,6 +40,10 @@ type PetView struct {
 	key                            string
 	calendarOffset                 int
 	drawStart                      time.Time
+	drawResultRevision             uint64
+	drawResultOpen                 bool
+	drawResultReturnFocus          bool
+	drawResult                     *domain.PetBlindBoxDrawResult
 	blindSceneStart                time.Time
 	previewFrame                   ui.ImageSource
 	previewGroup                   string
@@ -71,8 +76,12 @@ func (v *PetView) View(c *ui.Context) {
 		v.settings = *s
 		v.settingsStamp = s.UpdatedAt
 	}
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Padding(12, 8, 28).Gap(14).Children(func() {
+	contentScroll(c).Fill().Children(func() {
+		page := ui.Column(c).FillWidth().MaxWidth(shellContentMaxWidth).AlignSelf(ui.Center).Padding(12, 8, 28).Gap(14)
+		if v.Route == "/daily-check-in" || v.Route == "/daily-blind-box" || v.Route == "/redeem-key" {
+			page.Padding(16, 8, 32).Gap(24)
+		}
+		page.Children(func() {
 			if v.Client.Error != nil {
 				ui.Row(c).FillWidth().Padding(10).Gap(12).Radius(7).Background(c.Theme().Danger.Alpha(.07)).Children(func() {
 					ui.Text(c, v.errorMessage()).Grow(1).MinWidth(0).TextColor(c.Theme().Danger).Role(ui.RoleAlert)
@@ -102,6 +111,7 @@ func (v *PetView) View(c *ui.Context) {
 		})
 	})
 	v.confirmation(c)
+	v.blindBoxResultDialog(c)
 }
 func (v *PetView) errorMessage() string {
 	if v.Client.Store == nil {
@@ -146,7 +156,7 @@ func (v *PetView) management(c *ui.Context) {
 		}
 		main.Children(func() {
 			petPanel(c, func() {
-				ui.Text(c, v.text("桌面伙伴", "Desktop Companion")).FontSize(16).Bold().Role(ui.RoleHeading).Level(1)
+				ui.Text(c, v.text("桌面伙伴", "Desktop Companion")).FontSize(16).Role(ui.RoleHeading).Level(1)
 				separator(c)
 				ui.Row(c).FillWidth().MinHeight(290).Wrap().Gap(12).AlignItems(ui.Center).Children(func() {
 					ui.Column(c).Width(76).Shrink(0).Gap(8).Children(func() {
@@ -175,7 +185,7 @@ func (v *PetView) management(c *ui.Context) {
 							}
 						})
 						ui.Row(c).FillWidth().MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
-							ui.Text(c, p.Name).Grow(1).MinWidth(0).SingleLine().Tooltip(p.Name).FontSize(20).Bold()
+							ui.Text(c, p.Name).Grow(1).MinWidth(0).SingleLine().Tooltip(p.Name).FontSize(20)
 							if textButton(c, v.text("修改名字", "Edit Name")).Shrink(0).Disabled(v.Client.Busy).Clicked() {
 								v.name = p.Name
 								v.openDialog("name", "")
@@ -217,7 +227,7 @@ func (v *PetView) management(c *ui.Context) {
 		}
 		sidebar.Children(func() {
 			petPanel(c, func() {
-				ui.Text(c, v.text("桌面行为", "Desktop Behavior")).FontSize(16).Bold()
+				ui.Text(c, v.text("桌面行为", "Desktop Behavior")).FontSize(16)
 				if v.VisibleCompanions != nil {
 					v.stat(c, v.text("可见桌宠", "Visible companions"), fmt.Sprint(v.VisibleCompanions()))
 				}
@@ -234,7 +244,7 @@ func (v *PetView) management(c *ui.Context) {
 				}
 				ui.Text(c, v.text("主动程度", "Proactive level")).FontSize(12)
 				selected := fmt.Sprint(v.settings.ProactiveLevel)
-				if ui.Select(c, &selected, []string{"0", "1", "2", "3"}).FillWidth().Label(v.text("主动程度", "Proactive level")).Disabled(!v.DesktopAvailable || v.Client.Busy).Changed() {
+				if selectControl(c, &selected, []string{"0", "1", "2", "3"}).FillWidth().Label(v.text("主动程度", "Proactive level")).Disabled(!v.DesktopAvailable || v.Client.Busy).Changed() {
 					fmt.Sscan(selected, &v.settings.ProactiveLevel)
 					v.settingsDirty = true
 				}
@@ -252,14 +262,14 @@ func (v *PetView) management(c *ui.Context) {
 		})
 	})
 	petPanel(c, func() {
-		ui.Text(c, v.text("最近事件", "Recent Events")).FontSize(16).Bold()
+		ui.Text(c, v.text("最近事件", "Recent Events")).FontSize(16)
 		if len(v.Client.Events) == 0 {
 			ui.Text(c, v.text("还没有宠物事件。", "No pet events yet.")).TextColor(c.Theme().TextMuted)
 		}
 		for _, event := range v.Client.Events {
 			ui.Row(c.Key(event.ID)).FillWidth().Padding(8, 0).Gap(12).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-					ui.Text(c, v.eventLabel(event)).FontSize(13).Bold()
+					ui.Text(c, v.eventLabel(event)).FontSize(13)
 					ui.Text(c, v.eventDetail(event)).FontSize(11).TextColor(c.Theme().TextMuted)
 				})
 				value := v.text("已记录", "Recorded")
@@ -282,7 +292,7 @@ func (v *PetView) companionFrame(c *ui.Context, group string) ui.ImageSource {
 func (v *PetView) stat(c *ui.Context, label, value string) {
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.Text(c, label).Grow(1).MinWidth(0).FontSize(11).TextColor(c.Theme().TextMuted)
-		ui.Text(c, value).MinWidth(0).FontSize(12).Bold()
+		ui.Text(c, value).MinWidth(0).FontSize(12)
 	})
 }
 func (v *PetView) catalog(key string) (domain.PetStoreCatalogItem, bool) {

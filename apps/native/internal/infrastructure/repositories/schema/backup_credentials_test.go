@@ -119,7 +119,7 @@ func TestBackupCredentialsFailClosedOnInvalidSnapshot(t *testing.T) {
 				}
 				t.Cleanup(func() { snapshotDB.Close() })
 				if kind == "future" {
-					exec(t, snapshotDB, "UPDATE app_meta SET value='13' WHERE key='schema_version'")
+					exec(t, snapshotDB, "UPDATE app_meta SET value='14' WHERE key='schema_version'")
 				} else {
 					exec(t, snapshotDB, "DROP TABLE ai_model_configs")
 				}

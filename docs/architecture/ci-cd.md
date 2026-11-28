@@ -106,4 +106,4 @@ Go race 与跨目标编译使用各自的构建缓存，按工具链、系统、
 
 默认权限是 `contents: read`。main 分类的基准查询和 Native 发布的跨运行 artifact 读取增加 `actions: read`；Native 发布只有最后的 publish job 增加 `contents: write`。Action 使用固定 SHA；安装使用固定工具链和锁文件；生产凭据与数据库不入缓存。候选归档上传前重新验证文件集合、架构、manifest 和 SHA-256，保留 14 天。正式发布的写权限限定在受控发布事务。
 
-main 的合并门槛应使用 GitHub Actions 的 `ci-gate`，禁止强推和删除，不用 `security-gate` 或条件性单项检查替代。仓库保护是 GitHub 服务端设置，须单独核实；工作流文件本身不证明保护已经生效。当前规则与实际运行证据记录在[实施记录](../ai/designs/2026-11-23-layered-ci-cd.md#实施与验证记录)。
+main 的合并门槛应使用 GitHub Actions 的 `ci-gate`，禁止强推和删除，不用 `security-gate` 或条件性单项检查替代。仓库保护是 GitHub 服务端设置，须单独核实；工作流文件本身不证明保护已经生效。核验时记录实际规则、目标提交、必需检查及运行结果，不用已删除的历史验收记录推断当前配置。

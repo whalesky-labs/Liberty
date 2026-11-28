@@ -96,7 +96,7 @@ func (v *assemblyGameView) View(c *ui.Context) {
 	}
 	// Native controls retain Tab, Space/Enter and assistive-technology actions.
 	// A shortcut is one press, never an operating system key-repeat event.
-	root := ui.Scroll(c).Fill()
+	root := contentScroll(c).Fill()
 	_, viewportHeight := c.Size()
 	if bounds := root.LayoutBounds(); bounds.H > 0 {
 		viewportHeight = bounds.H
@@ -106,7 +106,7 @@ func (v *assemblyGameView) View(c *ui.Context) {
 		stageHeight = 192
 	}
 	root.Children(func() {
-		region := ui.Column(c).FillWidth().Padding(8).Gap(12).Role(ui.RoleGroup).Label(v.text("工厂装配练习", "Factory assembly practice"))
+		region := ui.Column(c).FillWidth().MaxWidth(shellContentMaxWidth).AlignSelf(ui.Center).Padding(8).Gap(12).Role(ui.RoleGroup).Label(v.text("工厂装配练习", "Factory assembly practice"))
 		region.OnShortcut(0, ui.KeyEscape, func() {
 			if !c.ShortcutRepeated() && v.round.Snapshot().Phase == domain.AssemblyPlaying {
 				v.pause()
@@ -127,7 +127,7 @@ func (v *assemblyGameView) View(c *ui.Context) {
 			ui.Row(c).FillWidth().Gap(16).AlignItems(ui.Center).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 					ui.Text(c, v.text("工厂 · 短局练习", "FACTORY · PRACTICE ROUND")).FontSize(11).TextColor(palette(c).NavAccent)
-					ui.Text(c, v.text("装配挑战", "Assembly Challenge")).FontSize(26).Bold().Role(ui.RoleHeading).Level(1)
+					ui.Text(c, v.text("装配挑战", "Assembly Challenge")).FontSize(26).Role(ui.RoleHeading).Level(1)
 				})
 				back := ui.Button(c, v.text("返回工厂", "Back to Factory")).MinHeight(40)
 				focused = focused || back.Focused()
@@ -173,7 +173,7 @@ func (v *assemblyGameView) View(c *ui.Context) {
 					ui.Box(c).Absolute().Fill().Background(ui.RGBA(10, 20, 25, .62)).PassThrough()
 					ui.Column(c).Absolute().Fill().Padding(22).Center().Gap(9).Children(func() {
 						title, description := v.phaseText(state)
-						ui.Text(c, title).FontSize(25).Bold().TextColor(ui.Hex("#ffffff")).Role(ui.RoleHeading).Level(2)
+						ui.Text(c, title).FontSize(25).TextColor(ui.Hex("#ffffff")).Role(ui.RoleHeading).Level(2)
 						ui.Text(c, description).FillWidth().MaxWidth(530).TextAlign(ui.Center).FontSize(13).TextColor(ui.Hex("#e4edf0"))
 						label := v.text("开始装配", "Start Assembly")
 						if state.Phase == domain.AssemblyPaused {
@@ -209,7 +209,7 @@ func (v *assemblyGameView) View(c *ui.Context) {
 					button.Children(func() {
 						ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Center).Children(func() {
 							ui.Box(c).Size(38, 38).PassThrough().Draw(func(p *ui.Painter, r ui.Rect) { drawAssemblyPart(p, r, part, assemblyPartColor(part), v.dark) })
-							ui.Text(c, label).FontSize(15).Bold().SingleLine()
+							ui.Text(c, label).FontSize(15).SingleLine()
 						})
 					})
 					focused = focused || button.Focused()
@@ -247,7 +247,7 @@ func (v *assemblyGameView) modePicker(c *ui.Context) {
 			}
 			button.Children(func() {
 				ui.Column(c).FillWidth().Gap(4).Children(func() {
-					ui.Text(c, name).FontSize(14).Bold().TextColor(c.Theme().Text)
+					ui.Text(c, name).FontSize(14).TextColor(c.Theme().Text)
 					ui.Text(c, detail).FontSize(11).TextColor(c.Theme().TextMuted)
 				})
 			})
@@ -261,7 +261,7 @@ func (v *assemblyGameView) modePicker(c *ui.Context) {
 func (v *assemblyGameView) metric(c *ui.Context, label, value string) {
 	ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(3).Children(func() {
 		ui.Text(c, label).FontSize(10).TextColor(c.Theme().TextMuted)
-		ui.Text(c, value).FontSize(21).Bold().FontFeatures("tnum")
+		ui.Text(c, value).FontSize(21).FontFeatures("tnum")
 	})
 }
 
@@ -271,7 +271,7 @@ func (v *assemblyGameView) orderStrip(c *ui.Context, state domain.AssemblySnapsh
 		if state.Phase == domain.AssemblyPlaying && state.Position < len(state.Order) {
 			heading = fmt.Sprintf(v.text("下一步：%d · %s", "NEXT: %d · %s"), state.Order[state.Position], v.partName(state.Order[state.Position]))
 		}
-		ui.Text(c, heading).FontSize(13).Bold()
+		ui.Text(c, heading).FontSize(13)
 		ui.Row(c).FillWidth().Gap(5).Children(func() {
 			order := state.Order
 			if len(order) == 0 {
@@ -293,7 +293,7 @@ func (v *assemblyGameView) orderStrip(c *ui.Context, state domain.AssemblySnapsh
 						if state.Phase != domain.AssemblyReady && index < state.Position {
 							prefix = "✓"
 						}
-						ui.Text(c, prefix).FontSize(16).Bold()
+						ui.Text(c, prefix).FontSize(16)
 						ui.Text(c, fmt.Sprint(index+1)).FontSize(9).TextColor(c.Theme().TextMuted)
 					})
 				})

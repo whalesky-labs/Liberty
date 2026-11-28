@@ -102,10 +102,15 @@ func TestSettingsOnSavedReportsEachCommitWhileSaveThenWaitsForQueuedEdits(t *tes
 	c := NewSettings(service, func(callback func()) { callbacks <- callback }, func() {}, func(domain.UIPreferences) {})
 	defer c.Close()
 	var committed []domain.Settings
+	var loaded []domain.Settings
 	c.OnSaved(func(settings domain.Settings) { committed = append(committed, settings) })
+	c.OnLoaded(func(settings domain.Settings) { loaded = append(loaded, settings) })
 
 	c.Load()
 	receive(t, callbacks)()
+	if len(loaded) != 1 || loaded[0] != service.loaded {
+		t.Fatal("loaded settings callback did not report the stored snapshot", loaded)
+	}
 	c.Draft.ProcessingMode = "remote"
 	c.Save()
 	first := receive(t, service.calls)
@@ -142,12 +147,14 @@ func TestSettingsRebaseDoesNotOverwriteUneditedFields(t *testing.T) {
 	base := domain.DefaultSettings()
 	draft := base
 	draft.DefaultHotwords = "edited"
+	draft.LiveTranslate = false
+	draft.LiveDeviceID = "3:synthetic-device"
 	remote := base
 	remote.BackendURL = "https://example.test"
 	remote.Threads = 4
 	remote.Revision = 9
 	got := rebaseSettings(base, draft, remote)
-	if got.DefaultHotwords != "edited" || got.BackendURL != remote.BackendURL || got.Threads != 4 || got.Revision != 9 {
+	if got.DefaultHotwords != "edited" || got.LiveTranslate || got.LiveDeviceID != "3:synthetic-device" || got.BackendURL != remote.BackendURL || got.Threads != 4 || got.Revision != 9 {
 		t.Fatal("merge lost newer values")
 	}
 }

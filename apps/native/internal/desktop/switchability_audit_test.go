@@ -136,7 +136,7 @@ func TestSettingsSwitchabilityAuditBackButtonReturnsToApplication(t *testing.T) 
 				t.Fatal(err)
 			}
 			tester.Frame()
-			if workspace.tab != "/" || !tester.HasText(localized(locale, "👋 · 好久不见，欢迎回来！", "👋 · Welcome back! It's been a while.")) || tester.HasText(view.msg("appearance")) {
+			if workspace.tab != "/" || !tester.HasText(localized(locale, "会议工作台", "Meeting workspace")) || tester.HasText(view.msg("appearance")) {
 				t.Fatal("settings back control did not visibly return to the application dashboard")
 			}
 		})

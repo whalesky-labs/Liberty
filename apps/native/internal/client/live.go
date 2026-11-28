@@ -11,6 +11,7 @@ import (
 
 type Live interface {
 	Options(context.Context) (application.LiveOptions, error)
+	ModelStatus(context.Context) application.LiveModelStatus
 	Prepare(context.Context, func(string)) error
 	Start(context.Context, domain.LiveRequest) (domain.LiveSession, error)
 	Control(context.Context, string, string) error
@@ -37,6 +38,7 @@ type LiveController struct {
 	HistoryOffset                         int
 	SegmentAfter                          int64
 	Busy, Preparing                       bool
+	ModelStatusBusy                       bool
 	Error                                 error
 	Exported                              bool
 	service                               Live
@@ -47,6 +49,7 @@ type LiveController struct {
 	cancel                                context.CancelFunc
 	prepareCancel                         context.CancelFunc
 	closed, visible, polling, initialized bool
+	modelStatusLoaded                     bool
 	revision                              uint64
 	lastPoll                              time.Time
 	selectionError                        error
@@ -74,14 +77,49 @@ func (c *LiveController) SetVisible(visible bool) {
 	c.visible = visible
 	if visible {
 		c.Poll()
-		if !c.initialized {
-			c.initialized = true
-			c.RefreshOptions()
-		} else if len(c.History) == 0 {
+		wasInitialized := c.initialized
+		c.EnsureOptions()
+		if wasInitialized && len(c.History) == 0 {
 			c.RefreshHistory(0)
 		}
 	}
 }
+
+func (c *LiveController) EnsureOptions() {
+	if c.closed || c.initialized || c.service == nil {
+		return
+	}
+	c.initialized = true
+	c.RefreshOptions()
+}
+
+func (c *LiveController) OptionsLoaded() bool {
+	return c.initialized && !c.Busy
+}
+
+func (c *LiveController) EnsureModelStatus() {
+	if c.closed || c.service == nil || c.ModelStatusBusy || c.modelStatusLoaded {
+		return
+	}
+	c.ModelStatusBusy = true
+	c.changed()
+	go func() {
+		ctx, cancel := context.WithTimeout(c.ctx, 30*time.Second)
+		defer cancel()
+		status := c.service.ModelStatus(ctx)
+		c.dispatch(func() {
+			if c.closed {
+				return
+			}
+			c.Options.ModelReady = status.ModelReady
+			c.Options.TranslationReady = status.TranslationReady
+			c.modelStatusLoaded = true
+			c.ModelStatusBusy = false
+			c.changed()
+		})
+	}()
+}
+
 func (c *LiveController) Poll() {
 	if c.closed || c.polling || (!c.visible && (!domain.LiveActive(c.Snapshot.Session.State) || time.Since(c.lastPoll) < time.Second)) {
 		return

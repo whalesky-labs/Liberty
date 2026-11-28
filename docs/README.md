@@ -1,58 +1,55 @@
 # Liberty 文档总览
 
-整理日期：2026-11-21。新版开发和日常启动围绕 `apps/native` 的 Go + MyGo 实现进行；React/Tauri 在 Native 验收完成前冻结为临时对照、生产入口和回退保护。切换门槛通过后，旧端及其发布链在同一退役变更中删除。文档描述源码能力、操作要求或特定日期证据时，应明确各自范围，不能把某次候选运行或构建结果等同于生产切换。
+整理日期：2026-11-28。本目录维护当前源码的使用、开发、架构和交付规则。Native 仍为候选，生产切换未完成；源码能力、测试要求和已发行资产分别判断。
 
-## 从这里开始
+## 使用与开发入口
 
-| 要了解的内容 | 文档 |
+| 目的 | 文档 |
 | --- | --- |
-| 产品能力与原生候选状态 | [中文 README](../README.zh-CN.md) / [English README](../README.md) |
-| 工具链、启动、测试、生成与验收命令 | [开发指南](development.md) |
-| 原生分层、数据、窗口授权和共享来源 | [Go + MyGo 原生架构](architecture/native-desktop-architecture.md) |
-| 候选包、资料目录、显式接管与恢复 | [原生模块说明](../apps/native/README.md) |
-| 平台、安全、安装器与正式发布门槛 | [发布就绪检查](architecture/release-readiness.md) |
-| 按改动范围执行 CI、手动全量与候选构建 | [CI/CD 操作规则](architecture/ci-cd.md) |
-| v2.0.0-alpha.3 范围、资产与已知限制 | [当前原生 alpha 发布说明](releases/2.0.0-alpha.3.md) |
-| 第二个原生 alpha 的历史范围 | [v2.0.0-alpha.2](releases/2.0.0-alpha.2.md) |
-| 首个原生 alpha 的历史范围 | [v2.0.0-alpha.1](releases/2.0.0-alpha.1.md) |
-| 宠物、LP、商店、福利、农场和打工 | [宠物系统](pet-system.md) |
-| 麦克风实时转写、翻译与升级候选 | [实时翻译](live-translation.md) |
-| 图片来源、生成与原生同步 | [素材说明](images/README.md) |
-| 变更记录 | [CHANGELOG](../CHANGELOG.md)，未发布工作只写 Unreleased |
-| Agent 修改与验证约束 | [AGENTS](../AGENTS.md) |
+| 产品、平台、组织与下载 | [中文 README](../README.zh-CN.md) / [English README](../README.md) |
+| 安装、启动、资料导入、备份与恢复 | [原生客户端说明](../apps/native/README.md) |
+| 批量导入、回听校对和独立人工纪要 | [会议工作流](meeting-workflow.md) |
+| 实时采集、离线中英互译和模型准备 | [实时翻译](live-translation.md) |
+| 宠物、LP、福利、农场与打工 | [宠物系统](pet-system.md) |
+| 工具链、测试、生成和验收命令 | [开发指南](development.md) |
+| 分层、数据、窗口授权和共享来源 | [原生架构](architecture/native-desktop-architecture.md) |
+| 导航、主题、设置、多窗口与更新交互 | [原生界面](architecture/native-ui.md) |
+| 按改动范围运行 CI、构建及发布事务 | [CI/CD 规则](architecture/ci-cd.md) |
+| 交付格式、验收门槛与旧端退役 | [发布就绪检查](architecture/release-readiness.md) |
+| 未发布改动及当前版本记录 | [CHANGELOG](../CHANGELOG.md) / [alpha.3 发行范围](releases/2.0.0-alpha.3.md) |
+| 修改范围与验证约束 | [AGENTS](../AGENTS.md) |
 
-日常启动使用 `pnpm start`（等价于 `pnpm native:launch`），没有候选包时先运行 `pnpm native:package`。启动器选择已打包候选，不编译当前源码，也不启动旧 React/Tauri；运行中构建的复用、平台差异及显式资料选择见[原生模块说明](../apps/native/README.md#启动与验证入口)。`native:preview` 使用退出后清理的临时合成资料，不适合保存日常数据。
+日常启动用 `pnpm start`，没有候选包或需要加载源码修改时先运行 `pnpm native:package`。`native:preview` 使用退出后清理的合成资料，不用于日常数据保存。
 
-## 模块契约
+## 模块与资源
 
-| 模块 | 文档 |
+| 内容 | 文档 |
 | --- | --- |
-| 跨语言 JSON Schema | [Shared contracts](../packages/shared-types/README.md) |
-| 两端共用的运行时、文案、模板和地图素材 | [桌面共享资源](../packages/desktop-resources/README.md) |
-| Runner V1/V2、进程与结果 | [Runner](../apps/native/internal/infrastructure/runner/README.md) |
-| AI 完成响应与发布边界 | [AI](../apps/native/internal/infrastructure/ai/README.md) |
+| 跨语言 JSON Schema | [共享契约](../packages/shared-types/README.md) |
+| 数据库、运行时、文案、模板与素材来源 | [桌面共享资源](../packages/desktop-resources/README.md) |
+| 冻结数据库、JSON、XLSX、DOCX 回归输入 | [兼容样本](../packages/desktop-resources/fixtures/native-v10/README.md) |
+| Runner 协议与子进程 | [Runner](../apps/native/internal/infrastructure/runner/README.md) |
+| AI 响应与发布边界 | [AI](../apps/native/internal/infrastructure/ai/README.md) |
 | 远端能力与 JSON 适配 | [Remote](../apps/native/internal/infrastructure/remote/README.md) |
-| 旧 JSON 任务读取 | [Legacy jobs](../apps/native/internal/infrastructure/legacyjobs/README.md) |
-| Excel 与人员导入事务 | [Member XLSX](../apps/native/internal/infrastructure/memberxlsx/README.md) |
+| 旧格式任务导入 | [Legacy jobs](../apps/native/internal/infrastructure/legacyjobs/README.md) |
+| Excel 文件与人员事务 | [Member XLSX](../apps/native/internal/infrastructure/memberxlsx/README.md) |
 | 日志脱敏 | [Diagnostics](../apps/native/internal/infrastructure/diagnostics/README.md) |
-| FunASR 候选 wheel 与来源证明 | [Vendor recipe](../python/funasr-runner/vendor/README.md) |
-| ASR 真实媒体与平台证据 | [ASR 验证资产](../benchmarks/asr/README.md) |
+| FunASR 固定 wheel 与来源证明 | [Vendor recipe](../python/funasr-runner/vendor/README.md) |
+| 受控媒体、质量与目标设备证据 | [ASR 验证资产](../benchmarks/asr/README.md) |
+| 图片规范与同步 | [素材说明](images/README.md) |
+| 实时页动画来源与许可证 | [bloub](../packages/desktop-resources/presentation/bloub/README.md) |
+| 3D 伙伴模型制作与原生预览 | [模型资源](../packages/desktop-resources/pet/models/README.md) / [原生渲染模块](../apps/native/internal/desktop/presentation/companion3d/README.md) |
 
-## 计划与历史证据
+## 进行中的工作
 
-[过程文档索引](ai/README.md) 只保留原生重构相关设计、实施计划、调研和评审。旧 React/Tauri 专属文档与历史方案已删除；当前说明统一围绕 Go/MyGo。保留的原生验收记录仍受各自日期、输入和平台范围限制。
+[过程文档入口](ai/README.md)只保留仍需执行的计划、设计及其直接依据。已被当前文档覆盖的迁移方案、验收快照、旧版本发布说明和旧界面截图不再留档。历史发行可查 Git 历史和 [GitHub Releases](https://github.com/whalesky-labs/Liberty/releases)。
 
-当前重点入口：
+当前仍需跟进会议工作流的实机与质量验收，以及 3D 桌宠的正式接入、互动和平台验证；具体范围见对应计划。本文不把旧测试日志作为当前工作区通过验证的证据。
 
-- [原生重构设计](ai/designs/2026-11-16-native-desktop-refactor.md)：迁移目标与退出条件。
-- [原生实施记录](ai/plans/2026-11-17-native-desktop-implementation.md)：带日期的增量证据。
-- [小游戏体验设计](ai/designs/2026-11-19-native-gameplay-experience-design.md)：独立 P5-G 工作线。
-- [本次文档整理记录](ai/reviews/2026-11-20-documentation-refresh.md)：范围、修正与检查结果。
+## 维护规则
 
-## 维护原则
-
-1. 长期操作、架构和业务规则留在本目录及模块 README；过程文档不成为唯一事实来源。
-2. 根中英文 README 同步能力与边界，细节链接到单一正式说明，避免重复堆积验收日志。
-3. 当前源码、共享 schema、运行时 manifest 和脚本优先；发现文档与代码冲突先核实，不按旧描述修改实现。
-4. 历史记录保留原日期、输入与限制；归档日期不是重新验收日期。平台运行、签名、公证、扫描和发布分别记录。
-5. 更新文档时检查相对链接、代码路径与命令；生成物从来源生成，依赖锁不当作普通文本说明改写。媒体、数据库、凭据、临时日志与打包产物不放入文档仓库。
+1. 根中英文 README 同步产品范围和组织信息；详细行为写在专题文档，命令写在开发指南，交付门槛写在发布要求。
+2. 当前源码、共享 schema、运行时 manifest 和脚本是核对依据。未发布源码与发行包分别说明，不用旧日期的测试结论推断当前通过。
+3. 模块 README 就近维护契约；过程文档不作为业务、数据、安全或发布规则的唯一来源。完成后提炼有效结论并删除重复过程记录。
+4. 删除或移动文件时同步检查链接、标题锚点、脚本引用和图片用途。兼容样本、生成器输入、许可证与 NOTICE 不按“历史文档”删除。
+5. 运行 `pnpm ci:docs` 检查已跟踪 Markdown 的链接与围栏；新文件还需单独核对，命令须与 `package.json` 一致。文档整理不等于构建、实机或发布验收。

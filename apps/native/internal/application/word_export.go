@@ -29,6 +29,9 @@ func (e *WordExport) Prepare(ctx context.Context, id, requested string) (domain.
 	if r.Job.ID != id || r.Job.Source != "local" {
 		return domain.MinutesDocument{}, ErrWindowScope
 	}
+	if r.Draft != nil && requested == "" {
+		return domain.ManualMinutesDocument(r), nil
+	}
 	source, err := domain.ResolveSummaryExport(r, members, requested)
 	if err != nil {
 		return domain.MinutesDocument{}, err

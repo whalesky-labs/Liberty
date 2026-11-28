@@ -30,7 +30,7 @@ func TestDashboardResourceLinksRespectNavigationAndRemoteSnapshot(t *testing.T) 
 	for _, locale := range []string{"zh-CN", "en-US"} {
 		t.Run(locale, func(t *testing.T) {
 			view := NewDashboardView(&client.DashboardController{Overview: dashboardFixture()}, locale)
-			view.section = "insights"
+			view.section = dashboardInsightsSection
 			opened := ""
 			view.Navigate = func(path string) { opened = path }
 			tester := ui.NewTester(view.View, 1440, 1200)
@@ -89,7 +89,7 @@ func TestDashboardUsesVerifiedWorkspaceRuntimeReadiness(t *testing.T) {
 		tab: "/", controller: controller, view: NewMeetings(controller, "en-US"), preferences: domain.DefaultUIPreferences(),
 		dashboard: NewDashboardView(&client.DashboardController{Overview: dashboardFixture()}, "en-US"), runtime: &RuntimeView{Client: runtimeClient},
 	}
-	workspace.dashboard.section = "insights"
+	workspace.dashboard.section = dashboardInsightsSection
 	tester := ui.NewTester(workspace.View, 1440, 1200)
 	if workspace.dashboard.RuntimeReady {
 		t.Fatal("missing runtime reported ready")
@@ -143,12 +143,80 @@ func TestDashboardActivityActionsUseOverviewSource(t *testing.T) {
 	}
 }
 
+func TestDashboardActivityLayout(t *testing.T) {
+	for _, width := range []int{1440, 1100, 760} {
+		for _, locale := range []string{"zh-CN", "en-US"} {
+			t.Run(fmt.Sprintf("%s-%d", locale, width), func(t *testing.T) {
+				view := NewDashboardView(&client.DashboardController{Overview: &domain.DashboardOverview{Source: "local"}}, locale)
+				view.Navigate = func(string) {}
+				shell := Shell{Locale: locale, Route: "/", Preferences: domain.DefaultUIPreferences(), Content: view.View}
+				tester := ui.NewTesterWith(shell.View, width, 960, ui.TesterOptions{Dark: locale == "zh-CN"})
+				bounds := func(zh, en string) ui.Rect {
+					t.Helper()
+					rect, ok := tester.Find(localized(locale, zh, en))
+					if !ok || rect.W <= 0 || rect.X < presentation.SidebarWidth || rect.X+rect.W > float32(width) {
+						t.Fatalf("dashboard item outside content: %s %+v", en, rect)
+					}
+					return rect
+				}
+				jobs := bounds("最近任务", "Recent jobs")
+				attention := bounds("待关注", "Needs attention")
+				empty := bounds("当前时间范围内还没有任务。", "No jobs in this range.")
+				if width == 1440 {
+					if math.Abs(float64((jobs.Y+jobs.H/2)-(attention.Y+attention.H/2))) > 6 || empty.X+empty.W > attention.X {
+						t.Fatalf("wide activity columns overlap or fail to align: %+v %+v %+v", jobs, attention, empty)
+					}
+				} else if attention.Y <= empty.Y+empty.H {
+					t.Fatalf("narrow summary overlaps the job list: %+v %+v", empty, attention)
+				}
+				captureParity(t, tester, fmt.Sprintf("activity-empty-%s-%d", locale, width))
+				view.OpenResult = func(string, string) {}
+				view.Client.Overview.Metrics = domain.DashboardMetrics{TotalJobs: 1, CompletedJobs: 1, MediaDurationMinutes: 35}
+				view.Client.Overview.RecentResults = []domain.DashboardJob{{ID: "fixture", Title: localized(locale, "产品讨论会", "Product discussion"), OverallStatus: "completed", DurationMinutes: 35, CreatedAt: "2026-11-19T10:00:00Z"}}
+				tester.Frame()
+				captureParity(t, tester, fmt.Sprintf("activity-jobs-%s-%d", locale, width))
+			})
+		}
+	}
+}
+
+func TestDashboardSegmentedControlsUseDefaultHeight(t *testing.T) {
+	var selected int
+	reference := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).AlignItems(ui.Start).Children(func() {
+			ui.Segmented(c, &selected, "First", "Second").Label("Reference")
+		})
+	}, 600, 200)
+	want, ok := reference.Find("Reference")
+	if !ok || want.H <= 0 {
+		t.Fatal("missing reference segmented control")
+	}
+	view := NewDashboardView(&client.DashboardController{Overview: dashboardFixture()}, "en-US")
+	tester := ui.NewTester(view.View, 1100, 960)
+	if err := tester.Click("Analysis overview"); err != nil {
+		t.Fatal(err)
+	}
+	for _, label := range []string{"Statistics range", "Dashboard workspace", "Trend metric"} {
+		group, ok := tester.AccessByRole(ui.RoleRadioGroup, label)
+		if !ok || group.Bounds.H != want.H {
+			t.Errorf("%s height = %v, want MyGo default %v", label, group.Bounds.H, want.H)
+		}
+	}
+	if err := tester.Click("Media"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Key(0, ui.KeyRight)
+	if view.metric != trendProcessing || !tester.Focused("Processing") {
+		t.Fatal("arrow key did not select and focus the next trend metric")
+	}
+}
+
 func TestDashboardResponsiveInsightsAndTrendGeometry(t *testing.T) {
 	for _, locale := range []string{"zh-CN", "en-US"} {
 		for _, width := range []int{1440, 1100, 980, 760} {
 			t.Run(fmt.Sprintf("%s-%d", locale, width), func(t *testing.T) {
 				view := NewDashboardView(&client.DashboardController{Overview: dashboardFixture()}, locale)
-				view.section, view.Navigate = "insights", func(string) {}
+				view.section, view.Navigate = dashboardInsightsSection, func(string) {}
 				shell := Shell{Locale: locale, Preferences: domain.DefaultUIPreferences(), Content: view.View}
 				tester := ui.NewTesterWith(shell.View, width, 1800, ui.TesterOptions{Dark: locale == "en-US"})
 				for _, label := range []string{localized(locale, "本地运行时", "Local runtime"), localized(locale, "AI 模型", "AI models"), localized(locale, "人员库", "Members"), "LP", localized(locale, "今日签到", "Check-in"), localized(locale, "待处理", "Needs action")} {
@@ -191,7 +259,10 @@ func TestDashboardTrendUnitsAndSinglePointWidth(t *testing.T) {
 	view := NewDashboardView(&client.DashboardController{}, "en-US")
 	points := []domain.DashboardTrend{{Period: "2026-11-19", TotalJobs: 1000, MediaDurationMinutes: 40, ProcessingDurationSeconds: 91}}
 	tester := ui.NewTester(func(c *ui.Context) { view.chart(c, points) }, 600, 200)
-	for _, metric := range []struct{ key, value string }{{"jobs", "1000 jobs"}, {"media", "40 min"}, {"processing", "2 min"}} {
+	for _, metric := range []struct {
+		key   int
+		value string
+	}{{trendJobs, "1000 jobs"}, {trendMedia, "40 min"}, {trendProcessing, "2 min"}} {
 		view.metric = metric.key
 		tester.Frame()
 		access, ok := tester.AccessByRole(ui.RoleImage, "")
@@ -238,7 +309,7 @@ func TestTitlebarOpensProjectAndTogglesCompanion(t *testing.T) {
 			t.Fatal("missing enabled desktop pet state", toggle)
 		}
 		image := tester.Image()
-		background := image.At(5, int(toggle.Bounds.Y+1))
+		background := image.At(int(toggle.Bounds.X-4), int(toggle.Bounds.Y+1))
 		if actual := image.At(int(toggle.Bounds.X+1), int(toggle.Bounds.Y+1)); actual != background {
 			t.Fatalf("enabled desktop pet uses selected fill: got %v, titlebar background is %v", actual, background)
 		}

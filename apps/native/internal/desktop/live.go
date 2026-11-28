@@ -18,16 +18,19 @@ import (
 )
 
 type LiveView struct {
-	Client        *client.LiveController
-	Locale        string
-	OpenSettings  func()
-	ConfirmDelete func()
-	list          ui.ListState
-	listSession   string
-	editing       *domain.LiveSegment
-	mode          string
-	settingsOpen  bool
-	avatar        liveAvatar
+	Client           *client.LiveController
+	Locale           string
+	OpenSettings     func()
+	ConfirmDelete    func()
+	list             ui.ListState
+	listSession      string
+	editing          *domain.LiveSegment
+	mode             string
+	historyOpen      bool
+	historyPanel     ui.Handle
+	mainSplitPercent float32
+	settingsOpen     bool
+	avatar           liveAvatar
 }
 
 func (v *LiveView) text(zh, en string) string { return localized(v.Locale, zh, en) }
@@ -55,7 +58,7 @@ func liveError(locale string, err error, code string) string {
 		return localized(locale, "音频处理已落后，已停止收听并保留定稿。请关闭其他转写任务后重试。", "Audio processing fell behind. Listening stopped and finalized text was kept. Close other transcription tasks and retry.")
 	}
 	if errors.Is(err, domain.ErrLiveCapture) || code == "live_audio_capture_failed" {
-		return localized(locale, "无法使用所选麦克风，请检查系统权限并刷新设备。", "Cannot use the selected microphone. Check system permissions and refresh devices.")
+		return localized(locale, "无法使用所选音频输入，请检查麦克风或屏幕与系统音频录制权限并刷新设备。", "Cannot use the selected audio input. Check microphone or screen/system audio recording permissions and refresh devices.")
 	}
 	if errors.Is(err, domain.ErrLiveInput) {
 		return localized(locale, "输入无效，请检查当前填写的内容或选择项。", "Invalid input. Check the current text or selection.")
@@ -76,59 +79,86 @@ func liveStamp(ms int64) string {
 }
 
 func (v *LiveView) View(c *ui.Context) {
-	state := v.Client
 	width, height := c.Size()
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().MaxWidth(1120).AlignSelf(ui.Center).Padding(28, 36).Gap(20).Children(func() {
-			ui.Row(c).FillWidth().Gap(16).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, v.text("实时翻译", "Live Translation")).FontSize(23).Bold().Grow(1).Role(ui.RoleHeading).Level(1)
-				if v.mode == "" {
-					if textButton(c, v.text("历史记录", "History")).MinHeight(40).Clicked() {
-						v.mode = "history"
-						v.settingsOpen = false
-					}
-				} else {
-					if v.mode == "review" {
-						if textButton(c, v.text("历史记录", "History")).MinHeight(40).Disabled(v.editing != nil).Clicked() {
-							v.mode = "history"
-						}
-					}
-					if textButton(c, v.text("返回收听", "Back to listening")).MinHeight(40).Disabled(v.editing != nil).Clicked() {
-						v.mode = ""
-						state.ShowCurrent()
-					}
-				}
+	main := func() {
+		contentScroll(c).Key("live-main-scroll").Fill().MinHeight(0).Children(func() {
+			ui.Column(c).FillWidth().MaxWidth(1120).AlignSelf(ui.Center).Padding(28, 36).Children(func() {
+				v.liveContent(c, width, height)
 			})
-			if state.Error != nil {
-				ui.Text(c, liveError(v.Locale, state.Error, "")).FillWidth().Padding(12).Radius(8).Background(c.Theme().Danger.Alpha(.08)).TextColor(c.Theme().Danger).Role(ui.RoleStatus)
-			}
-			if code := state.Snapshot.Session.ErrorCode; code != "" {
-				ui.Text(c, liveError(v.Locale, nil, code)).FillWidth().FontSize(13).TextColor(c.Theme().Warning).Role(ui.RoleStatus)
-			}
-			if v.mode != "" && domain.LiveActive(state.Snapshot.Session.State) {
-				ui.Row(c).FillWidth().Gap(10).Children(func() {
-					ui.Text(c, liveStatus(v.Locale, state.Snapshot.Session.State)).Grow(1).FontSize(13).TextColor(palette(c).NavAccent).Role(ui.RoleStatus)
-					label, command := v.text("暂停", "Pause"), "pause"
-					if state.Snapshot.Session.State == "paused" {
-						label, command = v.text("继续收听", "Resume listening"), "resume"
-					}
-					if ui.Button(c, label).MinHeight(40).Disabled(state.Busy || (state.Snapshot.Session.State != "listening" && state.Snapshot.Session.State != "paused")).Clicked() {
-						state.Control(command)
-					}
-					if ui.Button(c, v.text("结束", "Finish")).MinHeight(40).Disabled(state.Busy || state.Snapshot.Session.State == "stopping").Clicked() {
-						state.Control("stop")
-					}
-				})
-			}
-			switch v.mode {
-			case "history":
-				v.history(c)
-			case "review":
-				v.captions(c, max(280, height-230))
-			default:
-				v.listening(c, width, height)
+		})
+	}
+	if !v.historyOpen {
+		main()
+		return
+	}
+	const defaultMainPercent = 68
+	if v.mainSplitPercent <= 0 {
+		v.mainSplitPercent = defaultMainPercent
+	}
+	ui.SplitPercent(c, &v.mainSplitPercent, main, func() {
+		v.history(c)
+	}).Fill().MinHeight(0).SplitReset(defaultMainPercent)
+}
+
+func (v *LiveView) liveContent(c *ui.Context, width, height float32) {
+	state := v.Client
+	if v.mode == "review" {
+		ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
+			if textButton(c, v.text("返回收听", "Back to listening")).MinHeight(40).Disabled(v.editing != nil).Clicked() {
+				v.mode = ""
+				v.historyOpen = false
+				state.ShowCurrent()
 			}
 		})
+	}
+	if state.Error != nil {
+		ui.Text(c, liveError(v.Locale, state.Error, "")).FillWidth().Padding(12).Radius(8).Background(c.Theme().Danger.Alpha(.08)).TextColor(c.Theme().Danger).Role(ui.RoleStatus)
+	}
+	if code := state.Snapshot.Session.ErrorCode; code != "" {
+		ui.Text(c, liveError(v.Locale, nil, code)).FillWidth().FontSize(13).TextColor(c.Theme().Warning).Role(ui.RoleStatus)
+	}
+	if v.mode != "" && domain.LiveActive(state.Snapshot.Session.State) {
+		ui.Row(c).FillWidth().Gap(10).Children(func() {
+			ui.Text(c, liveStatus(v.Locale, state.Snapshot.Session.State)).Grow(1).FontSize(13).TextColor(palette(c).NavAccent).Role(ui.RoleStatus)
+			label, command := v.text("暂停", "Pause"), "pause"
+			if state.Snapshot.Session.State == "paused" {
+				label, command = v.text("继续收听", "Resume listening"), "resume"
+			}
+			if ui.Button(c, label).MinHeight(40).Disabled(state.Busy || (state.Snapshot.Session.State != "listening" && state.Snapshot.Session.State != "paused")).Clicked() {
+				state.Control(command)
+			}
+			if ui.Button(c, v.text("结束", "Finish")).MinHeight(40).Disabled(state.Busy || state.Snapshot.Session.State == "stopping").Clicked() {
+				state.Control("stop")
+			}
+		})
+	}
+	v.liveMain(c, width, height)
+}
+
+func (v *LiveView) titlebarActions(c *ui.Context) {
+	label := v.text("历史记录", "History")
+	button := ui.ButtonBase(c).Size(28, 28).Shrink(0).Padding(0).Center().Radius(14).Label(label).Tooltip(label).
+		Expanded(v.historyOpen).Selected(v.historyOpen).Background(ui.Transparent).FocusRingColor(c.Theme().TextMuted)
+	_, iconColor := navigationColors(c, button, v.historyOpen)
+	button.Children(func() {
+		ui.Icon(c, presentation.Icon("historySidebar")).Size(16, 16).TextColor(iconColor)
+	})
+	if button.Clicked() {
+		v.historyOpen = !v.historyOpen
+		if v.historyOpen {
+			v.settingsOpen = false
+		}
+		c.Invalidate()
+	}
+}
+
+func (v *LiveView) liveMain(c *ui.Context, width, height float32) {
+	ui.Column(c.Key("live-main")).FillWidth().MinWidth(0).Children(func() {
+		if v.mode == "review" {
+			v.captions(c, max(280, height-230))
+		} else {
+			v.listening(c, width, height)
+		}
 	})
 }
 
@@ -155,7 +185,7 @@ func (v *LiveView) listening(c *ui.Context, width, height float32) {
 				case "listening":
 					subtitle = v.text("像平常一样说话就好。", "Just speak naturally.")
 				case "paused":
-					subtitle = v.text("麦克风已暂停，准备好后继续。", "Microphone paused. Resume whenever you’re ready.")
+					subtitle = v.text("音频采集已暂停，准备好后继续。", "Audio capture paused. Resume whenever you’re ready.")
 				case "preparing":
 					subtitle = v.text("正在准备本地模型，请稍候。", "Getting the local models ready.")
 				case "stopping":
@@ -168,7 +198,7 @@ func (v *LiveView) listening(c *ui.Context, width, height float32) {
 				title = v.text("正在准备模型", "Preparing your models")
 				subtitle = v.text("首次下载完成后，即可离线使用。", "Once downloaded, everything works offline.")
 			}
-			ui.Text(c, title).FillWidth().TextAlign(ui.Center).FontSize(26).Bold().Role(ui.RoleStatus)
+			ui.Text(c, title).FillWidth().TextAlign(ui.Center).FontSize(26).Role(ui.RoleStatus)
 			ui.Text(c, subtitle).FillWidth().TextAlign(ui.Center).FontSize(14).TextColor(c.Theme().TextMuted)
 		})
 		ui.Row(c).AlignSelf(ui.Center).Gap(10).Children(func() {
@@ -181,9 +211,10 @@ func (v *LiveView) listening(c *ui.Context, width, height float32) {
 				if s.Preparing {
 					label = v.text("正在下载…", "Downloading…")
 				}
-				if ui.PrimaryButton(c, label).MinWidth(174).Height(46).Radius(23).Disabled(busy || v.editing != nil).Clicked() {
-					if needsModels {
-						s.Prepare()
+				if ui.PrimaryButton(c, label).MinWidth(174).Height(46).Radius(23).Disabled(busy || v.editing != nil || needsModels && v.OpenSettings == nil).Clicked() {
+					if needsModels && v.OpenSettings != nil {
+						v.settingsOpen = false
+						v.OpenSettings()
 					} else if s.Request.DeviceID == "" {
 						v.settingsOpen = true
 					} else {
@@ -213,7 +244,7 @@ func (v *LiveView) listening(c *ui.Context, width, height float32) {
 			}
 			v.settings(c, anchor, min(float32(340), width-64), active || busy)
 		})
-		device := v.text("选择麦克风", "Choose a microphone")
+		device := v.text("选择音频输入", "Choose an audio input")
 		for _, d := range s.Options.Devices {
 			if d.ID == s.Request.DeviceID {
 				device = d.Name
@@ -243,7 +274,7 @@ func (v *LiveView) pickup(c *ui.Context, size float32) {
 	}
 	level := livePickupLevel(phase, v.Client.Snapshot.Level)
 	stage := ui.Box(c.Key("live-pickup")).Size(size, size).AlignSelf(ui.Center).Role(ui.RoleProgress).
-		Label(v.text("麦克风输入电平", "Microphone input level")).Range(0, 100, float64(level*level*100))
+		Label(v.text("音频输入电平", "Audio input level")).Range(0, 100, float64(level*level*100))
 	motion := !c.WindowHidden() && c.WindowActive() && !c.Preferences().ReduceMotion
 	amplitude := level
 	if phase == "listening" && motion {
@@ -261,17 +292,20 @@ func (v *LiveView) settings(c *ui.Context, anchor ui.Element, width float32, dis
 	ui.Popover(c, anchor, &v.settingsOpen, func() {
 		ui.Column(c).Width(width).Padding(12).Gap(14).Children(func() {
 			ui.Row(c).FillWidth().Children(func() {
-				ui.Text(c, v.text("收听设置", "Listening settings")).Grow(1).FontSize(16).Bold()
+				ui.Text(c, v.text("收听设置", "Listening settings")).Grow(1).FontSize(16)
 				if textButton(c, v.text("完成", "Done")).Clicked() {
 					v.settingsOpen = false
 				}
 			})
-			ids, labels := []string{""}, []string{v.text("请选择麦克风", "Select a microphone")}
+			ids, labels := []string{""}, []string{v.text("请选择音频输入", "Select an audio input")}
 			for index, d := range s.Options.Devices {
 				ids = append(ids, d.ID)
 				labels = append(labels, fmt.Sprintf("%s (%d)", d.Name, index+1))
 			}
 			v.selectField(c, v.text("输入设备", "Input device"), &s.Request.DeviceID, ids, labels, disabled)
+			if strings.HasPrefix(s.Request.DeviceID, "system") {
+				ui.Text(c, v.text("开始后将采集电脑播放的声音。混合麦克风时建议使用耳机，避免重复收录；macOS 需允许屏幕与系统音频录制。", "Starting captures sound played by your computer. Use headphones when mixing the microphone to avoid duplicate audio. macOS requires screen and system audio recording permission.")).FillWidth().FontSize(12)
+			}
 			if textButton(c, v.text("刷新设备", "Refresh devices")).Disabled(disabled).Clicked() {
 				s.RefreshOptions()
 			}
@@ -333,7 +367,7 @@ func (v *LiveView) selectField(c *ui.Context, label string, id *string, ids, lab
 		}
 	}
 	ui.Text(c, label).FontSize(12)
-	if ui.Select(c, &selected, labels).FillWidth().Label(label).Disabled(disabled).Changed() {
+	if selectControl(c, &selected, labels).FillWidth().Label(label).Disabled(disabled).Changed() {
 		for index, value := range labels {
 			if value == selected {
 				*id = ids[index]
@@ -344,38 +378,96 @@ func (v *LiveView) selectField(c *ui.Context, label string, id *string, ids, lab
 }
 func (v *LiveView) history(c *ui.Context) {
 	s := v.Client
-	ui.Column(c).FillWidth().MaxWidth(800).AlignSelf(ui.Center).Padding(12).Gap(12).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, v.text("历史会话", "Session history")).Grow(1).FontSize(14).Bold()
-			if textButton(c, v.text("刷新", "Refresh")).Disabled(s.Busy || s.Preparing).Clicked() {
+	title := v.text("历史会话", "Session history")
+	ui.Column(c.Key("live-history-panel")).Bind(&v.historyPanel).Fill().MinWidth(0).MinHeight(0).
+		Role(ui.RoleComplementary).Label(v.text("历史记录", "History")).Children(func() {
+		ui.Row(c).FillWidth().Padding(12, 10, 10, 18).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, title).Grow(1).MinWidth(0).SingleLine().FontSize(17).FontWeight(600).Role(ui.RoleHeading).Level(2)
+			if ui.Button(c, v.text("刷新", "Refresh")).MinHeight(32).Disabled(s.Busy || s.Preparing).Clicked() {
 				s.RefreshHistory(s.HistoryOffset)
 			}
-		})
-		for _, session := range s.History {
-			if ui.ButtonBase(c.Key(session.ID)).FillWidth().Padding(8).Radius(6).Label(createdText(v.Locale, session.CreatedAt)).Disabled(s.Busy || v.editing != nil).Children(func() {
-				ui.Column(c).FillWidth().Gap(3).Children(func() {
-					ui.Text(c, createdText(v.Locale, session.CreatedAt)).FontSize(12)
-					ui.Text(c, fmt.Sprintf("%s · %d", liveStatus(v.Locale, session.State), session.SegmentCount)).FontSize(11).TextColor(c.Theme().TextMuted)
-				})
-			}).Clicked() {
-				v.mode = "review"
-				s.Select(session, 0)
+			if ui.Button(c, v.text("关闭", "Close")).MinHeight(32).Clicked() {
+				v.historyOpen = false
 			}
-			separator(c)
-		}
+		})
 		if len(s.History) == 0 {
-			ui.Text(c, v.text("暂无历史会话", "No sessions yet")).FontSize(12).TextColor(c.Theme().TextMuted)
+			v.historyEmpty(c)
+		} else {
+			contentScroll(c).Key("live-history-scroll").FillWidth().Grow(1).MinHeight(0).Role(ui.RoleList).Label(title).Children(func() {
+				ui.Column(c).FillWidth().Padding(0, 8, 12).Children(func() {
+					previousDate := ""
+					for _, session := range s.History {
+						stamp := createdText(v.Locale, session.CreatedAt)
+						rowTime := stamp
+						if ts, err := time.Parse(time.RFC3339Nano, session.CreatedAt); err == nil {
+							local := ts.Local()
+							date := local.Format(v.text("2006年1月2日", "Jan 2, 2006"))
+							if date != previousDate {
+								ui.Text(c, date).Padding(12, 10, 6).FontSize(12).FontWeight(600).TextColor(c.Theme().TextMuted).Role(ui.RoleHeading).Level(3)
+								previousDate = date
+							}
+							rowTime = local.Format(v.text("15:04", "3:04 PM"))
+						}
+						v.historySession(c, session, stamp, rowTime)
+					}
+				})
+			})
 		}
-		ui.Row(c).Gap(8).Children(func() {
-			if textButton(c, v.text("上一页", "Previous")).Disabled(s.Busy || s.HistoryOffset == 0).Clicked() {
-				s.RefreshHistory(max(0, s.HistoryOffset-20))
-			}
-			if textButton(c, v.text("下一页", "Next")).Disabled(s.Busy || len(s.History) < 20).Clicked() {
-				s.RefreshHistory(s.HistoryOffset + 20)
-			}
-		})
+		const pageSize = 20
+		if s.HistoryOffset > 0 || len(s.History) >= pageSize {
+			separator(c)
+			ui.Row(c).FillWidth().Padding(6, 10, 6, 18).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, fmt.Sprintf(v.text("第 %d 页", "Page %d"), 1+s.HistoryOffset/pageSize)).Grow(1).FontSize(12).TextColor(c.Theme().TextMuted)
+				if runtimeIconButton(c, "back", v.text("上一页", "Previous"), s.Busy || s.HistoryOffset == 0).Clicked() {
+					s.RefreshHistory(max(0, s.HistoryOffset-pageSize))
+				}
+				if runtimeIconButton(c, "forward", v.text("下一页", "Next"), s.Busy || len(s.History) < pageSize).Clicked() {
+					s.RefreshHistory(s.HistoryOffset + pageSize)
+				}
+			})
+		}
 	})
 }
+
+func (v *LiveView) historyEmpty(c *ui.Context) {
+	title := v.text("暂无历史会话", "No sessions yet")
+	hint := v.text("收听结束后，可在这里回看字幕。", "After listening, review your captions here.")
+	if v.Client.HistoryOffset > 0 {
+		title = v.text("本页没有会话", "No sessions on this page")
+		hint = v.text("返回上一页查看较新的会话。", "Go back one page to see newer sessions.")
+	}
+	ui.Column(c).FillWidth().Grow(1).MinHeight(0).Padding(16).Center().Gap(8).Children(func() {
+		ui.Box(c).Size(44, 44).Center().Radius(12).Background(palette(c).Subpanel).Children(func() {
+			ui.Icon(c, presentation.Icon("tray")).Size(23, 23).TextColor(c.Theme().TextMuted)
+		})
+		ui.Text(c, title).FillWidth().TextAlign(ui.Center).FontSize(15).FontWeight(600)
+		ui.Text(c, hint).FillWidth().TextAlign(ui.Center).FontSize(13).TextColor(c.Theme().TextMuted)
+	})
+}
+
+func (v *LiveView) historySession(c *ui.Context, session domain.LiveSession, stamp, rowTime string) {
+	count := fmt.Sprintf(v.text("字幕 %d 条", "Captions: %d"), session.SegmentCount)
+	detail := liveStatus(v.Locale, session.State) + " · " + count
+	row := ui.ButtonBase(c.Key(session.ID)).FillWidth().Padding(10).Radius(8).Gap(10).AlignItems(ui.Center).
+		Label(stamp).Description(detail).Disabled(v.Client.Busy || v.editing != nil)
+	if row.Hovered() {
+		row.Background(palette(c).NavHover)
+	}
+	row.Children(func() {
+		ui.Icon(c, presentation.Icon("doc")).Size(18, 18).TextColor(c.Theme().TextMuted)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+			ui.Text(c, rowTime).FontSize(14).FontWeight(600)
+			ui.Text(c, detail).FontSize(12).TextColor(c.Theme().TextMuted)
+		})
+		ui.Icon(c, presentation.Icon("forward")).Size(12, 12).TextColor(c.Theme().TextMuted)
+	})
+	if row.Clicked() {
+		v.mode = "review"
+		v.historyOpen = false
+		v.Client.Select(session, 0)
+	}
+}
+
 func (v *LiveView) captions(c *ui.Context, height float32) {
 	s := v.Client
 	session := s.Snapshot.Session
@@ -393,7 +485,7 @@ func (v *LiveView) captions(c *ui.Context, height float32) {
 		v.editing = nil
 	}
 	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, v.text("双语字幕", "Bilingual captions")).Grow(1).FontSize(17).Bold()
+		ui.Text(c, v.text("双语字幕", "Bilingual captions")).Grow(1).FontSize(17)
 		for _, format := range []string{"srt", "vtt", "txt"} {
 			if textButton(c, strings.ToUpper(format)).Disabled(s.Busy || v.editing != nil || session.ID == "" || domain.LiveActive(session.State)).Clicked() {
 				s.Export(format)
@@ -405,7 +497,7 @@ func (v *LiveView) captions(c *ui.Context, height float32) {
 	}
 	if v.editing != nil {
 		ui.Column(c).FillWidth().Padding(16).Gap(8).Radius(8).Background(palette(c).Subpanel).Children(func() {
-			ui.Text(c, v.text("编辑定稿", "Edit finalized caption")).FontSize(14).Bold()
+			ui.Text(c, v.text("编辑定稿", "Edit finalized caption")).FontSize(14)
 			ui.TextArea(c, &v.editing.Text).FillWidth().Height(70).Label(v.text("原文", "Original text")).Disabled(s.Busy)
 			if session.Translate {
 				ui.TextArea(c, &v.editing.Translation).FillWidth().Height(70).Label(v.text("译文", "Translation")).Disabled(s.Busy)
@@ -431,7 +523,7 @@ func (v *LiveView) captions(c *ui.Context, height float32) {
 	if count == 0 {
 		ui.Column(c).FillWidth().Height(height).Padding(28).Radius(10).Background(palette(c).Panel).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, v.text("原文与译文会显示在这里", "Original text and translations appear here")).FontSize(17)
-			ui.Text(c, v.text("选择麦克风后开始收听。暂停会释放麦克风。", "Select a microphone and start listening. Pausing releases the microphone.")).FontSize(12).TextColor(c.Theme().TextMuted)
+			ui.Text(c, v.text("选择音频输入后开始收听。暂停会释放音频设备。", "Select an audio input and start listening. Pausing releases the audio devices.")).FontSize(12).TextColor(c.Theme().TextMuted)
 		})
 		if s.Selected != nil && textButton(c, v.text("删除空会话", "Delete empty session")).Disabled(s.Busy || domain.LiveActive(session.State)).Clicked() && v.ConfirmDelete != nil {
 			v.ConfirmDelete()
@@ -527,7 +619,13 @@ func (w *Workspace) AttachLive(service *application.LiveService) {
 			w.main.Invalidate()
 		}
 	})
-	w.live = &LiveView{Client: controller, Locale: w.preferences.Locale, OpenSettings: func() { w.navigate("/settings") }}
+	w.live = &LiveView{Client: controller, Locale: w.preferences.Locale, OpenSettings: w.openRuntimeSettings}
+	if w.runtime != nil {
+		w.runtime.Live = controller
+	}
+	if w.settings != nil && w.settings.Client != nil && w.settings.Client.Loaded {
+		w.applyLiveSettings(w.settings.Client.Draft)
+	}
 	w.closing.register(&closeGuard{check: func() closeCheck {
 		draft := w.live.editing
 		var value domain.LiveSegment

@@ -93,6 +93,8 @@ func (w *Workspace) AttachResultEditing(writer application.SpeakerWriter) {
 	w.resultEditing = true
 }
 
+func (w *Workspace) AttachPlayback(player application.SegmentPlayer) { w.scopes.EnablePlayback(player) }
+
 func (w *Workspace) AttachWordExport(exporter *application.WordExport) {
 	w.scopes.EnableWordExport(exporter)
 	w.wordExportEnabled = true

@@ -106,7 +106,7 @@ func TestImportConsistentWALSnapshotSeparatesActiveDataAndCredentialOwnership(t 
 		t.Fatal(err)
 	}
 	first, err := Import(t.Context(), source, target, vault)
-	if err != nil || first.AlreadyImported || first.Version != 12 || first.CredentialCount != 1 {
+	if err != nil || first.AlreadyImported || first.Version != 13 || first.CredentialCount != 1 {
 		t.Fatal("snapshot import failed", err)
 	}
 	mainAfter, err := os.ReadFile(filepath.Join(source, profile.DatabaseName))

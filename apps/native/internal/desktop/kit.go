@@ -3,6 +3,7 @@ package desktop
 import (
 	"fmt"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -13,7 +14,7 @@ func palette(c *ui.Context) presentation.Palette {
 	return presentation.Colors(c.Theme().Dark, c.Theme().Accent)
 }
 
-// Main and settings navigation share the same theme colors and state styling.
+// Main and settings navigation share neutral selection and hover colors.
 func navigationColors(c *ui.Context, button ui.Element, active bool) (ui.Color, ui.Color) {
 	color, iconColor := c.Theme().Text, c.Theme().TextMuted
 	p := palette(c)
@@ -30,25 +31,21 @@ func navigationContent(c *ui.Context, button ui.Element, icon, label string, act
 	color, iconColor := navigationColors(c, button, active)
 	button.Children(func() {
 		ui.Icon(c, presentation.Icon(icon)).Size(16, 16).TextColor(iconColor)
-		text := ui.Text(c, label).FontSize(13).TextColor(color).SingleLine()
-		if active {
-			text.FontWeight(650)
-		}
+		ui.Text(c, label).FontSize(13).TextColor(color).SingleLine()
 	})
 }
 
 func textButton(c *ui.Context, label string) ui.Element {
 	return ui.ButtonBase(c).Label(label).Padding(6, 8).Radius(5).TextColor(palette(c).NavAccent).Children(func() { ui.Text(c, label).FontSize(12) })
 }
-func segmentButton(c *ui.Context, label string, active bool) ui.Element {
-	p := palette(c)
-	b := ui.ButtonBase(c).Label(label).Selected(active).Padding(7, 14).MinHeight(34).Radius(4)
-	color := c.Theme().TextMuted
-	if active {
-		b.Background(p.Selected)
-		color = p.NavAccent
-	}
-	return b.TextColor(color).Children(func() { ui.Text(c, label).FontSize(12) })
+
+// segmentedControl binds stable values to MyGo's default segmented control.
+// Keep dimensions and styling in MyGo so every page follows the same defaults.
+func segmentedControl(c *ui.Context, value *string, values []string, labels ...string) ui.Element {
+	selected := max(0, slices.Index(values, *value))
+	control := ui.Segmented(c, &selected, labels...)
+	*value = values[selected]
+	return control
 }
 func separator(c *ui.Context) { ui.Row(c).FillWidth().Height(1).Background(palette(c).Separator) }
 func statusBadge(c *ui.Context, locale, status string) {

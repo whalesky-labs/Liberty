@@ -88,7 +88,7 @@ func TestQueueInteractionAndBilingualLabels(t *testing.T) {
 	}
 	v.Locale = "zh-CN"
 	tt.Frame()
-	if !tt.HasText(presentation.Message("zh-CN", "jobs.pageTitle")) || !tt.HasText(presentation.Format("zh-CN", "jobs.visibleCount", map[string]any{"visible": 1, "total": 12})) {
+	if !tt.HasText(presentation.Message("zh-CN", "jobs.queueTitle")) || !tt.HasText(presentation.Format("zh-CN", "jobs.visibleCount", map[string]any{"visible": 1, "total": 12})) {
 		t.Fatal("language switch did not update view")
 	}
 	for _, name := range []string{presentation.Message("zh-CN", "jobs.searchPlaceholder"), presentation.Message("zh-CN", "jobs.filterLabel"), presentation.Message("zh-CN", "jobs.queueTitle")} {

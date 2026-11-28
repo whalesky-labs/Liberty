@@ -12,13 +12,16 @@ import (
 )
 
 type liveClientFixture struct {
-	snapshot   domain.LiveSnapshot
-	started    chan struct{}
-	release    chan struct{}
-	controlled []string
-	optionsErr error
-	history    []domain.LiveSession
-	segments   chan liveSegmentsCall
+	snapshot         domain.LiveSnapshot
+	started          chan struct{}
+	release          chan struct{}
+	controlled       []string
+	optionsErr       error
+	optionsReads     int
+	modelStatusReads int
+	modelStatus      application.LiveModelStatus
+	history          []domain.LiveSession
+	segments         chan liveSegmentsCall
 }
 
 type liveSegmentsCall struct {
@@ -33,7 +36,12 @@ type liveSegmentsReply struct {
 }
 
 func (f *liveClientFixture) Options(context.Context) (application.LiveOptions, error) {
+	f.optionsReads++
 	return application.LiveOptions{}, f.optionsErr
+}
+func (f *liveClientFixture) ModelStatus(context.Context) application.LiveModelStatus {
+	f.modelStatusReads++
+	return f.modelStatus
 }
 func (f *liveClientFixture) Prepare(ctx context.Context, _ func(string)) error {
 	<-ctx.Done()
@@ -75,6 +83,50 @@ func TestSavedLiveHistoryLoadsWhenMicrophoneRuntimeIsUnavailable(t *testing.T) {
 		t.Fatal("runtime error hid persisted history")
 	}
 }
+
+func TestEnsureLiveOptionsLoadsOnceForSettingsAndLivePages(t *testing.T) {
+	fixture := &liveClientFixture{}
+	callbacks := make(chan func(), 4)
+	c := NewLive(fixture, nil, func(f func()) { callbacks <- f }, func() {})
+	defer c.Close()
+	c.EnsureOptions()
+	c.EnsureOptions()
+	select {
+	case callback := <-callbacks:
+		callback()
+	case <-time.After(time.Second):
+		t.Fatal("options did not finish")
+	}
+	if fixture.optionsReads != 1 {
+		t.Fatalf("options read %d times, want once", fixture.optionsReads)
+	}
+	c.SetVisible(true)
+	if fixture.optionsReads != 1 {
+		t.Fatal("entering the live page repeated the settings options read")
+	}
+}
+
+func TestEnsureLiveModelStatusDoesNotEnumerateAudioDevices(t *testing.T) {
+	fixture := &liveClientFixture{modelStatus: application.LiveModelStatus{ModelReady: true, TranslationReady: true}}
+	callbacks := make(chan func(), 4)
+	c := NewLive(fixture, nil, func(callback func()) { callbacks <- callback }, func() {})
+	defer c.Close()
+	c.EnsureModelStatus()
+	c.EnsureModelStatus()
+	select {
+	case callback := <-callbacks:
+		callback()
+	case <-time.After(time.Second):
+		t.Fatal("model status did not finish")
+	}
+	if fixture.modelStatusReads != 1 || fixture.optionsReads != 0 {
+		t.Fatalf("model status reads = %d, device option reads = %d", fixture.modelStatusReads, fixture.optionsReads)
+	}
+	if !c.Options.ModelReady || !c.Options.TranslationReady || c.ModelStatusBusy {
+		t.Fatal("live model availability did not reach controller state")
+	}
+}
+
 func (f *liveClientFixture) Segments(ctx context.Context, id string, after int64) ([]domain.LiveSegment, error) {
 	if f.segments == nil {
 		return nil, nil

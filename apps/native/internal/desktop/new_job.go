@@ -43,6 +43,36 @@ func (p *NativeMediaPicker) Pick(ctx context.Context) (application.SelectedMedia
 }
 func (p *NativeMediaPicker) Release(token string) { p.Grants.Release(token) }
 
+func (p *NativeMediaPicker) PickMany(ctx context.Context) ([]application.SelectedMedia, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: p.Parent, Multiple: true, Filters: []mygo.FileFilter{{Name: "Meeting Media", Extensions: []string{"m4a", "mp3", "wav", "aac", "flac", "mp4", "mov", "mkv"}}}})
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if err != nil || len(paths) > 32 {
+		return nil, application.ErrJobInput
+	}
+	selected := make([]application.SelectedMedia, 0, len(paths))
+	seen := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		media, err := p.Grants.Authorize(path)
+		if err != nil {
+			for _, prior := range selected {
+				p.Grants.Release(prior.Token)
+			}
+			return nil, application.ErrJobInput
+		}
+		selected = append(selected, media)
+	}
+	return selected, nil
+}
+
 type NewJobView struct {
 	Client      *client.SubmissionController
 	Runtime     *client.RuntimeController
@@ -52,7 +82,12 @@ type NewJobView struct {
 	WarnRuntime func()
 }
 
-func (v *NewJobView) msg(key string) string { return presentation.Message(v.Locale, "newJob."+key) }
+func (v *NewJobView) msg(key string) string {
+	if key == "localFileRule" {
+		return localized(v.Locale, "本地模式按文件分别创建任务", "Local mode creates a separate task for each file")
+	}
+	return presentation.Message(v.Locale, "newJob."+key)
+}
 func localJobRuntimeReady(runtime *client.RuntimeController) bool {
 	return runtime != nil && runtime.Error == nil && runtime.Panel != nil && runtime.Panel.Overview.ShellReady
 }
@@ -60,7 +95,7 @@ func (v *NewJobView) ready() bool {
 	return !v.Remote && localJobRuntimeReady(v.Runtime)
 }
 func (v *NewJobView) submit() {
-	if v.Remote || v.Client.Unavailable || v.Client.Busy || v.Client.Picking || v.Client.Media == nil || strings.TrimSpace(v.Client.Form.Title) == "" {
+	if v.Remote || !v.Client.CanSubmit() {
 		return
 	}
 	if !v.ready() {
@@ -76,7 +111,7 @@ func (v *NewJobView) View(c *ui.Context) {
 	width, _ := c.Size()
 	unavailable := v.Remote || v.Client.Unavailable
 	narrow := width <= 680
-	ui.Scroll(c).Fill().Children(func() {
+	contentScroll(c).Fill().Children(func() {
 		page := ui.Column(c).FillWidth().MaxWidth(1180).AlignSelf(ui.Center).Padding(12, 8, 36).Gap(24)
 		if narrow {
 			page.Padding(8, 2, 28).Gap(18)
@@ -92,7 +127,7 @@ func (v *NewJobView) View(c *ui.Context) {
 					copy.Grow(1)
 				}
 				copy.Children(func() {
-					title := ui.Text(c, v.msg("heroTitle")).FontSize(28).Bold()
+					title := ui.Text(c, v.msg("heroTitle")).FontSize(28)
 					if narrow {
 						title.FontSize(24)
 					}
@@ -122,7 +157,7 @@ func (v *NewJobView) View(c *ui.Context) {
 				}
 				source.Children(func() {
 					v.heading(c, "01", "inputFiles", "localFileRule")
-					if v.Client.Media == nil {
+					if v.Client.SelectionCount() == 0 {
 						b := ui.ButtonBase(c).FillWidth().MinHeight(342).Padding(32).Radius(12).Border(1, c.Theme().Accent.Alpha(0.38)).Background(palette(c).Selected.Alpha(0.3)).Label(v.msg("addFiles")).Disabled(unavailable || v.Client.Picking || v.Client.Busy)
 						if narrow {
 							b.MinHeight(280).Padding(24, 18)
@@ -130,7 +165,7 @@ func (v *NewJobView) View(c *ui.Context) {
 						b.Children(func() {
 							ui.Column(c).FillWidth().Gap(16).AlignItems(ui.Center).Children(func() {
 								ui.Icon(c, presentation.Icon("tray")).Size(42, 42).TextColor(palette(c).NavAccent)
-								ui.Text(c, v.msg("addFiles")).FontSize(17).Bold()
+								ui.Text(c, v.msg("addFiles")).FontSize(17)
 								ui.Text(c, v.msg("desktopFilePicker")).FillWidth().TextAlign(ui.Center).FontSize(13).TextColor(c.Theme().TextMuted)
 								ui.Text(c, v.msg("supportedFormats")).FillWidth().TextAlign(ui.Center).FontSize(11).TextColor(c.Theme().TextMuted)
 							})
@@ -149,7 +184,7 @@ func (v *NewJobView) View(c *ui.Context) {
 								selectedHeader.Column().AlignItems(ui.Start)
 							}
 							selectedHeader.Children(func() {
-								count := ui.Text(c, presentation.Format(v.Locale, "newJob.selectedFiles", map[string]any{"count": 1})).FontSize(13).Bold()
+								count := ui.Text(c, presentation.Format(v.Locale, "newJob.selectedFiles", map[string]any{"count": v.Client.SelectionCount()})).FontSize(13)
 								if !narrow {
 									count.Grow(1)
 								}
@@ -162,11 +197,13 @@ func (v *NewJobView) View(c *ui.Context) {
 									}
 								})
 							})
-							if media := v.Client.Media; media != nil {
+							if len(v.Client.Batch) > 0 {
+								v.batchFiles(c)
+							} else if media := v.Client.Media; media != nil {
 								ui.Row(c).FillWidth().Padding(12).Radius(10).Background(palette(c).Subpanel).Gap(12).Children(func() {
 									ui.Icon(c, presentation.Icon("doc")).Size(32, 32)
 									ui.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
-										ui.Text(c, media.Name).FillWidth().FontSize(13).Bold().SingleLine().Tooltip(media.Name)
+										ui.Text(c, media.Name).FillWidth().FontSize(13).SingleLine().Tooltip(media.Name)
 										ui.Text(c, presentation.Message(v.Locale, "common."+media.Kind)+" · "+presentation.Message(v.Locale, "common.localPath")).FontSize(11).TextColor(c.Theme().TextMuted)
 									})
 									label := presentation.Format(v.Locale, "newJob.removeFile", map[string]any{"name": media.Name})
@@ -177,6 +214,7 @@ func (v *NewJobView) View(c *ui.Context) {
 							}
 						})
 					}
+					ui.Text(c, localized(v.Locale, "一次最多选择 32 个文件；每个文件单独进入任务队列，失败项可单独重试。", "Select up to 32 files. Each file enters the task queue separately; failed admissions can be retried.")).FillWidth().FontSize(11).TextColor(c.Theme().TextMuted)
 					ui.Text(c, v.msg("mediaSupported")).FontSize(11).TextColor(c.Theme().TextMuted)
 				})
 				config := ui.Column(c).Width(340).Shrink(0).Radius(14).Background(palette(c).Panel)
@@ -187,13 +225,15 @@ func (v *NewJobView) View(c *ui.Context) {
 					ui.Column(c).FillWidth().Padding(22, 20, 20).Gap(20).Children(func() {
 						v.heading(c, "02", "basicInfo", "")
 						ui.Column(c).FillWidth().Gap(8).Children(func() {
-							ui.Text(c, v.msg("jobTitle")+" *").FontSize(12).Bold()
-							if ui.TextInput(c, &v.Client.Form.Title).FillWidth().MinHeight(44).Label(v.msg("jobTitle")).Placeholder(v.msg("titlePlaceholder")).Disabled(v.Client.Busy).AutoFocus().Submitted() {
+							ui.Text(c, v.msg("jobTitle")+" *").FontSize(12)
+							if len(v.Client.Batch) > 0 {
+								ui.Text(c, localized(v.Locale, "在左侧逐个修改任务名称；以下设置应用于待创建的全部文件。", "Edit each title in the file list. The settings below apply to all pending files.")).FillWidth().FontSize(12)
+							} else if ui.TextInput(c, &v.Client.Form.Title).FillWidth().Label(v.msg("jobTitle")).Placeholder(v.msg("titlePlaceholder")).Disabled(v.Client.Busy).AutoFocus().Submitted() {
 								v.submit()
 							}
 						})
 						separator(c)
-						ui.Text(c, v.msg("advancedSettings")).FontSize(13).Bold()
+						ui.Text(c, v.msg("advancedSettings")).FontSize(13)
 						language := ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Center)
 						if narrow {
 							language.Column().AlignItems(ui.Stretch)
@@ -204,7 +244,7 @@ func (v *NewJobView) View(c *ui.Context) {
 								copy.Grow(1)
 							}
 							copy.Children(func() {
-								ui.Text(c, v.msg("language")).FontSize(12).Bold()
+								ui.Text(c, v.msg("language")).FontSize(12)
 								ui.Text(c, v.msg("languageHint")).FillWidth().FontSize(10).TextColor(c.Theme().TextMuted)
 							})
 							labels := []string{v.msg("langZh"), v.msg("langEn"), v.msg("langJa")}
@@ -215,7 +255,7 @@ func (v *NewJobView) View(c *ui.Context) {
 									selected = labels[j]
 								}
 							}
-							selectLanguage := ui.Select(c, &selected, labels).Width(108).MinHeight(40).Label(v.msg("language")).Disabled(v.Client.Busy)
+							selectLanguage := selectControl(c, &selected, labels).Width(108).Label(v.msg("language")).Disabled(v.Client.Busy)
 							if narrow {
 								selectLanguage.FillWidth()
 							}
@@ -238,13 +278,13 @@ func (v *NewJobView) View(c *ui.Context) {
 								copy.Grow(1)
 							}
 							copy.Children(func() {
-								ui.Text(c, v.msg("speaker")).FontSize(12).Bold()
+								ui.Text(c, v.msg("speaker")).FontSize(12)
 								ui.Text(c, v.msg("speakerHint")).FillWidth().FontSize(10).TextColor(c.Theme().TextMuted)
 							})
 							ui.Switch(c, &v.Client.Form.Speaker).Label(v.msg("speaker")).Disabled(v.Client.Busy)
 						})
 						separator(c)
-						ui.Text(c, presentation.Message(v.Locale, "settings.defaultSummaryTemplate")).FontSize(12).Bold()
+						ui.Text(c, presentation.Message(v.Locale, "settings.defaultSummaryTemplate")).FontSize(12)
 						template := strings.TrimSpace(v.Client.Form.SummaryTemplate)
 						if template == "" {
 							template = v.msg("defaultSummaryTemplateName")
@@ -302,7 +342,11 @@ func (v *NewJobView) View(c *ui.Context) {
 						if v.Client.Busy {
 							label = "creating"
 						}
-						if ui.PrimaryButton(c, v.msg(label)).FillWidth().MinHeight(46).Disabled(unavailable || v.Client.Busy || v.Client.Picking || v.Client.Media == nil || strings.TrimSpace(v.Client.Form.Title) == "").Clicked() {
+						caption := v.msg(label)
+						if len(v.Client.Batch) > 0 && !v.Client.Busy {
+							caption = localized(v.Locale, "创建待处理任务", "Create pending jobs")
+						}
+						if ui.PrimaryButton(c, caption).FillWidth().MinHeight(46).Disabled(unavailable || !v.Client.CanSubmit()).Clicked() {
 							v.submit()
 						}
 					})
@@ -313,9 +357,9 @@ func (v *NewJobView) View(c *ui.Context) {
 }
 func (v *NewJobView) heading(c *ui.Context, step, title, hint string) {
 	ui.Row(c).FillWidth().Gap(12).Children(func() {
-		ui.Row(c).Size(30, 30).Shrink(0).Radius(15).Background(palette(c).Selected).AlignItems(ui.Center).Justify(ui.Center).Children(func() { ui.Text(c, step).SingleLine().FontSize(11).Bold().TextColor(palette(c).NavAccent) })
+		ui.Row(c).Size(30, 30).Shrink(0).Radius(15).Background(palette(c).Selected).AlignItems(ui.Center).Justify(ui.Center).Children(func() { ui.Text(c, step).SingleLine().FontSize(11).TextColor(palette(c).NavAccent) })
 		ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
-			ui.Text(c, v.msg(title)).FontSize(17).Bold()
+			ui.Text(c, v.msg(title)).FontSize(17)
 			if hint != "" {
 				ui.Text(c, v.msg(hint)).FillWidth().FontSize(12).TextColor(c.Theme().TextMuted)
 			}

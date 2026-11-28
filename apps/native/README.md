@@ -1,6 +1,6 @@
 # Liberty 原生候选客户端
 
-最后核实：2026-11-23。`apps/native` 使用 Go + MyGo，是日常开发、验证和启动入口；**正式生产发布入口暂时仍为 `apps/desktop`**。旧 React/Tauri 仅作为 Native 验收期间冻结的临时生产入口与迁移对照；Native 完整验收与生产切换完成后，旧端及其发布链必须在同一退役变更中删除，不作长期兼容维护。候选包使用独立资料身份。新端开发见[开发指南](../../docs/development.md)，模块职责和数据契约见[原生架构](../../docs/architecture/native-desktop-architecture.md)。
+文档核对：2026-11-28（当前源码与脚本，不表示重跑实机验收）。`apps/native` 使用 Go + MyGo，是日常开发、验证和启动入口；**正式生产发布入口暂时仍为 `apps/desktop`**。旧 React/Tauri 仅作为 Native 验收期间冻结的临时生产入口与迁移对照；Native 完整验收与生产切换完成后，旧端及其发布链必须在同一退役变更中删除，不作长期兼容维护。候选包使用独立资料身份。新端开发见[开发指南](../../docs/development.md)，模块职责和数据契约见[原生架构](../../docs/architecture/native-desktop-architecture.md)。
 
 ## 启动与验证入口
 
@@ -19,7 +19,7 @@ pnpm native:launch
 pnpm native:package
 ```
 
-`native:package` 输出本机候选包的确切路径。macOS 启动器通过 `open <确切 .app 路径>` 启动或激活同构建实例；Windows 核实已有可执行文件、进程身份与唯一主窗口后，恢复窗口并核对前台状态。激活失败会返回错误，不重复启动。Windows 分支已通过启动器协议测试，真实窗口激活仍需 Windows 验收。构建后先正常退出当前候选，再启动新包才能加载修改；已有窗口不会自动更新。
+`native:package` 输出本机候选包的确切路径。macOS 启动器通过 `open <确切 .app 路径>` 启动或激活同构建实例；Windows 核实已有可执行文件、进程身份与唯一主窗口后，恢复窗口并核对前台状态。激活失败会返回错误，不重复启动。Windows 分支有启动器协议测试覆盖，真实窗口激活仍需 Windows 验收。构建后先正常退出当前候选，再启动新包才能加载修改；已有窗口不会自动更新。
 
 候选打包支持 `--target darwin-arm64`、`darwin-x64`、`windows-x64`；macOS 输出未签名/未公证应用，Windows 输出便携包。`native:package` 只核对根 `package.json` 与 `apps/native/internal/host/profile.go` 的 Native 版本，以及候选/生产资料身份；生产 Release 的版本一致性仍由发布检查单独核对旧生产来源。候选打包核验所选目标与归档；三目标编译及测试包交叉编译由 `native:build:matrix` 覆盖。编译、归档检查均不等于目标平台执行或安装器验收。
 
@@ -40,8 +40,10 @@ pnpm native:preview --writable --theme light
 
 - macOS Apple Silicon / Intel：下载对应架构的 `.dmg`，打开后将 `Liberty Native Candidate.app` 拖入 Applications。应用使用免费的 ad-hoc 临时签名，未经过 Developer ID 签名与 Apple 公证，首次启动可能出现系统安全提示。
 - Windows x64：下载 `.msi` 并安装到当前用户；没有可信发布者证书，不宣称消除 Windows 安全提示。卸载保留会议、模型、凭据和资料目录。
-- 设置底部的“从 GitHub 下载更新”打开 `whalesky-labs/Liberty` 的 Releases 列表，包含预发行版本，避免 `/latest` 指向旧稳定端。选择匹配架构的安装包，正常退出候选后更新。当前是用户主动下载并安装，不是后台自动更新；数据库回滚仍按本页的备份规则处理。
+- 手动安装更新时，从 [`whalesky-labs/Liberty` 的 Releases 列表](https://github.com/whalesky-labs/Liberty/releases)选择匹配架构的安装包；列表包含预发行版本。正常退出候选后安装更新。当前是用户主动下载并安装，不是后台自动更新；数据库回滚仍按本页的备份规则处理。
 - 安装包不包含完整 Python、ffmpeg、依赖与模型；本地转写的首次运行时安装仍需联网。
+
+设置「关于 → 检查更新」和应用菜单打开同一个独立 MyGo 原生更新窗口（系统标题栏及关闭按钮，不在主界面绘制遮罩）：检查时可取消，完成后显示当前已是最新版、发现新版本或检查失败。预发布版本默认检查预览通道（含正式版与预发行版），正式版本默认检查正式通道；可在「关于」中切换。按语义版本号比较，不将较旧正式版作为升级。发现更新时显示版本、发布日期和 GitHub Release 正文，点击「前往下载」才打开该版本的发行页。检查由用户主动触发，匿名读取固定仓库的公开信息；完整成功结果在进程内缓存 5 分钟并显示原检查时间。GitHub 限流按当前网络出口共享，提示服务端限制及可重试时间，不归因为用户频繁操作；冷却期内重复点击或关闭重开不会发起请求，到期只启用重试按钮。失败与空通道均不误报为已是最新版。
 
 `pnpm native:package` 继续产生供开发启动和发布核验使用的便携输入。完整门禁通过后，`build-native.yml` 在匹配主机执行 `native:installers:build`，从已核验归档制作并实际解包执行安装器内的程序，再上传归档、安装器和来源清单。社区安装器不读取签名秘密；可选证书签名的 `native:distribution:*` 仍执行原有信任与公证检查。
 
@@ -93,23 +95,22 @@ binary='./Liberty Native Candidate.app/Contents/MacOS/liberty-native'
 
 ## 当前业务范围
 
-- 工作台、任务创建/队列/详情、持久调度、重试和删除；资料恢复目前限离线 CLI 操作，恢复 GUI 未完整验收。
-- 独立结果窗口、讲话人改名、TXT/Markdown/DOCX、AI 总结运行及只读纪要。
+- 工作台、单文件或最多 32 个文件批量入队、队列/详情、持久调度、重试和删除；资料恢复目前限离线 CLI 操作，恢复 GUI 未完整验收。
+- 独立结果窗口、逐句回听/倍速/校对、讲话人改名、独立人工纪要与来源关联、可选 AI 总结及 TXT/Markdown/DOCX；见[会议工作流](../../docs/meeting-workflow.md)。
+- 麦克风实时转写、离线中英互译、字幕编辑与导出；系统声音和混合输入适配及实机边界见[实时翻译](../../docs/live-translation.md)。
 - 模型/模板/人员编辑、Excel 导入导出、设置、运行时与诊断。
 - 远端能力协商与已开放操作；连接快照绑定窗口，当前没有远端上传或总结写入。
 - 桌宠、多开、商店、签到/补签、盲盒、兑换、农场及打工；工厂“需照看”可选进入装配练习，原一键照看保持可用；规则见[宠物系统](../../docs/pet-system.md)。
 
 只读入口不提供可写服务。可写候选关闭前排空设置保存，检查资源编辑器的未保存内容和在途操作，再停止服务和释放锁。OS 强制终止不能等同于未保存表单恢复。
 
-原生设置与主菜单复用同一主题和导航样式；组件测试、截图和平台窗口验收分别记录。历史详细验收从此 README 归档至[模块说明快照](../../docs/ai/reviews/2026-11-20-native-module-reference-snapshot.md)，不再在快速操作入口累积逐次测试日志。
-
-2026-11-23 已在 macOS Apple Silicon 原生窗口完成合成录音选择、转写、测试服务总结、纪要保存、完整结果导出及退出后持久化验收。页面验收覆盖双语主题切换、资源编辑校验、宠物成长、签到、盲盒及工厂练习；范围与提交证据见[发布要求](../../docs/architecture/release-readiness.md#2026-11-23-source-and-interactive-acceptance)。其他平台 GUI、完整输入法组合与系统读屏仍需验收。
+原生设置与主菜单复用同一主题和导航样式；当前界面规则见[原生界面](../../docs/architecture/native-ui.md)。组件测试、原生交互、输入法和读屏验收分别执行，剩余门槛见[发布要求](../../docs/architecture/release-readiness.md#outstanding-acceptance)。
 
 ## 运行时与安全候选
 
 唯一清单是共享的 [runtime-manifest.json](../../packages/desktop-resources/runtime/runtime-manifest.json)，四个固定模型角色及其 pinned revision 和缓存发布脚本也从同一资源目录嵌入。默认生产配置已固定 Python 3.11.18、三平台依赖锁、builder、recipe 和五件 vendor 产物摘要。安装器下载固定原包，以托管 Python 的标准库模式构建 FunASR local2 修正版；逐件校验后，pip 从私有输入快照安装哈希锁依赖。普通安装无需调用者提供 sidecar，仍需联网下载其余依赖和模型。`security-candidate` 保持独立显式配置。托管安装先检查解释器完整版本，再校验依赖和模型；正常启动会对托管解释器做内容摘要缓存校验，文件变化时重新执行完整版本探针；显式 system Python 仍按系统解释器策略处理。
 
-当前支持范围限四个固定 FunASR 模型；Transformers 5.x 的 Torch 后端在保留 Torch 2.2.2 时停用。三平台生产扫描已通过现有策略，未扩大例外；无豁免扫描仍有 Torch 已知漏洞。安全门禁及实际安装证据见[发布要求](../../docs/architecture/release-readiness.md)。
+当前默认支持范围限四个固定 FunASR 模型；Transformers 5.x 的 Torch 后端在保留 Torch 2.2.2 时停用。Torch 的已知漏洞按有期限的例外管理，必须按本次交付输入重新扫描；当前策略及期限见[发布要求](../../docs/architecture/release-readiness.md#runtime-and-supply-chain)，不能沿用历史通过记录。
 
 原生候选输入的显式交付流程：
 
@@ -138,4 +139,4 @@ pnpm native:package --target darwin-arm64 --runtime-input-directory /absolute/ne
 | XLSX 文件与人员事务 | [memberxlsx](internal/infrastructure/memberxlsx/README.md) |
 | 日志与诊断脱敏 | [diagnostics](internal/infrastructure/diagnostics/README.md) |
 
-`pnpm native:compat` 校验并重放[冻结的 Rust 黄金样本](../../packages/desktop-resources/fixtures/native-v10/README.md)，覆盖 Go 查询/事务/重开、迁移、业务差分及 XLSX/DOCX。恢复 journal 与跨进程锁由 Native 自身回归验证；当前不再执行 Go/Rust 双向互操作。`pnpm native:build:matrix` 仅编译三目标。截至 2026-11-22，默认 Python 3.11.18 生产配置已在 macOS ARM 完成真实安装、四模型离线验证、Runner／host 两种说话人模式及重开持久化验收；82 项已安装依赖通过现有安全策略，未过滤扫描仍有 Torch 已知漏洞。Windows x64 和 Intel Mac 仍缺真实运行时结果。真实系统凭据、运行时、会议 GUI、远端服务和读取性能使用独立验收命令，参数与副作用统一见[开发指南](../../docs/development.md)。正式发布条件见[发布就绪检查](../../docs/architecture/release-readiness.md)。
+`pnpm native:compat` 校验并重放[冻结的 Rust 黄金样本](../../packages/desktop-resources/fixtures/native-v10/README.md)，覆盖 Go 查询/事务/重开、迁移、业务差分及 XLSX/DOCX。恢复 journal 与跨进程锁由 Native 自身回归验证；当前不执行 Go/Rust 双向互操作。`pnpm native:build:matrix` 仅编译三目标。真实系统凭据、运行时、会议 GUI、远端服务和性能使用独立验收，参数与副作用见[开发指南](../../docs/development.md)；通过一次样本或复用缓存不能代替目标平台的新安装、质量和完整交互验收。正式发布条件见[发布就绪检查](../../docs/architecture/release-readiness.md)。

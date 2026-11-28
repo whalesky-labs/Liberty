@@ -19,12 +19,14 @@ type Settings struct {
 	Device          string `json:"localAsrDevice"`
 	Threads         uint32 `json:"localAsrThreads"`
 	BatchSeconds    uint32 `json:"localAsrBatchSizeSeconds"`
+	LiveDeviceID    string `json:"liveDeviceId"`
+	LiveTranslate   bool   `json:"liveTranslate"`
 	DownloadSource  string `json:"runtimeDownloadSource"`
 	Revision        int64  `json:"settingsRevision"`
 }
 
 func DefaultSettings() Settings {
-	return Settings{UIPreferences: DefaultUIPreferences(), ProcessingMode: "local", DefaultHotwords: "SeACo-Paraformer, FunASR, 会议纪要", SummaryTemplate: "表格版会议纪要", Concurrency: 2, Device: "auto", BatchSeconds: 300}
+	return Settings{UIPreferences: DefaultUIPreferences(), ProcessingMode: "local", DefaultHotwords: "SeACo-Paraformer, FunASR, 会议纪要", SummaryTemplate: "表格版会议纪要", Concurrency: 2, Device: "auto", BatchSeconds: 300, LiveTranslate: true}
 }
 
 var hexAccent = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -53,6 +55,10 @@ func (s Settings) Normalized() Settings {
 	s.DefaultHotwords = strings.TrimSpace(s.DefaultHotwords)
 	s.SummaryTemplate = strings.TrimSpace(s.SummaryTemplate)
 	s.RunnerPath = strings.TrimSpace(s.RunnerPath)
+	s.LiveDeviceID = strings.TrimSpace(s.LiveDeviceID)
+	if len(s.LiveDeviceID) > 512 || strings.ContainsAny(s.LiveDeviceID, "\x00\r\n") {
+		s.LiveDeviceID = ""
+	}
 	s.DownloadSource = strings.TrimSpace(s.DownloadSource)
 	if s.Device != "cpu" && s.Device != "mps" && s.Device != "cuda" {
 		s.Device = "auto"

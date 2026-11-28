@@ -18,6 +18,7 @@ import (
 	"liberty.local/liberty/internal/infrastructure/managed"
 	"liberty.local/liberty/internal/infrastructure/profile"
 	"liberty.local/liberty/internal/infrastructure/repositories/jobdb"
+	"liberty.local/liberty/internal/infrastructure/system"
 )
 
 func TestPinnedHostRuntimeAcceptance(t *testing.T) {
@@ -132,6 +133,13 @@ func TestPinnedHostRuntimeAcceptance(t *testing.T) {
 	if err := host.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
+	metrics := &system.MetricsSampler{}
+	baseline, err := metrics.Sample(ctx)
+	if err != nil {
+		t.Fatal("process-tree metrics unavailable", err)
+	}
+	peakMemory := baseline.MemoryBytes
+	lastSample := time.Now()
 	completed := map[string]domain.Result{}
 	for _, speaker := range []bool{false, true} {
 		selected, err := host.Selections.Authorize(input)
@@ -144,6 +152,14 @@ func TestPinnedHostRuntimeAcceptance(t *testing.T) {
 		}
 		ticker := time.NewTicker(100 * time.Millisecond)
 		for {
+			if time.Since(lastSample) >= time.Second {
+				usage, err := metrics.Sample(ctx)
+				if err != nil {
+					t.Fatal("runtime process metrics failed", err)
+				}
+				peakMemory = max(peakMemory, usage.MemoryBytes)
+				lastSample = time.Now()
+			}
 			result, err := host.Meetings.Result(ctx, id)
 			if err != nil {
 				ticker.Stop()
@@ -183,9 +199,39 @@ func TestPinnedHostRuntimeAcceptance(t *testing.T) {
 		if result.Job.DiarizationStatus != expected {
 			t.Fatal("host diarization state mismatch", result.Job.DiarizationStatus)
 		}
+		if len(result.SummaryRuns) != 0 || result.Job.SummaryStatus != "idle" {
+			t.Fatal("basic transcription started AI without user action")
+		}
+		scopes := application.NewWindowScopes(host.Meetings)
+		scopes.EnableEditing(host.SpeakerWriter)
+		grant, err := scopes.OpenFromMain(ctx, application.Workbench, "local", id)
+		if err != nil {
+			t.Fatal("free result scope unavailable", err)
+		}
+		segment := result.PrimarySegments()[0]
+		corrected := segment.Text + " [verified]"
+		if err := grant.EditSegment(ctx, domain.SegmentEdit{Original: segment, Text: corrected, Speaker: segment.Speaker}); err != nil {
+			t.Fatal("credential-free correction failed", err)
+		}
+		for _, kind := range []domain.TextExportKind{domain.ExportTranscript, domain.ExportBundle} {
+			var exported []byte
+			if err := grant.ExportText(ctx, kind, domain.TextExportLabels{TranscriptHeading: "Transcript"}, func(data []byte) error { exported = data; return nil }); err != nil || !strings.Contains(string(exported), corrected) {
+				t.Fatal("credential-free export omitted saved correction", kind, err)
+			}
+		}
+		grant.Close()
+		completed[id], err = host.Meetings.Result(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
 		t.Logf("host transcription completed: speaker=%t transcript=%d speakers=%d", speaker, len(result.Transcript), len(result.Speakers))
 	}
 	host.Close()
+	postStop, err := metrics.Sample(ctx)
+	if err != nil {
+		t.Fatal("post-shutdown process metrics unavailable", err)
+	}
+	t.Logf("Whole-process-tree memory: before %.1f MiB, peak %.1f MiB, after shutdown %.1f MiB; this test process excludes GUI and does not establish the 8 GiB target.", float64(baseline.MemoryBytes)/(1<<20), float64(peakMemory)/(1<<20), float64(postStop.MemoryBytes)/(1<<20))
 	reopened, _, err := OpenHandoverWithRuntimeProfile(ctx, database, false, runtimeProfile)
 	if err != nil {
 		t.Fatal("completed profile could not reopen", err)
@@ -216,5 +262,5 @@ func TestPinnedHostRuntimeAcceptance(t *testing.T) {
 			t.Fatal("host workflow rewards did not persist exactly once per job", event, counts[event])
 		}
 	}
-	t.Log("both host results and workflow rewards survived profile shutdown and reopen")
+	t.Log("Without AI configuration: real transcription, diarization, saved correction, TXT/Markdown exports and reopen passed; no AI summary was created.")
 }

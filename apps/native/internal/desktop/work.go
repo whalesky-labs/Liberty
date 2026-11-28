@@ -45,8 +45,8 @@ func (v *WorkMarketView) View(c *ui.Context) {
 	if width <= 820 {
 		columns = 1
 	}
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Gap(14).Children(func() {
+	contentScroll(c).Fill().Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(shellContentMaxWidth).AlignSelf(ui.Center).Gap(14).Children(func() {
 			hero := ui.Grid(c).FillWidth().MinHeight(280).ColumnTracks(ui.Fr(.86), ui.Fr(1.14).Min(320)).Gap(12).Padding(14, 16).Radius(10).Border(1, palette(c).Separator).Background(palette(c).Panel).Clip().Label(workText(locale, "Work map overview", "打工地图概览"))
 			if width <= 820 {
 				hero.Columns(1)
@@ -54,7 +54,7 @@ func (v *WorkMarketView) View(c *ui.Context) {
 			hero.Children(func() {
 				ui.Column(c).MinWidth(0).Justify(ui.Center).Gap(8).Children(func() {
 					ui.Text(c, workText(locale, "Work Games", "打工地图")).FontSize(13).TextColor(c.Theme().TextMuted)
-					ui.Text(c, workText(locale, "Niuma Market", "牛马市场")).FontSize(23).FontWeight(720).Role(ui.RoleHeading).Level(1)
+					ui.Text(c, workText(locale, "Niuma Market", "牛马市场")).FontSize(23).Role(ui.RoleHeading).Level(1)
 					ui.Text(c, workText(locale, "Pick a mini-game map and turn small breaks into pet items.", "选择一个打工小游戏地图，把碎片时间变成宠物商品收益。")).FillWidth().FontSize(13).LineHeight(1.55).TextColor(c.Theme().TextMuted)
 				})
 				ui.Box(c).FillWidth().MinHeight(240).Radius(22).Clip().Children(func() {
@@ -116,11 +116,11 @@ func (v *WorkMarketView) mapCard(c *ui.Context, entry domain.WorkMap) {
 			case "locked":
 				background, color = ui.RGBA(239, 241, 242, .9), ui.Hex("#59616a")
 			}
-			ui.Text(c, status).Absolute().Top(12).Left(12).MinHeight(30).Padding(6, 12).Radius(15).Background(background).TextColor(color).FontSize(13).FontWeight(800)
+			ui.Text(c, status).Absolute().Top(12).Left(12).MinHeight(30).Padding(6, 12).Radius(15).Background(background).TextColor(color).FontSize(13)
 		})
 		ui.Column(c).FillWidth().FillHeight().Grow(1).Padding(16).Gap(14).Children(func() {
 			ui.Column(c).FillWidth().Gap(6).Children(func() {
-				ui.Text(c, name).FillWidth().FontSize(18).Bold()
+				ui.Text(c, name).FillWidth().FontSize(18)
 				ui.Text(c, workText(locale, entry.DescriptionEn, entry.DescriptionZh)).FillWidth().FontSize(14).LineHeight(1.55).TextColor(c.Theme().TextMuted)
 			})
 			ui.Box(c).Grow(1).MinHeight(0)
@@ -137,7 +137,7 @@ func (v *WorkMarketView) mapCard(c *ui.Context, entry domain.WorkMap) {
 					label string
 					value int64
 				}{{workText(locale, "Active", "进行中"), entry.Summary.ActivePlots}, {workText(locale, "Care", "需照看"), entry.Summary.NeedsCarePlots}, {workText(locale, "Ready", "可收获"), entry.Summary.MaturePlots}} {
-					ui.Text(c, fmt.Sprintf("%s %d", stat.label, stat.value)).MinHeight(28).Padding(6, 10).Radius(14).Background(palette(c).Subpanel.Mix(c.Theme().Accent, .08)).FontSize(12).Bold()
+					ui.Text(c, fmt.Sprintf("%s %d", stat.label, stat.value)).MinHeight(28).Padding(6, 10).Radius(14).Background(palette(c).Subpanel.Mix(c.Theme().Accent, .08)).FontSize(12)
 				}
 			})
 		})
@@ -245,7 +245,7 @@ func (v *FarmView) View(c *ui.Context) {
 				return
 			}
 			p := *selected
-			ui.Text(c, fmt.Sprintf("%s %d", workText(locale, "Plot", "地块"), p.PlotIndex)).FontSize(16).Bold().TextColor(ui.RGB(255, 255, 255))
+			ui.Text(c, fmt.Sprintf("%s %d", workText(locale, "Plot", "地块"), p.PlotIndex)).FontSize(16).TextColor(ui.RGB(255, 255, 255))
 			ui.Text(c, farmStatusLabel(locale, p.Status)).FontSize(13).TextColor(ui.RGB(255, 255, 255))
 			ui.Text(c, farmCropLabel(locale, p)).FontSize(11).TextColor(ui.RGBA(255, 255, 255, .7))
 			label := farmActionLabel(locale, p.Status)
@@ -262,7 +262,7 @@ func (v *FarmView) View(c *ui.Context) {
 			if harvest := v.Client.LastHarvest; harvest != nil {
 				title := workText(locale, "Harvest collected", "收获已领取")
 				summary := workRewardSummary(locale, harvest.Rewards, harvest.LPReward)
-				ui.Text(c, title).FontSize(12).Bold().TextColor(ui.RGB(255, 255, 255))
+				ui.Text(c, title).FontSize(12).TextColor(ui.RGB(255, 255, 255))
 				ui.Text(c, summary).FillWidth().FontSize(11).TextColor(ui.RGB(255, 255, 255)).Role(ui.RoleStatus).Label(title + ": " + summary)
 			}
 			workError(c, locale, v.Client, v.Client.LoadFarm)
@@ -435,7 +435,7 @@ func (v *WorkGameView) View(c *ui.Context) {
 				return
 			}
 			t := *selected
-			ui.Text(c, gameJobLabel(locale, t.Job)).FontSize(16).Bold().TextColor(ui.RGB(255, 255, 255))
+			ui.Text(c, gameJobLabel(locale, t.Job)).FontSize(16).TextColor(ui.RGB(255, 255, 255))
 			ui.Text(c, workStatusLabel(locale, t.Status)).FontSize(12).TextColor(ui.RGBA(255, 255, 255, .8))
 			ui.Text(c, fmt.Sprintf("%s  %d%%", workText(locale, "Progress", "进度"), int(t.ProgressRatio*100+.5))).FontSize(11).TextColor(ui.RGBA(255, 255, 255, .8))
 			progressBar(c, float32(t.ProgressRatio*100), workText(locale, "Work task progress", "工作进度"))
@@ -458,7 +458,7 @@ func (v *WorkGameView) View(c *ui.Context) {
 			if v.Client.LastReward != nil && v.Client.LastReward.GameKey == v.GameKey {
 				title := workText(locale, "Reward claimed", "奖励已领取")
 				summary := workRewardSummary(locale, v.Client.LastReward.Rewards, v.Client.LastReward.LPReward)
-				ui.Text(c, title).FontSize(12).Bold().TextColor(ui.RGB(255, 255, 255))
+				ui.Text(c, title).FontSize(12).TextColor(ui.RGB(255, 255, 255))
 				ui.Text(c, summary).FillWidth().FontSize(11).TextColor(ui.RGB(255, 255, 255)).Role(ui.RoleStatus).Label(title + ": " + summary)
 			}
 			if v.GameKey == "factory" && v.OpenAssembly != nil {
@@ -585,7 +585,7 @@ func workHeader(c *ui.Context, locale, title string, active, care, ready int64, 
 			if ui.Button(c, workText(locale, "Back", "返回牛马市场")).Disabled(back == nil).MinHeight(30).Background(ui.RGBA(255, 255, 255, .12)).TextColor(ui.RGB(255, 255, 255)).HandleInput(workIgnoreRepeat).Clicked() {
 				back()
 			}
-			ui.Text(c, title).MinWidth(0).FontSize(17).Bold().TextColor(ui.RGB(255, 255, 255)).Role(ui.RoleHeading).Level(1)
+			ui.Text(c, title).MinWidth(0).FontSize(17).TextColor(ui.RGB(255, 255, 255)).Role(ui.RoleHeading).Level(1)
 		})
 		if compact {
 			return
@@ -611,7 +611,7 @@ func workHUD(c *ui.Context, root ui.Element, farm bool, children func()) ui.Elem
 	if viewportWidth <= 0 {
 		viewportWidth, _ = c.Size()
 	}
-	hud := ui.Scroll(c).Absolute().Left(inset).Bottom(inset).Width(width).MaxWidth(max(1, viewportWidth-2*inset)).MaxHeight(max(1, min(height-112, height*.6))).Radius(8).Background(ui.RGBA(24, 27, 29, .76))
+	hud := contentScroll(c).Absolute().Left(inset).Bottom(inset).Width(width).MaxWidth(max(1, viewportWidth-2*inset)).MaxHeight(max(1, min(height-112, height*.6))).Radius(8).Background(ui.RGBA(24, 27, 29, .76))
 	hud.Children(func() {
 		ui.Column(c).FillWidth().Padding(12).Gap(9).Children(children)
 	})

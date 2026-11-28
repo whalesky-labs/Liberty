@@ -32,7 +32,16 @@ const MIGRATIONS: &[Migration] = &[
         "automatic live language",
         migrate_v12_live_auto_language,
     ),
+    Migration::new(13, "native meeting drafts", migrate_v13_meeting_drafts),
 ];
+
+fn migrate_v13_meeting_drafts(transaction: &Transaction<'_>) -> LocalResult<()> {
+    transaction
+        .execute_batch(include_str!(
+            "../../../../../packages/desktop-resources/database/v13-meeting-drafts.sql"
+        ))
+        .map_err(|err| err.to_string())
+}
 
 fn migrate_v12_live_auto_language(transaction: &Transaction<'_>) -> LocalResult<()> {
     transaction

@@ -24,7 +24,7 @@ UPDATE ai_summary_templates SET prompt='Before preparation' WHERE id='builtin-st
 		t.Fatal("committed WAL fixture missing", err)
 	}
 	result, err := ApplyHandover(ctx, db, path, nil, false)
-	if err != nil || result.FromVersion != CurrentVersion || result.Version != CurrentVersion || !strings.Contains(filepath.Base(result.Backup), ".pre-native-v12-") {
+	if err != nil || result.FromVersion != CurrentVersion || result.Version != CurrentVersion || !strings.Contains(filepath.Base(result.Backup), ".pre-native-v13-") {
 		t.Fatal("current-version handover missing backup", result, err)
 	}
 	exec(t, db, `INSERT INTO meeting_members(id,name,created_at,updated_at) VALUES('after','After handover','fixture','fixture')`)

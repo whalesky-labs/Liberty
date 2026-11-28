@@ -136,7 +136,7 @@ func (v *companion3DPreview) frame(c *ui.Context) {
 func (v *companion3DPreview) view(c *ui.Context) {
 	v.frame(c)
 	ui.Column(c).Fill().Padding(20).Gap(14).Children(func() {
-		ui.Text(c, v.text("像素动作 · 原生 GPU", "Pixel actions · Native GPU")).FontSize(22).Bold().Role(ui.RoleHeading).Level(1)
+		ui.Text(c, v.text("像素动作 · 原生 GPU", "Pixel actions · Native GPU")).FontSize(22).Role(ui.RoleHeading).Level(1)
 		ui.Text(c, v.text("15 组动作，骨骼、表情与道具同步播放。", "15 actions with synchronized skeletons, expressions and props.")).TextColor(c.Theme().TextMuted)
 		options := v.library.Actions()
 		labels := make([]string, len(options))
@@ -148,7 +148,7 @@ func (v *companion3DPreview) view(c *ui.Context) {
 			}
 		}
 		ui.Row(c).Gap(10).Children(func() {
-			if ui.Select(c, &selected, labels).Width(220).Label(v.text("选择动作", "Choose action")).Changed() {
+			if selectControl(c, &selected, labels).Width(220).Label(v.text("选择动作", "Choose action")).Changed() {
 				for i, label := range labels {
 					if selected == label {
 						v.controller.Select(options[i].ID)
@@ -162,7 +162,7 @@ func (v *companion3DPreview) view(c *ui.Context) {
 		})
 		ui.Row(c).FillWidth().Grow(1).MinHeight(0).Gap(20).Children(func() {
 			ui.Column(c).Width(300).Gap(8).Children(func() {
-				ui.Text(c, v.text("原图参考", "Original reference")).Bold()
+				ui.Text(c, v.text("原图参考", "Original reference"))
 				if v.model != nil {
 					ui.Image(c, presentation.PetActionPose(v.model.Name, max(0, v.pose))).Size(290, 360).Fit(ui.Contain).Label(v.text("当前动作原帧", "Current original pose"))
 				}

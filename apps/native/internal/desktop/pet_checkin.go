@@ -39,140 +39,120 @@ func (v *PetView) checkIn(c *ui.Context) {
 			ui.Text(c, message).FillWidth().FontSize(12).TextColor(c.Theme().Success).Role(ui.RoleStatus)
 		}
 	}
-	width, _ := c.Size()
-	layout := ui.Row(c).FillWidth().Gap(14).AlignItems(ui.Start)
-	if width <= 1080 {
-		layout.Column().AlignItems(ui.Stretch)
-	}
-	layout.Children(func() {
-		main := ui.Column(c).MinWidth(0).Gap(14)
-		if width <= 1080 {
-			main.FillWidth()
-		} else {
-			main.Grow(1).Basis(0)
+	v.benefitsHeader(c, v.text("每日签到", "Daily Check-in"), v.text("每天为伙伴积累一点成长，记录每一次陪伴。", "A little growth each day. Keep a record of your time together."), v.text("连续签到", "Day streak"), fmt.Sprint(s.CurrentStreak))
+	width := v.benefitsWidth(c)
+	benefitsPanel(c, func() {
+		spotlight := ui.Row(c).FillWidth().Gap(24).AlignItems(ui.Center)
+		if width < 680 {
+			spotlight.Column().AlignItems(ui.Stretch)
 		}
-		main.Children(func() {
-			petPanel(c, func() {
-				spotlight := ui.Row(c).FillWidth().Gap(16).AlignItems(ui.Center)
-				if width <= 1080 {
-					spotlight.Column().AlignItems(ui.Start)
-				}
-				spotlight.Children(func() {
-					ui.Column(c).Grow(1).MinWidth(0).Gap(10).Children(func() {
-						ui.Text(c, v.text("签到中心", "Welfare Center")).FontSize(12).TextColor(c.Theme().TextMuted)
-						ui.Text(c, title).FontSize(26).Bold().Role(ui.RoleHeading).Level(1)
-						ui.Text(c, copy).FillWidth().FontSize(12).TextColor(c.Theme().TextMuted)
-						ui.Row(c).FillWidth().Wrap().Gap(8).Children(func() {
-							if s.MakeupAvailable {
-								label := v.text("补签", "Repair")
-								if s.MakeupDate != nil {
-									label += " " + *s.MakeupDate
-								}
-								if s.MakeupTicketQuantity <= 0 {
-									label = v.text("需要补签票券", "Need Ticket")
-								}
-								if v.Client.PendingAction == "makeup" {
-									label = v.text("补签中…", "Repairing…")
-								}
-								if ui.PrimaryButton(c, label).Disabled(v.Client.Busy || s.MakeupTicketQuantity == 0).Clicked() {
-									v.Client.Makeup()
-								}
-							}
-							label := v.text("签到领取", "Check In")
-							if s.CheckedInToday {
-								label = v.text("今日已签到", "Checked In Today")
-							} else if s.MakeupAvailable {
-								label = v.text("从今日重新开始", "Restart Today")
-							}
-							if v.Client.PendingAction == "check-in" {
-								label = v.text("领取中…", "Claiming…")
-							}
-							var button ui.Element
-							if s.MakeupAvailable {
-								button = ui.Button(c, label)
-							} else {
-								button = ui.PrimaryButton(c, label)
-							}
-							if button.Disabled(v.Client.Busy || s.CheckedInToday).Clicked() {
-								if s.MakeupAvailable {
-									v.openDialog("restart", "")
-								} else {
-									v.Client.CheckInNow()
-								}
-							}
-						})
-					})
-					ui.Column(c).Width(110).Height(110).Radius(55).Background(palette(c).Selected).Justify(ui.Center).AlignItems(ui.Center).Gap(4).Children(func() {
-						ui.Text(c, fmt.Sprint(s.CurrentStreak)).FontSize(36).Bold()
-						ui.Text(c, v.text("天连续", "day streak")).FontSize(12)
-					})
-				})
-				separator(c)
-				ui.Row(c).FillWidth().Gap(16).Children(func() {
-					ui.Column(c).Grow(1).Basis(0).Gap(8).Children(func() {
-						ui.Text(c, v.text("今日福利包", "Today Package")).Bold()
-						ui.Text(c, s.CheckInDate).FontSize(11)
-						v.rewardPreview(c, s.TodayReward)
-					})
-					ui.Column(c).Grow(1).Basis(0).Gap(8).Children(func() {
-						ui.Text(c, v.text("周期进度", "Cycle Progress")).Bold()
-						ui.Text(c, fmt.Sprintf("%d/%d", min(s.CurrentStreak, s.CycleLength), s.CycleLength))
-						if s.CycleLength > 0 {
-							progressBar(c, float32(min(s.CurrentStreak, s.CycleLength)*100/s.CycleLength), v.text("周期进度", "Cycle progress"))
+		spotlight.Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(12).Children(func() {
+				ui.Text(c, s.CheckInDate).FontSize(12).TextColor(c.Theme().TextMuted)
+				ui.Text(c, title).FillWidth().FontSize(22).Role(ui.RoleHeading).Level(2)
+				ui.Text(c, copy).FillWidth().FontSize(13).TextColor(c.Theme().TextMuted)
+				ui.Row(c).FillWidth().Wrap().Gap(8).Children(func() {
+					if s.MakeupAvailable {
+						label := v.text("补签", "Repair")
+						if s.MakeupDate != nil {
+							label += " " + *s.MakeupDate
 						}
-					})
-				})
-			})
-			petPanel(c, func() { ui.Text(c, v.text("奖励日历", "Reward Calendar")).FontSize(17).Bold(); v.calendar(c, *s) })
-		})
-		sidebar := ui.Column(c).Width(312).Shrink(0).Gap(12)
-		if width <= 1080 {
-			sidebar.FillWidth()
-		}
-		sidebar.Children(func() {
-			petPanel(c, func() {
-				ui.Text(c, v.text("奖励概览", "Reward Overview")).FontSize(16).Bold()
-				for _, item := range []struct {
-					zh, en string
-					value  int64
-				}{{"连续签到", "Streak", s.CurrentStreak}, {"LP 余额", "LP Balance", s.StoreState.Wallet.Balance}, {"仓库物品", "Inventory", int64(len(s.StoreState.Inventory))}, {"补签票券", "Make-up Tickets", s.MakeupTicketQuantity}, {"断签天数", "Missed Days", s.MissedDays}} {
-					v.stat(c, v.text(item.zh, item.en), fmt.Sprint(item.value))
-				}
-				target := s.CycleLength
-				if reward := nextPetCheckInMilestone(*s); reward != nil {
-					target = reward.CycleDay
-				}
-				v.stat(c, v.text("特别奖励", "Special Reward"), fmt.Sprintf("%d/%d", min(s.CurrentStreak, target), target))
-			})
-			if reward := nextPetCheckInMilestone(*s); reward != nil {
-				petPanel(c, func() {
-					ui.Text(c, v.text("下一个里程碑", "Next Milestone")).FontSize(16).Bold()
-					ui.Text(c, fmt.Sprintf(v.text("第 %d 天奖励", "Day %d reward"), reward.CycleDay)).FontSize(12)
-					v.rewardPreview(c, *reward)
-				})
-			}
-			petPanel(c, func() {
-				ui.Text(c, v.text("最近记录", "Recent Records")).FontSize(16).Bold()
-				if len(s.History) == 0 {
-					ui.Text(c, v.text("暂无签到记录。", "No check-ins yet.")).FontSize(12)
-				}
-				for _, entry := range s.History[:min(5, len(s.History))] {
-					ui.Row(c).FillWidth().Gap(8).Children(func() {
-						ui.Text(c, entry.CheckInDate).Grow(1).MinWidth(0).Bold().FontSize(12)
-						ui.Text(c, fmt.Sprintf(v.text("连续 %d 天", "Streak %d"), entry.StreakCount)).FontSize(11)
-					})
-					rewards := fmt.Sprintf("+%d LP · +%d XP", entry.RewardLP, entry.GrowthValue)
-					if len(entry.RewardItems) > 0 {
-						names := make([]string, 0, len(entry.RewardItems))
-						for _, item := range entry.RewardItems {
-							names = append(names, v.itemName(item.ItemKey))
+						if s.MakeupTicketQuantity <= 0 {
+							label = v.text("需要补签票券", "Need Ticket")
 						}
-						rewards += " · " + strings.Join(names, "、")
+						if v.Client.PendingAction == "makeup" {
+							label = v.text("补签中…", "Repairing…")
+						}
+						if ui.PrimaryButton(c, label).Disabled(v.Client.Busy || s.MakeupTicketQuantity == 0).Clicked() {
+							v.Client.Makeup()
+						}
 					}
-					ui.Text(c, rewards).FillWidth().FontSize(11)
-					separator(c)
-				}
+					label := v.text("签到领取", "Check In")
+					if s.CheckedInToday {
+						label = v.text("今日已签到", "Checked In Today")
+					} else if s.MakeupAvailable {
+						label = v.text("从今日重新开始", "Restart Today")
+					}
+					if v.Client.PendingAction == "check-in" {
+						label = v.text("领取中…", "Claiming…")
+					}
+					var button ui.Element
+					if s.MakeupAvailable {
+						button = ui.Button(c, label)
+					} else {
+						button = ui.PrimaryButton(c, label)
+					}
+					if button.Disabled(v.Client.Busy || s.CheckedInToday).Clicked() {
+						if s.MakeupAvailable {
+							v.openDialog("restart", "")
+						} else {
+							v.Client.CheckInNow()
+						}
+					}
+				})
 			})
+			reward := ui.Column(c).Width(230).Shrink(0).Padding(16).Gap(10).Radius(10).Background(palette(c).Subpanel)
+			if width < 680 {
+				reward.FillWidth()
+			}
+			reward.Children(func() {
+				ui.Text(c, v.text("今日福利包", "Today Package")).FontSize(14)
+				v.rewardPreview(c, s.TodayReward)
+			})
+		})
+	})
+	benefitsColumns(c, width, func() {
+		benefitsPanel(c, func() {
+			benefitsHeading(c, v.text("奖励日历", "Reward Calendar"))
+			ui.Column(c).FillWidth().Gap(6).Children(func() { v.calendar(c, *s) })
+			ui.Text(c, v.text("前 14 天包含里程碑物品，之后继续领取每日基础奖励。", "Milestone items are awarded during the first 14 days; daily base rewards continue afterwards.")).FillWidth().FontSize(12).TextColor(c.Theme().TextMuted)
+		})
+	}, func() {
+		benefitsPanel(c, func() {
+			benefitsHeading(c, v.text("奖励概览", "Reward Overview"))
+			for _, item := range []struct {
+				zh, en string
+				value  int64
+			}{{"连续签到", "Streak", s.CurrentStreak}, {"LP 余额", "LP Balance", s.StoreState.Wallet.Balance}, {"仓库物品", "Inventory", int64(len(s.StoreState.Inventory))}, {"补签票券", "Make-up Tickets", s.MakeupTicketQuantity}, {"断签天数", "Missed Days", s.MissedDays}} {
+				v.stat(c, v.text(item.zh, item.en), fmt.Sprint(item.value))
+			}
+			target := s.CycleLength
+			if reward := nextPetCheckInMilestone(*s); reward != nil {
+				target = reward.CycleDay
+			}
+			v.stat(c, v.text("特别奖励", "Special Reward"), fmt.Sprintf("%d/%d", min(s.CurrentStreak, target), target))
+			if target > 0 {
+				progressBar(c, float32(min(s.CurrentStreak, target)*100/target), v.text("里程碑进度", "Milestone progress"))
+			}
+		})
+		if reward := nextPetCheckInMilestone(*s); reward != nil {
+			benefitsPanel(c, func() {
+				benefitsHeading(c, v.text("下一个里程碑", "Next Milestone"))
+				ui.Text(c, fmt.Sprintf(v.text("第 %d 天奖励", "Day %d reward"), reward.CycleDay)).FontSize(12)
+				v.rewardPreview(c, *reward)
+			})
+		}
+		benefitsPanel(c, func() {
+			benefitsHeading(c, v.text("最近记录", "Recent Records"))
+			if len(s.History) == 0 {
+				benefitsEmpty(c, "check", v.text("暂无签到记录。", "No check-ins yet."), v.text("领取后会在这里留下记录。", "Your claimed rewards will appear here."))
+			}
+			for _, entry := range s.History[:min(5, len(s.History))] {
+				ui.Row(c).FillWidth().Gap(8).Children(func() {
+					ui.Text(c, entry.CheckInDate).Grow(1).MinWidth(0).FontSize(12)
+					ui.Text(c, fmt.Sprintf(v.text("连续 %d 天", "Streak %d"), entry.StreakCount)).FontSize(11)
+				})
+				rewards := fmt.Sprintf("+%d LP · +%d XP", entry.RewardLP, entry.GrowthValue)
+				if len(entry.RewardItems) > 0 {
+					names := make([]string, 0, len(entry.RewardItems))
+					for _, item := range entry.RewardItems {
+						names = append(names, v.itemName(item.ItemKey))
+					}
+					rewards += " · " + strings.Join(names, "、")
+				}
+				ui.Text(c, rewards).FillWidth().FontSize(11)
+				separator(c)
+			}
 		})
 	})
 }
@@ -196,7 +176,7 @@ func (v *PetView) calendar(c *ui.Context, s domain.PetDailyCheckInState) {
 		label = month.Format("January 2006")
 	}
 	ui.Row(c).FillWidth().Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, label).Bold().Grow(1)
+		ui.Text(c, label).Grow(1)
 		if textButton(c, v.text("上月", "Previous")).Clicked() {
 			v.calendarOffset--
 		}
@@ -213,18 +193,18 @@ func (v *PetView) calendar(c *ui.Context, s domain.PetDailyCheckInState) {
 	}
 	ui.Row(c).FillWidth().Gap(5).Children(func() {
 		for _, day := range days {
-			ui.Text(c, day).Grow(1).Basis(0).FontSize(11).TextColor(c.Theme().TextMuted)
+			ui.Text(c, day).Grow(1).Basis(0).TextAlign(ui.Center).FontSize(12).TextColor(c.Theme().TextMuted)
 		}
 	})
 	cells := petCalendarCells(s, month)
 	for start := 0; start < len(cells); start += 7 {
 		ui.Row(c).FillWidth().Gap(5).AlignItems(ui.Stretch).Children(func() {
 			for index, cell := range cells[start:min(start+7, len(cells))] {
-				day := ui.Column(c.Key(fmt.Sprint(start + index))).Grow(1).Basis(0).MinWidth(0).MinHeight(94).Padding(6).Radius(6).Background(palette(c).Subpanel)
+				day := ui.Column(c.Key(fmt.Sprint(start + index))).Grow(1).Basis(0).MinWidth(0).MinHeight(72).Padding(8).Gap(3).Radius(8).Background(palette(c).Subpanel)
 				if cell.Day > 0 {
 					day.Role(ui.RoleGroup).Label(cell.Date)
 					if cell.Date == s.CheckInDate {
-						day.Current(ui.CurrentDate)
+						day.Current(ui.CurrentDate).Border(1, c.Theme().Accent).Background(palette(c).Selected)
 					}
 				}
 				day.Children(func() {
@@ -239,7 +219,7 @@ func (v *PetView) calendar(c *ui.Context, s domain.PetDailyCheckInState) {
 					} else if cell.Status == "missed" {
 						color = c.Theme().Danger
 					}
-					ui.Text(c, fmt.Sprint(cell.Day)).Bold().FontSize(12)
+					ui.Text(c, fmt.Sprint(cell.Day)).FontSize(12)
 					labels := map[string][2]string{"signed": {"已签", "Done"}, "today": {"今日", "Today"}, "makeup": {"补签", "Repair"}, "missed": {"断签", "Missed"}, "future": {"待到", "Soon"}}
 					if l, ok := labels[cell.Status]; ok {
 						ui.Text(c, v.text(l[0], l[1])).TextColor(color).FontSize(10)

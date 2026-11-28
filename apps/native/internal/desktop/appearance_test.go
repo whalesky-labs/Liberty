@@ -68,9 +68,17 @@ func TestShellGlassLimitsBackdropAndKeepsReadingSurfaceOpaque(t *testing.T) {
 				colors := presentation.PreferenceColors(dark, preferences)
 				assertReadingSurface := func() {
 					t.Helper()
-					pixel := tester.Image().RGBAAt(presentation.SidebarWidth+40, 100)
-					if pixel != (color.RGBA{R: colors.Content.R, G: colors.Content.G, B: colors.Content.B, A: 255}) {
-						t.Fatal("glass changed the reading surface", pixel)
+					image := tester.Image()
+					for _, point := range [][2]int{{presentation.SidebarWidth + 40, 100}, {presentation.SidebarWidth + 24, 2}, {presentation.SidebarWidth + 24, 758}, {1098, 758}} {
+						if pixel := image.RGBAAt(point[0], point[1]); pixel != (color.RGBA{R: colors.Content.R, G: colors.Content.G, B: colors.Content.B, A: 255}) {
+							t.Fatal("header, body and status bar must share an opaque reading surface", point, pixel)
+						}
+					}
+					chrome := image.RGBAAt(2, 2)
+					for _, point := range [][2]int{{presentation.SidebarWidth, 0}, {presentation.SidebarWidth, 759}} {
+						if pixel := image.RGBAAt(point[0], point[1]); pixel != chrome {
+							t.Fatal("content's left corner did not reveal the navigation chrome", point, pixel, chrome)
+						}
 					}
 				}
 				assertOpaqueChrome := func() {
@@ -90,7 +98,7 @@ func TestShellGlassLimitsBackdropAndKeepsReadingSurfaceOpaque(t *testing.T) {
 				}
 				// Every chrome region uses the same restrained backing. The native
 				// blur itself is verified separately in a real window.
-				for _, point := range [][2]int{{2, 80}, {1098, 758}} {
+				for _, point := range [][2]int{{2, 80}, {presentation.SidebarWidth - 2, 758}} {
 					if pixel := tester.Image().RGBAAt(point[0], point[1]); pixel != transparent {
 						t.Fatal("chrome regions use different background strengths", point, pixel, transparent)
 					}
