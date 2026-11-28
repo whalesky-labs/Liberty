@@ -25,6 +25,8 @@ var icons = loadIcons()
 
 const RepositoryURL = "https://github.com/whalesky-labs/Liberty"
 const ReleasesURL = RepositoryURL + "/releases"
+const DocumentationURL = RepositoryURL + "/blob/main/docs/README.md"
+const IssuesURL = RepositoryURL + "/issues"
 
 func loadIcons() map[string]*ui.SVG {
 	result := make(map[string]*ui.SVG, len(iconSources))
@@ -90,10 +92,17 @@ func Colors(dark bool, accent ui.Color) Palette {
 		t = *ui.DarkTheme()
 	}
 	native := systemColors(dark)
-	p := Palette{Window: native.Window, Content: native.TextBackground,
-		Panel: SolidSurface(native.SubtleFill, native.TextBackground), Subpanel: SolidSurface(native.Fill, native.TextBackground),
+	content := native.TextBackground
+	if dark {
+		// Keep the opaque workspace recessed from the navigation chrome.
+		content = content.Mix(ui.Hex("#000000"), 0.2)
+	}
+	p := Palette{Window: native.Window, Content: content,
+		Panel: SolidSurface(native.SubtleFill, content), Subpanel: SolidSurface(native.Fill, content),
 		Selected: accent.Alpha(0.14), NavAccent: ui.Hex("#000000").Mix(accent, 0.78), Separator: native.Separator,
-		NavSelected: native.Selection, NavHover: native.Fill}
+		// A restrained label overlay keeps navigation neutral in either
+		// appearance and independent of the app's configurable accent.
+		NavSelected: SolidSurface(native.Label.Alpha(0.12), native.Window), NavHover: native.Fill}
 	if dark {
 		p.Selected, p.NavAccent = accent.Alpha(0.22), ui.Hex("#ffffff").Mix(accent, 0.74)
 	}
