@@ -23,44 +23,50 @@ const (
 // Workspace owns native windows and their lifetimes, on MyGo's main thread.
 // Database work and authorization checks run outside the render callback.
 type Workspace struct {
-	settings            *SettingsView
-	editorViews         map[application.ResourceKind]*ResourceEditorView
-	resultView          *ResultView
-	summaryWindow       *mygo.Window
-	summaryView         *SummaryView
-	summaryTitle        string
-	summaryService      *application.SummaryService
-	notesView           *NotesView
-	notesTitle          string
-	notes               *mygo.Window
-	resultEditing       bool
-	wordExportEnabled   bool
-	preferences         domain.UIPreferences
-	main                *mygo.Window
-	metrics             *client.MetricsController
-	result              *mygo.Window
-	controller          *client.Controller
-	view                *Meetings
-	detail              *Meetings
-	meetings            client.Meetings
-	jobDispatch         func(func())
-	completionObserver  jobCompletionObserver
-	completionMessage   string
-	completionRevision  uint64
-	completionTimer     *time.Timer
-	processingModeError bool
-	processingModeBusy  bool
-	notificationCancel  context.CancelFunc
-	showJobNotification func(string, string) context.CancelFunc
-	dashboard           *DashboardView
-	tab                 string
-	lastAppPath         string
-	lastDetailSource    string
-	lastDetailID        string
-	scopes              *application.WindowScopes
-	openCancel          context.CancelFunc
-	openRevision        uint64
-	modeService         interface {
+	settings                             *SettingsView
+	updates                              *client.UpdateController
+	updateWindow                         updateNativeWindow
+	updateWindowSize                     updateSize
+	makeUpdateWindow                     func(mygo.WindowOptions) updateNativeWindow
+	editorViews                          map[application.ResourceKind]*ResourceEditorView
+	resultView                           *ResultView
+	resultSourceJob, resultSourceSegment string
+	summaryWindow                        *mygo.Window
+	summaryView                          *SummaryView
+	summaryTitle                         string
+	summaryService                       *application.SummaryService
+	notesView                            *NotesView
+	notesTitle                           string
+	notes                                *mygo.Window
+	resultEditing                        bool
+	wordExportEnabled                    bool
+	preferences                          domain.UIPreferences
+	main                                 *mygo.Window
+	metrics                              *client.MetricsController
+	result                               *mygo.Window
+	controller                           *client.Controller
+	view                                 *Meetings
+	detail                               *Meetings
+	meetings                             client.Meetings
+	jobDispatch                          func(func())
+	completionObserver                   jobCompletionObserver
+	completionMessage                    string
+	completionRevision                   uint64
+	completionTimer                      *time.Timer
+	processingModeError                  bool
+	processingModeBusy                   bool
+	notificationCancel                   context.CancelFunc
+	showJobNotification                  func(string, string) context.CancelFunc
+	dashboard                            *DashboardView
+	tab                                  string
+	navigation                           client.NavigationHistory
+	lastAppPath                          string
+	lastDetailSource                     string
+	lastDetailID                         string
+	scopes                               *application.WindowScopes
+	openCancel                           context.CancelFunc
+	openRevision                         uint64
+	modeService                          interface {
 		ProcessingMode(context.Context) (string, error)
 	}
 	modeContext               context.Context
@@ -117,7 +123,7 @@ func (w *Workspace) AttachPet(service *application.Pet, record ...func(diagnosti
 			w.main.Invalidate()
 		}
 	})
-	w.pet = &PetView{Client: controller, Locale: w.preferences.Locale, Route: "/pet", Navigate: w.navigate, DesktopAvailable: true}
+	w.pet = &PetView{Client: controller, Locale: w.preferences.Locale, Route: "/pet", Navigate: w.navigate, DesktopAvailable: true, ContentWidth: shellContentWidth}
 	controller.SetVisible(PetRouteAvailable(w.tab))
 	w.companions = newCompanions(w.pet, service.SavePosition, record...)
 	w.pet.OpenItem = w.openStoreItem
@@ -349,11 +355,22 @@ func (w *Workspace) retryProcessingMode() {
 }
 
 func (w *Workspace) applySavedSettings(settings domain.Settings) {
-	if w.closed || settings.ProcessingMode != "local" && settings.ProcessingMode != "remote" {
+	if w.closed {
 		return
 	}
-	w.modeRevision++
-	w.applyProcessingMode(settings.ProcessingMode)
+	w.applyLiveSettings(settings)
+	if settings.ProcessingMode == "local" || settings.ProcessingMode == "remote" {
+		w.modeRevision++
+		w.applyProcessingMode(settings.ProcessingMode)
+	}
+}
+
+func (w *Workspace) applyLiveSettings(settings domain.Settings) {
+	if w.closed || w.live == nil || w.live.Client == nil {
+		return
+	}
+	w.live.Client.Request.Translate = settings.LiveTranslate
+	w.live.Client.Request.DeviceID = settings.LiveDeviceID
 }
 
 func (w *Workspace) applyProcessingModeResult(mode string, err error) {
@@ -398,6 +415,7 @@ func (w *Workspace) applyProcessingMode(mode string) {
 	if w.main != nil {
 		w.main.Invalidate()
 	}
+	w.RefreshApplicationMenu()
 }
 
 func (w *Workspace) applyJobMode(mode string) {
@@ -501,6 +519,10 @@ func OpenWorkspace(service client.Meetings, dashboard *application.Dashboard, pr
 		w.stopJobCompletionFeedback()
 		w.assemblyGame = nil
 		w.controller.Close()
+		w.updates.Close()
+		if w.updateWindow != nil {
+			w.updateWindow.Close()
+		}
 		w.closeDetail()
 		dashboardClient.Close()
 		if w.openCancel != nil {
@@ -582,6 +604,44 @@ func (w *Workspace) canNavigate(path string) bool {
 	return path == "/" || queue || (path == "/settings" && w.runtime != nil) || (path == "/jobs/new" && w.newJob != nil)
 }
 
+// RefreshApplicationMenu installs commands for the current workspace. The
+// global menu remains useful when a result or editor window is focused, while
+// navigation itself always targets the main workspace window.
+func (w *Workspace) RefreshApplicationMenu() {
+	if w == nil {
+		return
+	}
+	mygo.App.SetMenu(ApplicationMenu(w.preferences.Locale, w.applicationMenuActions()))
+}
+
+func (w *Workspace) applicationMenuActions() ApplicationMenuActions {
+	actions := ApplicationMenuActions{}
+	if w.updates != nil {
+		actions.CheckUpdates = w.checkUpdates
+	}
+	if w.canNavigate("/jobs/new") {
+		actions.NewTaskEnabled = true
+		actions.NewTask = func() { w.navigateFromMenu("/jobs/new") }
+	}
+	if w.canNavigate("/jobs") {
+		actions.OpenQueue = func() { w.navigateFromMenu("/jobs") }
+	}
+	if w.canNavigate("/settings") {
+		actions.OpenSettings = func() { w.navigateFromMenu("/settings") }
+	}
+	return actions
+}
+
+func (w *Workspace) navigateFromMenu(path string) {
+	if w == nil || w.closed || w.main == nil || !w.canNavigate(path) {
+		return
+	}
+	w.main.Show()
+	w.main.Focus()
+	w.navigate(path)
+	w.main.Invalidate()
+}
+
 func queueRedirect(path string) string {
 	pathname, _, _ := strings.Cut(path, "?")
 	if pathname == "/results" {
@@ -607,6 +667,12 @@ func queueFilter(path string) (string, bool) {
 }
 
 func (w *Workspace) navigate(path string) {
+	w.navigation.ReplaceCurrent(w.navigationEntry())
+	w.navigateTo(path)
+	w.navigation.Visit(w.navigationEntry())
+}
+
+func (w *Workspace) navigateTo(path string) {
 	path = queueRedirect(path)
 	pathname := strings.Split(path, "?")[0]
 	if pathname == "/settings" && w.tab != "/settings" {
@@ -717,6 +783,15 @@ func (w *Workspace) returnToApp() {
 	w.navigate(path)
 }
 
+func (w *Workspace) openRuntimeSettings() {
+	w.navigation.ReplaceCurrent(w.navigationEntry())
+	if w.settings != nil {
+		w.settings.section = "speechModels"
+	}
+	w.navigateTo("/settings")
+	w.navigation.Visit(w.navigationEntry())
+}
+
 func (w *Workspace) shellStatus() (string, string) {
 	if w.live != nil && domain.LiveActive(w.live.Client.Snapshot.Session.State) {
 		return liveStatus(w.view.Locale, w.live.Client.Snapshot.Session.State), "info"
@@ -738,6 +813,13 @@ func (w *Workspace) openDetail(id string) {
 func (w *Workspace) View(c *ui.Context) {
 	statusMessage, statusTone := w.shellStatus()
 	shell := Shell{Locale: w.view.Locale, Route: w.tab, Source: w.view.Source, Version: presentation.Version, Preferences: w.preferences, ActiveJobs: w.controller.Page.Counts.Processing, StatusMessage: statusMessage, StatusTone: statusTone, ModeReadFailed: w.processingModeError, ModeReadBusy: w.processingModeBusy, RetryMode: w.retryProcessingMode,
+		TitlebarActions: func(c *ui.Context) {
+			if w.tab == "/live" && w.live != nil {
+				w.live.titlebarActions(c)
+			}
+		},
+		Back: func() { w.travelHistory(-1) }, Forward: func() { w.travelHistory(1) },
+		CanBack: w.navigation.CanTravel(-1, w.canRevisit), CanForward: w.navigation.CanTravel(1, w.canRevisit),
 		Navigate: w.navigate, Available: w.canNavigate, Content: func(c *ui.Context) {
 			switch {
 			case w.tab == "/live" && w.live != nil:
@@ -778,6 +860,9 @@ func (w *Workspace) View(c *ui.Context) {
 				w.dashboard.View(c)
 			}
 		}}
+	if w.tab == "/live" && w.live != nil {
+		shell.TrailingPane = &w.live.historyPanel
+	}
 	if shell.Source == "remote" {
 		shell.SourceReady = w.modeCapabilities != nil && w.modeCapabilities.Capabilities != nil
 	} else if w.runtime != nil && w.runtime.Client.Panel != nil {
@@ -816,6 +901,13 @@ func (w *Workspace) openResultFromSource(id, locale, source string) {
 	if w.closed {
 		return
 	}
+	if w.result != nil && w.resultView != nil && (w.resultView.Actions != nil && (w.resultView.Actions.Correction != nil || w.resultView.Actions.Busy)) {
+		w.result.Focus()
+		return
+	}
+	if w.resultView != nil && w.resultView.Playback != nil {
+		w.resultView.Playback.Stop()
+	}
 	boundSource := source
 	if w.openCancel != nil {
 		w.openCancel()
@@ -851,6 +943,10 @@ func (w *Workspace) openResultFromSource(id, locale, source string) {
 			// The lookup is asynchronous; preferences may have changed since it began.
 			locale = w.preferences.Locale
 			view := NewResultView(controller, locale)
+			if boundSource == "local" && w.resultSourceJob == id {
+				view.pendingSourceSegmentID = w.resultSourceSegment
+				w.resultSourceJob, w.resultSourceSegment = "", ""
+			}
 			w.resultView = view
 			view.Preferences = w.preferences
 			window = newDesktopWindow(mygo.WindowOptions{
@@ -863,6 +959,19 @@ func (w *Workspace) openResultFromSource(id, locale, source string) {
 				view.OpenSummary = func(title string) { w.openSummary(grant, title) }
 			}
 			view.Actions = w.resultActions(window, view, grant)
+			view.Playback = client.NewPlayback(grant, mygo.RunOnMain, window.Invalidate)
+			guard := &closeGuard{check: func() closeCheck {
+				text, speaker := view.Actions.CorrectionText, view.Actions.CorrectionSpeaker
+				return closeCheck{busy: view.Actions.Busy, dirty: view.Actions.Correction != nil, unchanged: func() bool {
+					return !view.Actions.Busy && text == view.Actions.CorrectionText && speaker == view.Actions.CorrectionSpeaker
+				}}
+			}, focus: window.Focus}
+			w.closing.register(guard)
+			window.OnClose(func(event *mygo.CloseEvent) {
+				if !w.closing.allow(guard, w.closeConfirmation(window, false), window.Close, func() {}) {
+					event.PreventDefault()
+				}
+			})
 			view.EditingEnabled = w.resultEditing
 			view.WordExportEnabled = w.wordExportEnabled
 			w.result = window
@@ -871,7 +980,9 @@ func (w *Workspace) openResultFromSource(id, locale, source string) {
 				closeCapabilities = startResultCapabilities(grant, view, window)
 			}
 			window.OnClosed(func() {
+				w.closing.remove(guard)
 				closeCapabilities()
+				view.Playback.Close()
 				view.Actions.Close()
 				controller.Close()
 				grant.Close()

@@ -93,7 +93,7 @@ func TestResourcesManagementRendersOriginalMetricsAndActions(t *testing.T) {
 }
 func TestSettingsSectionsUseExistingBilingualMessages(t *testing.T) {
 	for _, locale := range []string{"zh-CN", "en-US"} {
-		for _, section := range []string{"appearance", "themeSection", "processingDefaults"} {
+		for _, section := range []string{"appearance", "languageDisplay", "processingDefaults", "performance"} {
 			t.Run(fmt.Sprint(locale, section), func(t *testing.T) {
 				c := &client.SettingsController{Draft: domain.DefaultSettings(), Loaded: true}
 				v := &SettingsView{Client: c, Locale: locale, section: section}

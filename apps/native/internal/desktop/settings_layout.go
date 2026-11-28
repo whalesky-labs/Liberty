@@ -14,9 +14,11 @@ type settingsNavigationGroup struct {
 }
 
 var settingsNavigation = []settingsNavigationGroup{
-	{"personalizationGroup", []settingsNavigationItem{{"appearance", "appearance"}, {"themeSection", "accent"}}},
-	{"processingGroup", []settingsNavigationItem{{"runtimeOverview", "mode"}, {"processingDefaults", "processing"}, {"localRuntime", "chip"}}},
-	{"systemGroup", []settingsNavigationItem{{"remoteCompatibility", "remote"}, {"diagnostics", "diagnostics"}}},
+	{"personalizationGroup", []settingsNavigationItem{{"appearance", "appearance"}, {"languageDisplay", "accent"}}},
+	{"processingGroup", []settingsNavigationItem{{"processingDefaults", "doc"}, {"voice", "microphone"}, {"performance", "processing"}}},
+	{"runtimeSettingsGroup", []settingsNavigationItem{{"localRuntime", "chip"}, {"speechModels", "microphone"}, {"runtimeDownloads", "download"}}},
+	{"connectionsGroup", []settingsNavigationItem{{"runtimeOverview", "mode"}, {"remoteCompatibility", "remote"}, {"accessPermissions", "permissions"}}},
+	{"systemGroup", []settingsNavigationItem{{"deviceStorage", "storage"}, {"diagnostics", "diagnostics"}, {"experiments", "experiments"}, {"about", "about"}}},
 }
 
 func settingsHintKey(section string) string {
@@ -42,9 +44,11 @@ func settingsSidebar(context *ui.Context, locale, section string, search *string
 			if button.Clicked() {
 				back()
 			}
-			ui.Box(context).FillWidth().Height(34).Children(func() {
-				ui.TextInput(context, search).Fill().Padding(6, 10, 6, 34).FontSize(13).Radius(17).Placeholder(message("searchPlaceholder")).Label(message("searchPlaceholder"))
-				ui.Icon(context, presentation.Icon("search")).Absolute().Left(11).Top(10).Size(14, 14).TextColor(context.Theme().TextMuted)
+			ui.Box(context).FillWidth().Children(func() {
+				ui.TextInput(context, search).FillWidth().PaddingStart(34).Radius(17).Placeholder(message("searchPlaceholder")).Label(message("searchPlaceholder"))
+				ui.Box(context).Absolute().Left(11).Top(0).Bottom(0).Width(14).Center().Children(func() {
+					ui.Icon(context, presentation.Icon("search")).Size(14, 14).TextColor(context.Theme().TextMuted)
+				})
 			})
 		})
 		var navigation ui.Element
@@ -66,7 +70,7 @@ func settingsSidebar(context *ui.Context, locale, section string, search *string
 				for _, group := range settingsNavigation {
 					var items []settingsNavigationItem
 					for _, item := range group.items {
-						if strings.Contains(strings.ToLower(message(item.key)+" "+message(settingsHintKey(item.key))), query) {
+						if strings.Contains(strings.ToLower(message(group.key)+" "+message(item.key)+" "+message(settingsHintKey(item.key))+" "+settingsSearchTerms(locale, item.key)), query) {
 							items = append(items, item)
 						}
 					}
@@ -82,7 +86,7 @@ func settingsSidebar(context *ui.Context, locale, section string, search *string
 					}
 					groupElement.Children(func() {
 						if !compact {
-							ui.Text(context, message(group.key)).Padding(6, 8, 3).FontSize(13).FontWeight(650).TextColor(context.Theme().TextMuted)
+							ui.Text(context, message(group.key)).Padding(6, 8, 3).FontSize(13).TextColor(context.Theme().TextMuted)
 						}
 						for _, item := range items {
 							active := item.key == section
@@ -109,39 +113,80 @@ func settingsSidebar(context *ui.Context, locale, section string, search *string
 }
 
 func settingsPage(context *ui.Context, locale, section string, content func()) {
+	settingsPageLayout(context, locale, section, nil, false, content)
+}
+
+func settingsPageWithHeader(context *ui.Context, locale, section string, trailing, content func()) {
+	settingsPageLayout(context, locale, section, trailing, false, content)
+}
+
+func settingsAboutPage(context *ui.Context, locale, section string, content func()) {
+	settingsPageLayout(context, locale, section, nil, true, content)
+}
+
+func settingsPageLayout(context *ui.Context, locale, section string, trailing func(), pinnedFooter bool, content func()) {
 	message := func(key string) string { return presentation.Message(locale, "settings."+key) }
-	width, height := context.Size()
+	width, _ := context.Size()
 	padding := min(float32(24), width*.015)
-	titlebarHeight, _, _ := titlebarLayout(context)
-	pageHeight := height - titlebarHeight - presentation.StatusbarHeight - 26
 	if width <= 760 {
 		padding = 8
-		pageHeight -= presentation.ActivityBarWidth
-		if !*shellMenuCollapsed(context) {
-			pageHeight -= 146
-		}
 	}
-	ui.Scroll(context.Key(section)).Fill().Children(func() {
-		ui.Column(context).FillWidth().AlignItems(ui.Center).Children(func() {
-			ui.Column(context).FillWidth().MaxWidth(1168).MinHeight(max(0, pageHeight)).Padding(0, padding, 6).Gap(18).Children(func() {
-				ui.Text(context, message(section)).FillWidth().Padding(5, 14, 0).FontSize(24).FontWeight(720).Role(ui.RoleHeading).Level(1).Description(message(settingsHintKey(section)))
-				ui.Column(context).FillWidth().Grow(1).Gap(18).Children(content)
-				ui.Column(context).FillWidth().Padding(8, 14, 4).Gap(4).AlignItems(ui.Center).Children(func() {
-					ui.Text(context, message("copyright")).FontSize(11).TextColor(context.Theme().TextMuted)
-					if textButton(context, message("authorGithub")).Role(ui.RoleLink).Padding(0).TextColor(context.Theme().TextMuted).Clicked() {
-						context.OpenURL("https://github.com/westng/Liberty")
-					}
-					if textButton(context, message("downloadUpdate")).Role(ui.RoleLink).Padding(0).Tooltip(message("updateHint")).Clicked() {
-						context.OpenURL(presentation.ReleasesURL)
-					}
+	ui.Column(context).Fill().Children(func() {
+		contentScroll(context).Key(section).Grow(1).MinHeight(0).FillWidth().Children(func() {
+			ui.Column(context).FillWidth().AlignItems(ui.Center).Children(func() {
+				ui.Column(context).FillWidth().MaxWidth(1168).Padding(0, padding, 6).Children(func() {
+					ui.Column(context).FillWidth().Padding(5, 14, 56).Gap(8).Children(func() {
+						ui.Row(context).FillWidth().Gap(16).AlignItems(ui.Center).Children(func() {
+							ui.Text(context, message(section)).Grow(1).Basis(0).MinWidth(0).FontSize(24).Role(ui.RoleHeading).Level(1).Description(message(settingsHintKey(section)))
+							if trailing != nil {
+								trailing()
+							}
+						})
+						ui.Text(context, message(settingsHintKey(section))).FillWidth().FontSize(13).TextColor(context.Theme().TextMuted)
+					})
+					ui.Column(context).FillWidth().Gap(48).Children(content)
 				})
 			})
 		})
+		if pinnedFooter {
+			settingsPageFooter(context, locale)
+		}
+	})
+}
+
+func settingsPageFooter(context *ui.Context, locale string) {
+	message := func(key string) string { return presentation.Message(locale, "settings."+key) }
+	ui.Column(context).FillWidth().Shrink(0).Padding(8, 14, 10).Gap(4).AlignItems(ui.Center).Children(func() {
+		ui.Text(context, message("copyright")).FontSize(11).TextColor(context.Theme().TextMuted)
+		authorLink := ui.Text(context, message("authorGithub")).FontSize(12).Focusable().Role(ui.RoleLink).Underline().TextColor(context.Theme().TextMuted)
+		if authorLink.Hovered() || authorLink.Focused() {
+			authorLink.TextColor(context.Theme().Accent)
+		}
+		if authorLink.Clicked() {
+			context.OpenURL("https://github.com/westng/Liberty")
+		}
+	})
+}
+
+func settingsGroup(context *ui.Context, title string, content func()) {
+	ui.Column(context).FillWidth().Gap(14).Children(func() {
+		settingsGroupHeading(context, title, nil)
+		settingsPanel(context, content)
+	})
+}
+
+func settingsGroupHeading(context *ui.Context, title string, action func()) {
+	ui.Row(context).FillWidth().Padding(0, 14).Gap(12).AlignItems(ui.Center).Children(func() {
+		ui.Text(context, title).Grow(1).FontSize(14).FontWeight(600).Role(ui.RoleHeading).Level(2)
+		if action != nil {
+			action()
+		}
 	})
 }
 
 func settingsPanel(context *ui.Context, content func()) {
-	ui.Column(context).FillWidth().Padding(0, 14).Radius(10).Border(1, palette(context).Separator).Background(palette(context).Panel).Children(func() {
+	ui.Column(context).FillWidth().Padding(0, 14).Children(func() {
+		separator(context)
 		ui.Column(context).FillWidth().Gap(1).Dividers(1, palette(context).Separator).Children(content)
 	})
 }
@@ -152,13 +197,13 @@ func settingsRow(context *ui.Context, label, hint string, control func()) {
 
 func settingsFormRow(context *ui.Context, label, hint string, controlWidth float32, control func()) {
 	width, _ := context.Size()
-	vertical, gap := float32(10), float32(24)
+	vertical, gap := float32(14), float32(24)
 	if width <= 980 {
 		gap = 10
 	}
-	ui.Row(context.Key(label)).FillWidth().MinHeight(60).Padding(vertical, 0).Gap(gap).AlignItems(ui.Center).Children(func() {
+	ui.Row(context.Key(label)).FillWidth().MinHeight(68).Padding(vertical, 0).Gap(gap).AlignItems(ui.Center).Children(func() {
 		ui.Column(context).Grow(1).Basis(0).MinWidth(140).Gap(5).Children(func() {
-			ui.Text(context, label).FillWidth().FontSize(14).FontWeight(650)
+			ui.Text(context, label).FillWidth().FontSize(14)
 			if hint != "" {
 				ui.Text(context, hint).FillWidth().MaxWidth(620).FontSize(12).TextColor(context.Theme().TextMuted)
 			}

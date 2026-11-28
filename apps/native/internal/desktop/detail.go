@@ -112,7 +112,13 @@ func (w *Workspace) openDetailFromSource(id, source string) {
 	if w.closed || id == "" || w.meetings == nil || source != "local" && source != "remote" {
 		return
 	}
-	w.navigate("/jobs/" + id)
+	w.navigation.ReplaceCurrent(w.navigationEntry())
+	w.showDetailFromSource(id, source)
+	w.navigation.Visit(w.navigationEntry())
+}
+
+func (w *Workspace) showDetailFromSource(id, source string) {
+	w.navigateTo("/jobs/" + id)
 	w.closeDetail()
 	dispatch := w.jobDispatch
 	if dispatch == nil {
@@ -156,8 +162,8 @@ func panel(c *ui.Context, body func()) {
 func (v *Meetings) Detail(c *ui.Context, back func()) {
 	msg := func(key string) string { return presentation.Message(v.Locale, "jobDetail."+key) }
 	width, _ := c.Size()
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Gap(14).Children(func() {
+	contentScroll(c).Fill().Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(shellContentMaxWidth).AlignSelf(ui.Center).Gap(14).Children(func() {
 			if textButton(c, msg("backToJobs")).Clicked() {
 				back()
 			}
@@ -200,7 +206,7 @@ func (v *Meetings) Detail(c *ui.Context, back func()) {
 					header.Column()
 				}
 				header.Children(func() {
-					ui.Text(c, job.Title).FontSize(23).Bold().Grow(1).MinWidth(0).FillWidth()
+					ui.Text(c, job.Title).FontSize(23).Grow(1).MinWidth(0).FillWidth()
 					statusBadge(c, v.Locale, job.OverallStatus)
 				})
 				names := []string{}
@@ -252,10 +258,10 @@ func (v *Meetings) Detail(c *ui.Context, back func()) {
 				}
 				files.Children(func() {
 					panel(c, func() {
-						ui.Text(c, msg("filesSection")).Bold()
+						ui.Text(c, msg("filesSection"))
 						for _, file := range job.SourceFiles {
 							ui.Column(c.Key(file.ID)).FillWidth().Padding(12).Gap(5).Radius(8).Background(palette(c).Subpanel).Children(func() {
-								ui.Text(c, file.Name).FillWidth().Bold().Selectable()
+								ui.Text(c, file.Name).FillWidth().Selectable()
 								kind := "common.video"
 								if file.Kind == "audio" {
 									kind = "common.audio"
@@ -273,7 +279,7 @@ func (v *Meetings) Detail(c *ui.Context, back func()) {
 				}
 				settings.Children(func() {
 					panel(c, func() {
-						ui.Text(c, msg("settingsSection")).Bold()
+						ui.Text(c, msg("settingsSection"))
 						ui.Text(c, msg("language")+"  "+job.Lang)
 						ui.Text(c, msg("speakerDiarization")).FontSize(12).TextColor(c.Theme().TextMuted)
 						ui.Text(c, detailDiarization(v.Locale, job.DiarizationStatus)).FillWidth().FontSize(12)
@@ -284,8 +290,8 @@ func (v *Meetings) Detail(c *ui.Context, back func()) {
 			panel(c, func() {
 				progress := v.detailProgress.Update(job)
 				ui.Row(c).FillWidth().Children(func() {
-					ui.Text(c, msg("progressSection")).Bold().Grow(1)
-					ui.Text(c, fmt.Sprintf("%.0f%%", progress)).Bold()
+					ui.Text(c, msg("progressSection")).Grow(1)
+					ui.Text(c, fmt.Sprintf("%.0f%%", progress))
 				})
 				progressBar(c, float32(progress), msg("progressSection"))
 				text := statusText(v.Locale, job.OverallStatus)
@@ -295,7 +301,7 @@ func (v *Meetings) Detail(c *ui.Context, back func()) {
 				ui.Text(c, text).FillWidth().FontSize(12).TextColor(c.Theme().TextMuted).Role(ui.RoleStatus)
 			})
 			panel(c, func() {
-				ui.Text(c, msg("logSection")).Bold()
+				ui.Text(c, msg("logSection"))
 				if reason := jobFailureReason(job); reason != "" {
 					ui.Text(c, reason).FillWidth().TextColor(c.Theme().Danger).Selectable().Role(ui.RoleAlert)
 				}

@@ -89,147 +89,176 @@ func (v *Meetings) CanDelete(job domain.JobSummary) bool {
 		meetingOperationAvailable(job.Source, v.RemoteCapabilities, "jobs.delete")
 }
 func (v *Meetings) View(c *ui.Context) {
-	width, _ := c.Size()
-	ui.Column(c).Fill().Padding(12, 8, 32).Gap(20).Children(func() {
-		header := ui.Row(c).FillWidth().Gap(24).AlignItems(ui.Center)
-		if width <= 720 {
-			header.Column().AlignItems(ui.Start)
-		}
-		header.Children(func() {
-			ui.Text(c, v.msg("pageTitle")).FontSize(26).Bold().Grow(1)
-			if ui.PrimaryButton(c, v.msg("newJob")).Disabled(v.NewJob == nil || v.Source == "remote").Clicked() {
-				v.NewJob()
+	width := shellContentWidth(c)
+	p := palette(c)
+	filtered := v.status != "all" || strings.TrimSpace(v.query) != ""
+	hasJobs := len(v.Client.Jobs) > 0
+	firstJob := !hasJobs && !filtered && !v.Client.LoadingJobs && v.Client.ListError == nil && v.Source == "local" && v.NewJob != nil
+	ui.Column(c).Fill().MaxWidth(shellContentMaxWidth).AlignSelf(ui.Center).Padding(12, 8, 16).Gap(16).Children(func() {
+		ui.Row(c).FillWidth().MinHeight(40).AlignItems(ui.Center).Gap(12).Children(func() {
+			ui.Text(c, v.msg("queueTitle")).FontSize(26).Role(ui.RoleHeading).Level(1)
+			if v.Client.Page.Counts.Total > 0 {
+				ui.Text(c, v.format("visibleCount", map[string]any{"visible": v.Client.Page.Total, "total": v.Client.Page.Counts.Total})).FontSize(12).TextColor(c.Theme().TextMuted)
+			}
+			ui.Row(c).Grow(1)
+			if !firstJob {
+				v.newJobButton(c, v.msg("newJob"))
 			}
 		})
-		counts := v.Client.Page.Counts
-		metricColumns := 4
-		if width <= 720 {
-			metricColumns = 2
+		panel := ui.Column(c).FillWidth().MinHeight(0).Radius(12).Border(1, p.Separator).Clip().Background(p.Panel)
+		if hasJobs {
+			panel.Grow(1)
 		}
-		ui.Grid(c).FillWidth().Columns(metricColumns).GapX(max(28, min(72, width*.05))).GapY(20).Padding(0, 2).Children(func() {
-			for _, m := range []struct {
-				key   string
-				value int
-			}{{"total", counts.Total}, {"processing", counts.Processing}, {"completed", counts.Completed}, {"processFailed", counts.Failed}} {
-				ui.Column(c.Key(m.key)).FillWidth().MinWidth(0).Gap(6).Children(func() {
-					ui.Text(c, v.msg(m.key)).FontSize(14).TextColor(c.Theme().TextMuted)
-					e := ui.Text(c, fmt.Sprint(m.value)).FontSize(26).Bold()
-					if m.key == "processFailed" && m.value > 0 {
-						e.TextColor(c.Theme().Danger)
+		panel.Children(func() {
+			v.toolbar(c, width)
+			separator(c)
+			if v.OpenError {
+				ui.Text(c, v.text("无法打开结果窗口，请重试。", "Could not open result. Please retry.")).Padding(8, 16).TextColor(c.Theme().Danger).Role(ui.RoleAlert)
+			}
+			if v.Actions != nil && v.Actions.Error != nil {
+				ui.Text(c, v.text("任务操作失败，请重试。", "Job action failed. Please retry.")).Padding(8, 16).TextColor(c.Theme().Danger).Role(ui.RoleAlert)
+			}
+			if !v.Client.LoadingJobs && v.Client.ListError != nil {
+				ui.Column(c).FillWidth().Padding(20).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, v.text("任务读取失败，请重试。", "Could not read jobs. Please retry.")).Role(ui.RoleAlert)
+					if textButton(c, presentation.Message(v.Locale, "common.retry")).Clicked() {
+						v.refresh()
 					}
 				})
 			}
+			if hasJobs {
+				v.table(c)
+				separator(c)
+				v.pagination(c, width)
+			} else if v.Client.LoadingJobs {
+				ui.Column(c).FillWidth().Height(280).Center().Children(func() {
+					ui.Text(c, v.text("正在读取…", "Loading…")).Role(ui.RoleStatus).Busy(true)
+				})
+			} else if v.Client.ListError == nil {
+				v.emptyQueue(c, filtered, firstJob)
+			}
 		})
-		separator(c)
-		controls := ui.Row(c).FillWidth().Gap(20).AlignItems(ui.Center)
-		if width <= 980 {
-			controls.Column().AlignItems(ui.Stretch).Gap(12)
+	})
+}
+
+func (v *Meetings) newJobButton(c *ui.Context, label string) {
+	if ui.PrimaryButton(c, label).MinHeight(32).Disabled(v.NewJob == nil || v.Source == "remote").Clicked() {
+		v.NewJob()
+	}
+}
+
+func (v *Meetings) toolbar(c *ui.Context, width float32) {
+	counts := v.Client.Page.Counts
+	row := ui.Row(c).FillWidth().Padding(12, 14).Gap(12).AlignItems(ui.Center)
+	if width < 700 {
+		row.Column().AlignItems(ui.Stretch)
+	}
+	row.Children(func() {
+		var filters ui.Element
+		if width < 460 {
+			filters = ui.ScrollHorizontal(c).FillWidth()
+		} else {
+			filters = ui.Row(c)
 		}
-		controls.Children(func() {
-			var filters ui.Element
-			if width <= 720 {
-				filters = ui.ScrollHorizontal(c).FillWidth()
-			} else {
-				filters = ui.Row(c)
+		filters.MinWidth(0).Children(func() {
+			values := []string{"all", "processing", "completed", "failed"}
+			labels := []string{
+				fmt.Sprintf("%s %d", v.msg("filterAll"), counts.Total),
+				fmt.Sprintf("%s %d", v.msg("filterProcessing"), counts.Processing),
+				fmt.Sprintf("%s %d", v.msg("filterCompleted"), counts.Completed),
+				fmt.Sprintf("%s %d", v.msg("filterFailed"), counts.Failed),
 			}
-			filters.Gap(4).Label(v.msg("filterLabel")).Children(func() {
-				for _, f := range []struct{ key, label string }{{"all", "filterAll"}, {"processing", "filterProcessing"}, {"completed", "filterCompleted"}, {"failed", "filterFailed"}} {
-					if segmentButton(c, v.msg(f.label), v.status == f.key).Clicked() {
-						v.status = f.key
-						v.page = 1
-						v.refresh()
-					}
-				}
-			})
-			if width > 980 {
-				ui.Row(c).Grow(1)
-			}
-			search := ui.Row(c).MinWidth(0).Gap(12).AlignItems(ui.Center)
-			if width <= 980 {
-				search.FillWidth()
-			}
-			if width <= 720 {
-				search.Column().AlignItems(ui.Stretch)
-			}
-			search.Children(func() {
-				field := ui.TextInput(c, &v.query).Width(min(280, width*.28)).Placeholder(v.msg("searchPlaceholder")).Label(v.msg("searchPlaceholder"))
-				if width <= 980 {
-					field.Width(340).MaxWidthPercent(100)
-				}
-				if width <= 720 {
-					field.FillWidth()
-				}
-				if field.Changed() {
-					v.page = 1
-					v.refresh()
-				}
-				ui.Text(c, v.format("visibleCount", map[string]any{"visible": v.Client.Page.Total, "total": counts.Total})).MinWidth(82).FontSize(14).TextColor(c.Theme().TextMuted)
-			})
-		})
-		if v.OpenError {
-			ui.Text(c, v.text("无法打开结果窗口，请重试。", "Could not open result. Please retry.")).TextColor(c.Theme().Danger)
-		}
-		if v.Actions != nil && v.Actions.Error != nil {
-			ui.Text(c, v.text("任务操作失败，请重试。", "Job action failed. Please retry.")).TextColor(c.Theme().Danger)
-		}
-		if !v.Client.LoadingJobs && v.Client.ListError != nil {
-			ui.Text(c, v.text("任务读取失败，请重试。", "Could not read jobs. Please retry.")).Role(ui.RoleAlert)
-			if textButton(c, presentation.Message(v.Locale, "common.retry")).Clicked() {
+			if segmentedControl(c, &v.status, values, labels...).Label(v.msg("filterLabel")).Changed() {
+				v.page = 1
 				v.refresh()
 			}
+		})
+		if width >= 700 {
+			ui.Row(c).Grow(1)
 		}
-		if len(v.Client.Jobs) == 0 {
-			ui.Column(c).Grow(1).FillWidth().AlignItems(ui.Center).Justify(ui.Center).Gap(8).Children(func() {
-				if v.Client.LoadingJobs {
-					ui.Text(c, v.text("正在读取…", "Loading…")).Role(ui.RoleStatus).Busy(true)
-				} else if v.Client.ListError == nil {
-					ui.Text(c, v.msg("emptyTitle")).Bold()
-					ui.Text(c, v.msg("emptyDescription")).TextColor(c.Theme().TextMuted)
-				}
-			})
-		} else {
-			v.table(c)
+		field := ui.TextInput(c, &v.query).Width(216).MinHeight(32).Placeholder(v.msg("searchPlaceholder")).Label(v.msg("searchPlaceholder"))
+		if width < 700 {
+			field.FillWidth()
 		}
-		p := v.Client.Page
-		if p.Total > 0 {
-			pagination := ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(16).Label(v.msg("paginationLabel"))
-			if width <= 720 {
-				pagination.Column().AlignItems(ui.Stretch)
-			}
-			pagination.Children(func() {
-				ui.Text(c, v.format("paginationSummary", map[string]any{"from": p.From, "to": p.To, "total": p.Total})).Grow(1).FontSize(14).TextColor(c.Theme().TextMuted).Role(ui.RoleStatus)
-				var buttons ui.Element
-				if width <= 720 {
-					buttons = ui.ScrollHorizontal(c).FillWidth()
-				} else {
-					buttons = ui.Row(c)
-				}
-				buttons.Gap(8).AlignItems(ui.Center).Children(func() {
-					if textButton(c, v.msg("previousPage")).Disabled(v.Client.LoadingJobs || p.Page <= 1).Clicked() {
-						v.page = p.Page - 1
-						v.refresh()
-					}
-					for page := max(1, p.Page-2); page <= min(p.PageCount, p.Page+2); page++ {
-						if segmentButton(c, fmt.Sprint(page), page == p.Page).Clicked() {
-							v.page = page
-							v.refresh()
-						}
-					}
-					if textButton(c, v.msg("nextPage")).Disabled(v.Client.LoadingJobs || p.Page >= p.PageCount).Clicked() {
-						v.page = p.Page + 1
-						v.refresh()
-					}
-				})
-			})
+		if field.Changed() {
+			v.page = 1
+			v.refresh()
 		}
 	})
+}
+
+func (v *Meetings) emptyQueue(c *ui.Context, filtered, firstJob bool) {
+	icon := "tray"
+	title := v.text("还没有会议任务", "No meeting jobs yet")
+	description := v.text("会议任务会显示在这里。", "Meeting jobs will appear here.")
+	if firstJob {
+		description = v.text("选择会议录音或视频，开始第一次转写。", "Choose a meeting recording or video to start your first transcript.")
+	} else if filtered {
+		icon, title = "search", v.msg("emptyTitle")
+		description = v.text("试试其他关键词，或清除筛选查看全部任务。", "Try a different search or clear the filters to see all jobs.")
+	}
+	p := palette(c)
+	ui.Column(c).FillWidth().MinHeight(280).Padding(24).Gap(12).Center().Children(func() {
+		ui.Box(c).Size(52, 52).Radius(14).Background(p.Selected).Center().Children(func() {
+			ui.Icon(c, presentation.Icon(icon)).Size(26, 26).TextColor(p.NavAccent)
+		})
+		ui.Column(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, title).FontSize(18).Role(ui.RoleHeading).Level(2)
+			ui.Text(c, description).FontSize(13).TextColor(c.Theme().TextMuted)
+		})
+		if firstJob {
+			v.newJobButton(c, v.text("新建第一个任务", "Create first job"))
+		} else if filtered && ui.Button(c, v.text("清除筛选", "Clear filters")).Clicked() {
+			v.query, v.status, v.page = "", "all", 1
+			v.refresh()
+		}
+	})
+}
+
+func (v *Meetings) pagination(c *ui.Context, width float32) {
+	p := v.Client.Page
+	if p.Total > 0 {
+		pagination := ui.Row(c).FillWidth().Padding(8, 14).AlignItems(ui.Center).Gap(12).Label(v.msg("paginationLabel"))
+		if width < 460 {
+			pagination.Column().AlignItems(ui.Stretch)
+		}
+		pagination.Children(func() {
+			ui.Text(c, v.format("paginationSummary", map[string]any{"from": p.From, "to": p.To, "total": p.Total})).Grow(1).FontSize(14).TextColor(c.Theme().TextMuted).Role(ui.RoleStatus)
+			var buttons ui.Element
+			if width < 460 {
+				buttons = ui.ScrollHorizontal(c).FillWidth()
+			} else {
+				buttons = ui.Row(c)
+			}
+			buttons.Gap(8).AlignItems(ui.Center).Children(func() {
+				if textButton(c, v.msg("previousPage")).Disabled(v.Client.LoadingJobs || p.Page <= 1).Clicked() {
+					v.page = p.Page - 1
+					v.refresh()
+				}
+				first, last := max(1, p.Page-2), min(p.PageCount, p.Page+2)
+				labels := make([]string, 0, last-first+1)
+				for page := first; page <= last; page++ {
+					labels = append(labels, fmt.Sprint(page))
+				}
+				selected := p.Page - first
+				if ui.Segmented(c, &selected, labels...).Label(v.msg("paginationLabel")).Disabled(v.Client.LoadingJobs).Changed() {
+					v.page = first + selected
+					v.refresh()
+				}
+				if textButton(c, v.msg("nextPage")).Disabled(v.Client.LoadingJobs || p.Page >= p.PageCount).Clicked() {
+					v.page = p.Page + 1
+					v.refresh()
+				}
+			})
+		})
+	}
 }
 
 var queueColumns = []struct {
 	key   string
 	width float32
 }{
-	{"colTask", 250}, {"colFiles", 220}, {"colFileCount", 95}, {"colDuration", 105}, {"colDiarization", 220}, {"colCreatedAt", 145}, {"colProcessingDuration", 115}, {"colStatus", 150}, {"colProgress", 145},
+	{"colTask", 248}, {"colStatus", 124}, {"colProgress", 130}, {"colCreatedAt", 136}, {"colDuration", 105}, {"colFiles", 210}, {"colFileCount", 95}, {"colDiarization", 220}, {"colProcessingDuration", 128},
 }
 
 func (v *Meetings) table(c *ui.Context) {
@@ -240,14 +269,14 @@ func (v *Meetings) table(c *ui.Context) {
 	}
 	first := max(1, v.Client.Page.From)
 	total := max(v.Client.Page.Total, first-1+len(v.Client.Jobs))
-	ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Radius(10).Children(func() {
+	contentScroll(c).Grow(1).MinHeight(0).FillWidth().Background(palette(c).Content).Children(func() {
 		ui.ScrollHorizontal(c).FillWidth().Shrink(0).Children(func() {
 			ui.Column(c).Width(width).Role(ui.RoleTable).Label(v.msg("queueTitle")).RowCount(total + 1).ColumnCount(len(queueColumns) + 1).Children(func() {
 				ui.Row(c).Height(44).Shrink(0).AlignItems(ui.Center).Background(palette(c).Subpanel).Role(ui.RoleRow).RowIndex(1).Children(func() {
 					for index, column := range queueColumns {
-						ui.Text(c, v.msg(column.key)).Width(column.width).Shrink(0).Padding(0, 12).FontSize(14).TextColor(c.Theme().TextMuted).Bold().Role(ui.RoleColumnHeader).RowIndex(1).ColumnIndex(index + 1)
+						ui.Text(c, v.msg(column.key)).Width(column.width).Shrink(0).Padding(0, 12).FontSize(14).TextColor(c.Theme().TextMuted).Role(ui.RoleColumnHeader).RowIndex(1).ColumnIndex(index + 1)
 					}
-					ui.Text(c, v.msg("colActions")).Width(actionsWidth).Height(44).Shrink(0).Padding(12).Background(palette(c).Subpanel).TextColor(c.Theme().TextMuted).Bold().Sticky().Right(0).Role(ui.RoleColumnHeader).RowIndex(1).ColumnIndex(10)
+					ui.Text(c, v.msg("colActions")).Width(actionsWidth).Height(44).Shrink(0).Padding(12).Background(palette(c).Subpanel).TextColor(c.Theme().TextMuted).Sticky().Right(0).Role(ui.RoleColumnHeader).RowIndex(1).ColumnIndex(10)
 				})
 				for index, job := range v.Client.Jobs {
 					rowIndex := first + index + 1
@@ -261,7 +290,7 @@ func (v *Meetings) table(c *ui.Context) {
 					}
 					row.Children(func() {
 						for column, definition := range queueColumns {
-							ui.Row(c.Key(column)).Width(definition.width).FillHeight().Shrink(0).Padding(0, 12).Clip().AlignItems(ui.Center).FontSize(14).Role(ui.RoleCell).RowIndex(rowIndex).ColumnIndex(column + 1).Children(func() { v.cell(c, job, column) })
+							ui.Row(c.Key(column)).Width(definition.width).FillHeight().Shrink(0).Padding(0, 12).Clip().AlignItems(ui.Center).FontSize(14).Role(ui.RoleCell).RowIndex(rowIndex).ColumnIndex(column + 1).Children(func() { v.cell(c, job, definition.key) })
 						}
 						ui.Row(c).Width(actionsWidth).FillHeight().Shrink(0).Padding(0, 6).Gap(4).AlignItems(ui.Center).Background(palette(c).Content).Sticky().Right(0).Role(ui.RoleCell).RowIndex(rowIndex).ColumnIndex(10).Children(func() {
 							label := v.msg("details")
@@ -311,9 +340,9 @@ func (v *Meetings) table(c *ui.Context) {
 		})
 	})
 }
-func (v *Meetings) cell(c *ui.Context, job domain.JobSummary, col int) {
+func (v *Meetings) cell(c *ui.Context, job domain.JobSummary, col string) {
 	switch col {
-	case 0:
+	case "colTask":
 		mark := "AV"
 		if len(job.SourceFiles) > 0 {
 			parts := strings.Split(job.SourceFiles[0].Name, ".")
@@ -325,10 +354,10 @@ func (v *Meetings) cell(c *ui.Context, job domain.JobSummary, col int) {
 			}
 		}
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Row(c).Size(36, 36).Radius(9).Background(palette(c).Selected).AlignItems(ui.Center).Justify(ui.Center).Children(func() { ui.Text(c, mark).TextColor(palette(c).NavAccent).Bold() })
-			ui.Text(c, job.Title).FontSize(15).Bold().SingleLine().Grow(1).MinWidth(0).Tooltip(job.Title)
+			ui.Row(c).Size(36, 36).Radius(9).Background(palette(c).Selected).AlignItems(ui.Center).Justify(ui.Center).Children(func() { ui.Text(c, mark).TextColor(palette(c).NavAccent) })
+			ui.Text(c, job.Title).FontSize(15).SingleLine().Grow(1).MinWidth(0).Tooltip(job.Title)
 		})
-	case 1:
+	case "colFiles":
 		names := make([]string, len(job.SourceFiles))
 		for i, f := range job.SourceFiles {
 			names[i] = f.Name
@@ -338,9 +367,9 @@ func (v *Meetings) cell(c *ui.Context, job domain.JobSummary, col int) {
 			text = presentation.Message(v.Locale, "common.noData")
 		}
 		ui.Text(c, text).SingleLine().Tooltip(text)
-	case 2:
+	case "colFileCount":
 		ui.Text(c, v.format("filesCount", map[string]any{"count": len(job.SourceFiles)})).FontSize(12).TextColor(c.Theme().TextMuted)
-	case 3:
+	case "colDuration":
 		text := v.msg("pending")
 		n := int(job.DurationMinutes)
 		if n > 0 {
@@ -353,12 +382,12 @@ func (v *Meetings) cell(c *ui.Context, job domain.JobSummary, col int) {
 			}
 		}
 		ui.Text(c, text).TextColor(c.Theme().TextMuted)
-	case 4:
+	case "colDiarization":
 		label := v.diarization(job)
 		ui.Text(c, label).FontSize(12).Padding(3, 8).Radius(12).Background(palette(c).Selected).TextColor(palette(c).NavAccent).SingleLine().Tooltip(label)
-	case 5:
+	case "colCreatedAt":
 		ui.Text(c, createdText(v.Locale, job.CreatedAt)).TextColor(c.Theme().TextMuted).SingleLine()
-	case 6:
+	case "colProcessingDuration":
 		text := v.msg("notCompleted")
 		if job.ProcessingDurationSeconds != nil {
 			n := *job.ProcessingDurationSeconds
@@ -369,13 +398,13 @@ func (v *Meetings) cell(c *ui.Context, job domain.JobSummary, col int) {
 			}
 		}
 		ui.Text(c, text).TextColor(c.Theme().TextMuted).SingleLine()
-	case 7:
+	case "colStatus":
 		if reason := jobFailureReason(job); job.OverallStatus == "failed" && reason != "" {
 			ui.Row(c).Role(ui.RoleGroup).Label(statusText(v.Locale, job.OverallStatus)).Focusable().Tooltip(reason).Children(func() { statusBadge(c, v.Locale, job.OverallStatus) })
 		} else {
 			statusBadge(c, v.Locale, job.OverallStatus)
 		}
-	case 8:
+	case "colProgress":
 		percent := job.ProgressPercent
 		if job.OverallStatus == "completed" {
 			value := float64(100)

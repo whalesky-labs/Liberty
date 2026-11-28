@@ -41,7 +41,8 @@ func (w *Workspace) AttachSettings(service client.SettingsService, startup ...cl
 		}
 	}, w.applyPreferences, startup...)
 	controller.OnSaved(w.applySavedSettings)
-	w.settings = &SettingsView{Client: controller, Runtime: w.runtime, Locale: w.preferences.Locale, Back: w.returnToApp, ActiveSource: func() string {
+	controller.OnLoaded(w.applyLiveSettings)
+	w.settings = &SettingsView{Client: controller, Updates: w.updates, CheckUpdates: w.checkUpdates, Runtime: w.runtime, Locale: w.preferences.Locale, Back: w.returnToApp, NavigateSection: w.selectSettingsSection, ActiveSource: func() string {
 		if w.view == nil {
 			return ""
 		}
@@ -49,15 +50,28 @@ func (w *Workspace) AttachSettings(service client.SettingsService, startup ...cl
 	}}
 	controller.Load()
 }
+
+func (w *Workspace) AttachDeviceStorage(service client.DeviceStorageService) {
+	if w.settings == nil || service == nil {
+		return
+	}
+	w.settings.Storage = client.NewDeviceStorage(service, mygo.RunOnMain, func() {
+		if !w.closed {
+			w.main.Invalidate()
+		}
+	})
+}
+
 func (w *Workspace) applyPreferences(preferences domain.UIPreferences) {
 	if w.closed {
 		return
 	}
-	if w.preferences.Locale != preferences.Locale {
-		mygo.App.SetMenu(ApplicationMenu(preferences.Locale))
-	}
+	localeChanged := w.preferences.Locale != preferences.Locale
 	appearanceChanged := w.preferences.LiquidGlassStyle != preferences.LiquidGlassStyle || w.preferences.ThemeMode != preferences.ThemeMode
 	w.preferences = preferences
+	if localeChanged {
+		w.RefreshApplicationMenu()
+	}
 	switch preferences.ThemeMode {
 	case "light":
 		mygo.Theme.SetSource(mygo.ThemeLight)
@@ -97,6 +111,7 @@ func (w *Workspace) applyPreferences(preferences domain.UIPreferences) {
 	if w.settings != nil {
 		w.settings.Locale = preferences.Locale
 	}
+	w.syncUpdateWindow()
 	if w.resources != nil {
 		w.resources.Locale = preferences.Locale
 	}

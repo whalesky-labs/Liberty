@@ -3,6 +3,7 @@ package desktop
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -245,7 +246,8 @@ func TestWorkspaceSettingsReturnKeepsQueueFilter(t *testing.T) {
 			awaitWorkspaceJobs(t, callbacks, func() bool { return !controller.LoadingJobs })
 			tester := ui.NewTester(workspace.view.View, 1100, 800)
 			label := map[string]string{"processing": "filterProcessing", "completed": "filterCompleted", "failed": "filterFailed"}[filter]
-			button, ok := tester.AccessByRole(ui.RoleButton, workspace.view.msg(label))
+			count := map[string]int{"processing": controller.Page.Counts.Processing, "completed": controller.Page.Counts.Completed, "failed": controller.Page.Counts.Failed}[filter]
+			button, ok := tester.AccessByRole(ui.RoleRadio, fmt.Sprintf("%s %d", workspace.view.msg(label), count))
 			if !ok || button.Disabled || button.Offscreen {
 				t.Fatalf("queue filter is unavailable: %+v", button)
 			}

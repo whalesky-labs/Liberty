@@ -42,6 +42,9 @@ func TestShellSecondaryMenuToggleReclaimsSpace(t *testing.T) {
 					if !ok {
 						t.Fatal("page content is missing")
 					}
+					if !compact && math.Abs(float64(before.W-float32(sample.width-presentation.SidebarWidth-shellContentPaddingX))) > 1 {
+						t.Fatal("expanded page viewport did not reach the content edge", before)
+					}
 					collapseLabel, expandLabel := shell.msg("shell.collapseMenu"), shell.msg("shell.expandMenu")
 					toggle, ok := tester.AccessByRole(ui.RoleButton, collapseLabel)
 					if !ok || toggle.Disabled || toggle.Offscreen || !toggle.Expanded {
@@ -57,14 +60,11 @@ func TestShellSecondaryMenuToggleReclaimsSpace(t *testing.T) {
 						t.Fatal("collapsing the menu hid primary navigation", rail)
 					}
 					after, ok := tester.Find("Page content")
-					available := float32(sample.width - presentation.ActivityBarWidth - 2*shellContentPaddingX)
-					wantWidth := min(float32(shellContentMaxWidth), available)
-					left := float32(presentation.ActivityBarWidth+shellContentPaddingX) + (available-wantWidth)/2
-					if sample.route == "/farm" {
-						wantWidth, left = available, presentation.ActivityBarWidth+shellContentPaddingX
-					}
+					available := float32(sample.width - presentation.ActivityBarWidth - shellContentPaddingX)
+					wantWidth := available
+					left := float32(presentation.ActivityBarWidth + shellContentPaddingX)
 					if compact {
-						wantWidth, left = float32(sample.width-2*shellContentPaddingX), shellContentPaddingX
+						wantWidth, left = float32(sample.width-shellContentPaddingX), shellContentPaddingX
 					}
 					if !ok || math.Abs(float64(after.X-left)) > 1 || math.Abs(float64(after.W-wantWidth)) > 1 {
 						t.Fatalf("content did not reclaim menu space: %+v, want x=%.1f width=%.1f", after, left, wantWidth)

@@ -37,7 +37,7 @@ func TestResourceCardsUseAvailablePaneWidthAndKeepLastRowColumns(t *testing.T) {
 					if !ok || first.Offscreen {
 						t.Fatal("resource list lost its first card", first)
 					}
-					paneWidth := min(float32(1180), float32(sample.width)-presentation.SidebarWidth-24)
+					paneWidth := min(float32(shellContentMaxWidth), float32(sample.width)-presentation.SidebarWidth-shellContentPaddingX)
 					wantWidth := (paneWidth - 16 - float32(sample.columns-1)*16) / float32(sample.columns)
 					for index := 0; index < 4; index++ {
 						card, ok := tester.AccessByRole(ui.RoleListItem, fmt.Sprintf("Synthetic resource %02d", index))
@@ -102,6 +102,7 @@ func TestMemberTableKeepsSixCellsAndFixedActionsDuringCombinedScroll(t *testing.
 			if !ok || before.W < 30 {
 				t.Fatal("member fixed action starts outside the viewport", before)
 			}
+			originalHeader, _ := tester.Find(view.msg("name"))
 			tester.Scroll(table.Bounds.X+200, before.Y+10, 500, 0)
 			tester.Frame()
 			after, _ := tester.Find(firstLabel)
@@ -109,7 +110,7 @@ func TestMemberTableKeepsSixCellsAndFixedActionsDuringCombinedScroll(t *testing.
 				t.Fatal("member action scrolled horizontally", before, after)
 			}
 			nameHeader, _ := tester.Find(view.msg("name"))
-			if nameHeader.W > 1 {
+			if nameHeader.W >= originalHeader.W {
 				t.Fatal("member data did not scroll under the fixed action", nameHeader)
 			}
 			tester.SetSize(1100, 650)

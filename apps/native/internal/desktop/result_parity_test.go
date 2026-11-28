@@ -46,9 +46,22 @@ func TestResultLongTextKeepsActionsAndVirtualTranscriptUsable(t *testing.T) {
 				view.Actions = &client.ResultActionController{}
 				tester := ui.NewTesterWith(view.View, width, 720, ui.TesterOptions{Dark: locale == "en-US"})
 				filter, ok := tester.Access(fmt.Sprintf("%s 1", longSpeaker))
-				if !ok || filter.Offscreen || filter.Bounds.X+filter.Bounds.W > float32(width) || filter.Bounds.H < 15 {
-					t.Fatal("long speaker filter overflowed the window", filter)
+				if !ok || filter.Bounds.H < 15 {
+					t.Fatal("long speaker filter is unavailable", filter)
 				}
+				assertDefaultSegmentedHeight(t, tester, view.msg("allSpeakers"), presentation.PreferenceColors(locale == "en-US", view.Preferences).Theme)
+				viewport, ok := tester.Find(view.text("讲话人筛选", "Speaker filter"))
+				if !ok || viewport.X < 0 || viewport.X+viewport.W > float32(width) {
+					t.Fatal("speaker filter viewport overflowed the window", viewport)
+				}
+				if err := tester.Click(fmt.Sprintf("%s %d", view.msg("allSpeakers"), 400)); err != nil {
+					t.Fatal(err)
+				}
+				tester.Key(0, ui.KeyRight)
+				if view.speaker != longSpeaker {
+					t.Fatal("long speaker filter cannot be selected with the keyboard")
+				}
+				tester.Key(0, ui.KeyLeft)
 				for _, label := range []string{presentation.Message(locale, "common.closeWindow"), view.msg("exportBundle"), view.msg("searchPlaceholder"), presentation.Message(locale, "common.edit")} {
 					control, ok := tester.Access(label)
 					if !ok || control.Offscreen || control.Bounds.W < 30 || control.Bounds.H < 15 || control.Bounds.X < 0 || control.Bounds.X+control.Bounds.W > float32(width) || control.Bounds.Y+control.Bounds.H > 720 {
@@ -105,7 +118,7 @@ func TestResultKeyboardSearchFiltersAndScrollsVirtualRows(t *testing.T) {
 			if err := tester.Click("Speaker 0 200"); err != nil {
 				t.Fatal(err)
 			}
-			choice, ok := tester.AccessByRole(ui.RoleToggleButton, "Speaker 0 200")
+			choice, ok := tester.AccessByRole(ui.RoleRadio, "Speaker 0 200")
 			if !ok || !choice.Checked || view.speaker != "Speaker 0" {
 				t.Fatal("speaker filter does not expose its active state", choice)
 			}

@@ -82,10 +82,26 @@ func TestRuntimeViewKeepsOriginalBilingualComponentLabels(t *testing.T) {
 		state := domain.RuntimeOverview{Status: "missing", Python: domain.NewRuntimeComponent("python", "managed", "0"), FFmpeg: domain.NewRuntimeComponent("ffmpeg", "managed", "0"), Models: domain.NewRuntimeComponent("model", "managed", "0")}
 		v := &RuntimeView{Client: &client.RuntimeController{Panel: &domain.RuntimePanel{Overview: state, Sources: []domain.RuntimeSourceOption{{ID: "official", Name: "官方源"}}}}, Locale: locale}
 		tt := ui.NewTester(v.View, 1180, 900)
-		for _, key := range []string{"localRuntime", "runtimeResourcePython", "runtimeResourceFfmpeg", "runtimeResourceFunasr", "runtimeInstallLogEmpty"} {
-			if !tt.HasText(v.msg(key)) {
-				t.Fatal("missing original runtime text: " + key)
+		for section, keys := range map[string][]string{
+			"localRuntime":     {"runtimeResourcePython", "runtimeResourceFfmpeg"},
+			"speechModels":     {"runtimeResourceFunasr"},
+			"runtimeDownloads": {"runtimeInstallLog", "runtimeDownloadSource"},
+		} {
+			v.section = section
+			tt.Frame()
+			for _, key := range keys {
+				if !tt.HasText(v.msg(key)) {
+					t.Fatal("missing runtime text", section, key)
+				}
 			}
+		}
+		v.section = "runtimeDownloads"
+		tt.Frame()
+		if err := tt.Click(v.msg("runtimeInstallLog")); err != nil {
+			t.Fatal(err)
+		}
+		if !tt.HasText(v.msg("runtimeInstallLogEmpty")) {
+			t.Fatal("expanded logs lost the bilingual empty state")
 		}
 	}
 }

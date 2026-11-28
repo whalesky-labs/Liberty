@@ -24,12 +24,12 @@ func (v *PetView) store(c *ui.Context) {
 	petPanel(c, func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(14).Children(func() {
 			ui.Column(c).Grow(1).Gap(5).Children(func() {
-				ui.Text(c, v.text("宠物商店", "Pet Store")).FontSize(24).Bold().Role(ui.RoleHeading).Level(1)
+				ui.Text(c, v.text("宠物商店", "Pet Store")).FontSize(24).Role(ui.RoleHeading).Level(1)
 				ui.Text(c, v.text("用每一次专注工作的积累，换来伙伴的小小惊喜。", "Turn your work rewards into little surprises for your companion.")).FontSize(12).TextColor(c.Theme().TextMuted)
 			})
 			ui.Column(c).Gap(3).Children(func() {
 				ui.Text(c, "LP").FontSize(12)
-				ui.Text(c, fmt.Sprint(s.Wallet.Balance)).FontSize(26).Bold()
+				ui.Text(c, fmt.Sprint(s.Wallet.Balance)).FontSize(26)
 				ui.Text(c, v.text("当前余额", "Balance")).FontSize(11)
 			})
 		})
@@ -58,19 +58,15 @@ func (v *PetView) store(c *ui.Context) {
 			main.Grow(1).Basis(0)
 		}
 		main.Children(func() {
-			ui.Row(c).FillWidth().Gap(8).Children(func() {
-				for _, tab := range []struct{ key, zh, en string }{{"store", "商品商店", "Store"}, {"inventory", "个人仓库", "Inventory"}} {
-					if segmentButton(c, v.text(tab.zh, tab.en), v.section == tab.key).Clicked() {
-						v.section = tab.key
-					}
-				}
-			})
-			ui.Row(c).FillWidth().Wrap().Gap(6).Children(func() {
-				for _, category := range []string{"all", "pet", "cosmetic", "theme", "tool", "food", "seed", "badge"} {
-					if segmentButton(c, v.typeName(category), v.category == category).Padding(6, 7).Clicked() {
-						v.category = category
-					}
-				}
+			segmentedControl(c, &v.section, []string{"store", "inventory"}, v.text("商品商店", "Store"), v.text("个人仓库", "Inventory")).
+				AlignSelf(ui.Start).Label(v.text("商店内容", "Store content"))
+			categories := []string{"all", "pet", "cosmetic", "theme", "tool", "food", "seed", "badge"}
+			labels := make([]string, len(categories))
+			for i, category := range categories {
+				labels[i] = v.typeName(category)
+			}
+			ui.ScrollHorizontal(c).FillWidth().MinWidth(0).Children(func() {
+				segmentedControl(c, &v.category, categories, labels...).Label(v.text("商品分类", "Product category"))
 			})
 			items := []domain.PetStoreCatalogItemState{}
 			if v.section == "store" {
@@ -114,7 +110,7 @@ func (v *PetView) store(c *ui.Context) {
 		}
 		sidebar.Children(func() {
 			petPanel(c, func() {
-				ui.Text(c, v.text("商店概览", "Store Overview")).FontSize(15).Bold()
+				ui.Text(c, v.text("商店概览", "Store Overview")).FontSize(15)
 				available, locked := 0, 0
 				for _, i := range s.Catalog {
 					if i.Purchasable {
@@ -135,13 +131,13 @@ func (v *PetView) store(c *ui.Context) {
 				}
 			})
 			petPanel(c, func() {
-				ui.Text(c, v.text("陪伴阶梯说明", "Bond Tiers")).FontSize(15).Bold()
+				ui.Text(c, v.text("陪伴阶梯说明", "Bond Tiers")).FontSize(15)
 				for _, stage := range domain.PetStages() {
 					ui.Text(c, v.text(stage.LabelZh, stage.LabelEn)).FontSize(11).TextColor(c.Theme().TextMuted)
 				}
 			})
 			petPanel(c, func() {
-				ui.Text(c, v.text("当前装备", "Equipped")).FontSize(15).Bold()
+				ui.Text(c, v.text("当前装备", "Equipped")).FontSize(15)
 				for _, row := range []struct {
 					key, zh, en string
 					item        *domain.PetInventoryItem
@@ -158,11 +154,11 @@ func (v *PetView) store(c *ui.Context) {
 				}
 			})
 			petPanel(c, func() {
-				ui.Text(c, v.text("下一个解锁", "Next Unlock")).FontSize(15).Bold()
+				ui.Text(c, v.text("下一个解锁", "Next Unlock")).FontSize(15)
 				locked := false
 				for _, item := range s.Catalog {
 					if item.Status == "locked" {
-						ui.Text(c, v.itemName(item.Item.ItemKey)).FillWidth().FontSize(12).Bold()
+						ui.Text(c, v.itemName(item.Item.ItemKey)).FillWidth().FontSize(12)
 						ui.Text(c, v.text(item.LockedReasonZh, item.LockedReasonEn)).FillWidth().FontSize(11).TextColor(c.Theme().TextMuted)
 						locked = true
 						break
@@ -171,7 +167,7 @@ func (v *PetView) store(c *ui.Context) {
 				if !locked {
 					ui.Text(c, v.text("暂无锁定目标", "All available")).FontSize(12)
 				}
-				ui.Text(c, v.text("里程碑", "Milestones")).FontSize(15).Bold()
+				ui.Text(c, v.text("里程碑", "Milestones")).FontSize(15)
 				for _, counter := range s.Counters {
 					v.stat(c, petMilestoneLabel(v.Locale, counter.CounterKey), fmt.Sprint(counter.CounterValue))
 				}
@@ -184,7 +180,7 @@ func (v *PetView) storeCard(c *ui.Context, state domain.PetStoreCatalogItemState
 	card := ui.Column(c.Key(item.ItemKey)).Role(ui.RoleGroup).Label(v.text(item.NameZh, item.NameEn)).FillWidth().FillHeight().MinWidth(0).Radius(8).Clip().Border(1, palette(c).Separator).Background(palette(c).Panel).Children(func() {
 		ui.Image(c, presentation.PetArt(item.AssetKey)).FillWidth().Height(150).Fit(ui.Contain).Background(petAccent(item.ItemType).Alpha(.08)).Label(v.text(item.NameZh, item.NameEn))
 		ui.Column(c).FillWidth().Padding(12).Gap(7).Grow(1).Children(func() {
-			ui.Text(c, v.text(item.NameZh, item.NameEn)).FontSize(14).Bold()
+			ui.Text(c, v.text(item.NameZh, item.NameEn)).FontSize(14)
 			ui.Text(c, v.typeName(item.ItemType)+" · "+v.stage(item.Rarity)).FontSize(10).TextColor(c.Theme().TextMuted)
 			if state.Quantity > 0 {
 				ui.Text(c, fmt.Sprintf(v.text("持有 ×%d", "Owned ×%d"), state.Quantity)).FontSize(11)
@@ -303,7 +299,7 @@ func (v *PetView) confirmation(c *ui.Context) {
 		ui.Column(c).Width(360).MaxWidth(520).Gap(14).Children(func() {
 			switch v.dialogKind {
 			case "name":
-				ui.Text(c, v.text("修改宠物名字", "Edit Pet Name")).FontSize(20).Bold()
+				ui.Text(c, v.text("修改宠物名字", "Edit Pet Name")).FontSize(20)
 				ui.Text(c, v.text("宠物名字", "Pet name")).FontSize(12)
 				input := ui.TextInput(c, &v.name).FillWidth().Label(v.text("宠物名字", "Pet name")).MaxLength(24).AutoFocus().Disabled(v.Client.Busy)
 				ui.Row(c).FillWidth().Justify(ui.End).Gap(8).Children(func() {
@@ -321,7 +317,7 @@ func (v *PetView) confirmation(c *ui.Context) {
 					}
 				})
 			case "restart":
-				ui.Text(c, v.text("重新开始签到", "Restart check-in streak")).FontSize(20).Bold()
+				ui.Text(c, v.text("重新开始签到", "Restart check-in streak")).FontSize(20)
 				ui.Text(c, v.text("确定从今日重新开始吗？当前断签缺口将不能再补签。", "Start again from today? Missed days in the current gap can no longer be repaired.")).FillWidth()
 				ui.Row(c).FillWidth().Justify(ui.End).Gap(8).Children(func() {
 					if ui.Button(c, v.text("取消", "Cancel")).Clicked() {
@@ -338,7 +334,7 @@ func (v *PetView) confirmation(c *ui.Context) {
 					ui.Text(c, v.text("无法找到该商品详情。", "Item details are unavailable."))
 					return
 				}
-				ui.Text(c, v.text(item.NameZh, item.NameEn)).FontSize(20).Bold()
+				ui.Text(c, v.text(item.NameZh, item.NameEn)).FontSize(20)
 				ui.Image(c, presentation.PetArt(item.AssetKey)).FillWidth().Height(180).Fit(ui.Contain)
 				ui.Text(c, v.text(item.DescriptionZh, item.DescriptionEn)).FillWidth().FontSize(12)
 				maximum := v.maxQuantity(item, v.dialogKind)

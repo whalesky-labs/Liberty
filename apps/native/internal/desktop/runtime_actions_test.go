@@ -106,6 +106,14 @@ func TestRuntimeComponentActionsDelegateTheNamedComponentAndSource(t *testing.T)
 						return
 					}
 					selector := view.msg(runtimeNameKey(component)) + " " + view.msg("runtimeResourceSource")
+					if _, ok := tester.AccessByRole(ui.RolePopUpButton, selector); ok {
+						t.Fatal("resource configuration should be collapsed initially")
+					}
+					configuration := view.msg(runtimeNameKey(component)) + " · " + view.msg("runtimeResourceConfigure")
+					runtimeClickControl(t, tester, ui.RoleButton, configuration)
+					if button, ok := tester.AccessByRole(ui.RoleButton, configuration); !ok || !button.Expanded {
+						t.Fatal("configuration did not announce its expanded state", button)
+					}
 					if err := tester.Click(selector); err != nil {
 						t.Fatal(err)
 					}
@@ -120,6 +128,10 @@ func TestRuntimeComponentActionsDelegateTheNamedComponentAndSource(t *testing.T)
 					if got := <-service.calls; got != (runtimeInteractionCall{operation: "switch", component: component, source: nextSource}) {
 						t.Fatal("source selector changed a different runtime resource", got)
 					}
+					runtimeClickControl(t, tester, ui.RoleButton, configuration)
+					if _, ok := tester.AccessByRole(ui.RolePopUpButton, selector); ok {
+						t.Fatal("resource configuration did not collapse")
+					}
 				})
 			}
 		}
@@ -128,13 +140,13 @@ func TestRuntimeComponentActionsDelegateTheNamedComponentAndSource(t *testing.T)
 
 func TestRuntimeComponentDisabledStatesNeverDelegate(t *testing.T) {
 	for _, component := range []string{"python", "ffmpeg", "model"} {
-		for _, reason := range []string{"busy", "active", "unsupported", "missing-source"} {
+		for _, reason := range []string{"busy", "active", "unsupported", "component-unsupported", "missing-source"} {
 			t.Run(component+"/"+reason, func(t *testing.T) {
 				service := &runtimeInteractionService{panel: runtimeInteractionPanel(), calls: make(chan runtimeInteractionCall, 8)}
 				controller := client.NewRuntime(service, func(callback func()) { t.Error("disabled control scheduled a callback") }, func() {})
 				defer controller.Close()
 				controller.Panel = &service.panel
-				view := &RuntimeView{Client: controller, Locale: "en-US"}
+				view := &RuntimeView{Client: controller, Locale: "en-US", expandedComponent: component}
 				state := domain.NewRuntimeComponent(component, "managed", "0")
 				source := "official"
 				if reason == "busy" {
@@ -146,6 +158,9 @@ func TestRuntimeComponentDisabledStatesNeverDelegate(t *testing.T) {
 				if reason == "missing-source" {
 					source = ""
 				}
+				if reason == "component-unsupported" {
+					state.Availability = "unsupported"
+				}
 				tester := ui.NewTester(func(context *ui.Context) {
 					ui.Column(context).Fill().Children(func() { view.component(context, state, source, reason == "unsupported") })
 				}, 1100, 400)
@@ -155,6 +170,11 @@ func TestRuntimeComponentDisabledStatesNeverDelegate(t *testing.T) {
 					t.Fatal("unavailable action is enabled", button)
 				}
 				if component != "model" {
+					configuration := view.msg(runtimeNameKey(component)) + " · " + view.msg("runtimeResourceConfigure")
+					button, ok := tester.AccessByRole(ui.RoleButton, configuration)
+					if !ok || button.Disabled != (reason != "missing-source") {
+						t.Fatal("resource configuration ignored its operation boundary", button)
+					}
 					selector := view.msg(runtimeNameKey(component)) + " " + view.msg("runtimeResourceSource")
 					control, ok := tester.AccessByRole(ui.RolePopUpButton, selector)
 					if !ok || control.Disabled != (reason != "missing-source") {
@@ -167,6 +187,48 @@ func TestRuntimeComponentDisabledStatesNeverDelegate(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestRuntimeInstallLogsExpandFilterAndCollapse(t *testing.T) {
+	for _, locale := range []string{"zh-CN", "en-US"} {
+		t.Run(locale, func(t *testing.T) {
+			panel := runtimeInteractionPanel()
+			panel.Logs = map[string]string{"python": "synthetic python log", "model": "synthetic model log"}
+			view := &RuntimeView{Client: &client.RuntimeController{Panel: &panel}, Locale: locale, section: "runtimeDownloads"}
+			tester := ui.NewTester(view.View, 1100, 1400)
+			label := view.msg("runtimeInstallLog")
+			if button, ok := tester.AccessByRole(ui.RoleButton, label); !ok || button.Expanded || tester.HasText("synthetic python log") {
+				t.Fatal("install logs should be collapsed initially", button)
+			}
+			runtimeClickControl(t, tester, ui.RoleButton, label)
+			if button, ok := tester.AccessByRole(ui.RoleButton, label); !ok || !button.Expanded {
+				t.Fatal("install logs did not announce their expanded state", button)
+			}
+			combined := "synthetic model log\n[model]\nsynthetic python log\n[python]"
+			if !tester.HasText(combined) {
+				t.Fatal("expanded logs lost their combined newest-first projection")
+			}
+			for _, component := range []string{"python", "ffmpeg", "model"} {
+				runtimeClickControl(t, tester, ui.RoleRadio, view.msg(runtimeNameKey(component)))
+				expected := panel.Logs[component]
+				if expected == "" {
+					expected = view.msg("runtimeInstallLogEmpty")
+				}
+				if !tester.HasText(expected) {
+					t.Fatal("log filter lost its component content", component)
+				}
+			}
+			runtimeClickControl(t, tester, ui.RoleRadio, localized(locale, "全部", "All"))
+			if !tester.HasText(combined) {
+				t.Fatal("all log filter did not restore the combined projection")
+			}
+			captureParity(t, tester, "runtime-expanded-logs-"+locale)
+			runtimeClickControl(t, tester, ui.RoleButton, label)
+			if button, ok := tester.AccessByRole(ui.RoleButton, label); !ok || button.Expanded || tester.HasText(combined) {
+				t.Fatal("install logs did not collapse", button)
+			}
+		})
 	}
 }
 
@@ -215,7 +277,7 @@ func TestRuntimeViewSourceChoiceAndBulkInstallDisabledStates(t *testing.T) {
 			controller := client.NewRuntime(service, func(callback func()) { callbacks <- callback }, func() {})
 			defer controller.Close()
 			controller.Panel = &service.panel
-			view := &RuntimeView{Client: controller, Locale: locale}
+			view := &RuntimeView{Client: controller, Locale: locale, section: "runtimeDownloads"}
 			tester := ui.NewTester(view.View, 1100, 1400)
 			runtimeClickControl(t, tester, ui.RolePopUpButton, view.msg("runtimeDownloadSource"))
 			tester.Key(0, ui.KeyEnd)
@@ -224,6 +286,7 @@ func TestRuntimeViewSourceChoiceAndBulkInstallDisabledStates(t *testing.T) {
 			if got := <-service.calls; got != (runtimeInteractionCall{operation: "download-source", source: "nju"}) {
 				t.Fatal("localized source selection used a label instead of its source ID", got)
 			}
+			view.section = "localRuntime"
 			for _, reason := range []string{"busy", "active", "unsupported", "missing-source"} {
 				panel := runtimeInteractionPanel()
 				controller.Panel = &panel

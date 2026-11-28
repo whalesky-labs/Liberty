@@ -123,7 +123,6 @@ func runWithProfileResolver(resolve func(bool) (string, error)) error {
 		default:
 			mygo.Theme.SetSource(mygo.ThemeSystem)
 		}
-		mygo.App.SetMenu(desktop.ApplicationMenu(preferences.Locale))
 		var meetings client.Meetings = application.NewMeetings(reader)
 		if writableProfile != nil {
 			meetings = writableProfile.ModeMeetings
@@ -140,14 +139,18 @@ func runWithProfileResolver(resolve func(bool) (string, error)) error {
 			workspace.AttachJobs(writableProfile.Submission, writableProfile.Deleter, writableProfile.Selections, writableProfile.ModeMeetings)
 			workspace.AttachResources(writableProfile.Resources)
 			workspace.AttachSettings(writableProfile.Resources, startup)
+			workspace.AttachDeviceStorage(writableProfile.DeviceStorage)
 			workspace.AttachResultEditing(writableProfile.ModeMeetings)
+			workspace.AttachPlayback(writableProfile.Playback)
 			workspace.AttachWordExport(writableProfile.WordExport)
 			workspace.AttachSummary(writableProfile.Summary)
 			workspace.AttachLive(writableProfile.Live)
 			workspace.AttachWork(writableProfile.Work)
 			workspace.AttachPet(writableProfile.Pet, writableProfile.RecordPetDiagnostic)
-			workspace.AttachRemoteDiagnostics(writableProfile.Remote, writableProfile.Diagnostics)
+			workspace.AttachRemoteDiagnostics(writableProfile.Remote, writableProfile.Diagnostics, launchChannel)
 		}
+		workspace.AttachUpdates(host.NewUpdates())
+		workspace.RefreshApplicationMenu()
 	})
 	mygo.App.OnWindowAllClosed(func() { mygo.App.Quit() })
 	offQuit := mygo.App.OnQuit(func() {

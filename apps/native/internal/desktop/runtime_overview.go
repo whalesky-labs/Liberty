@@ -45,7 +45,7 @@ func (v *SettingsView) runtimeOverview(c *ui.Context) {
 				status = v.msg("localDatabaseReady")
 			}
 		}
-		if ui.Select(c, &selected, []string{local, remote}).Width(190).MinHeight(40).Label(v.msg("runtimeMode")).Description(status).Tooltip(status).Changed() {
+		if selectControl(c, &selected, []string{local, remote}).Width(190).Label(v.msg("runtimeMode")).Description(status).Tooltip(status).Changed() {
 			v.Client.Draft.ProcessingMode = "local"
 			if selected == remote {
 				v.Client.Draft.ProcessingMode = "remote"

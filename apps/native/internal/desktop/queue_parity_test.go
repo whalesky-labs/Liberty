@@ -52,18 +52,19 @@ func TestQueueReadStatesAreExclusiveAndKeyboardRetryReadsOnce(t *testing.T) {
 					view := NewMeetings(controller, locale)
 					shell := Shell{Locale: locale, Preferences: domain.DefaultUIPreferences(), Content: view.View, Route: "/jobs"}
 					tester := ui.NewTesterWith(shell.View, width, 760, ui.TesterOptions{Dark: dark})
+					empty := view.text("还没有会议任务", "No meeting jobs yet")
 					loading := view.text("正在读取…", "Loading…")
 					failure := view.text("任务读取失败，请重试。", "Could not read jobs. Please retry.")
 					retry := presentation.Message(locale, "common.retry")
 					view.refresh()
 					tester.Frame()
 					status, ok := tester.AccessByRole(ui.RoleStatus, loading)
-					if !ok || !status.Busy || tester.HasText(view.msg("emptyTitle")) || tester.HasText(failure) {
+					if !ok || !status.Busy || tester.HasText(empty) || tester.HasText(failure) {
 						t.Error("pending queue read lacks an exclusive, busy loading status")
 					}
 					service.replies <- queueReadReply{err: errors.New("synthetic queue read failure")}
 					flushView(t, callbacks, tester)
-					if tester.HasText(view.msg("emptyTitle")) || tester.HasText(view.msg("emptyDescription")) || tester.HasText(loading) {
+					if tester.HasText(empty) || tester.HasText(view.msg("emptyTitle")) || tester.HasText(loading) {
 						t.Error("failed queue read falsely reports a loading or successful empty-list state")
 					}
 					if alert, ok := tester.AccessByRole(ui.RoleAlert, failure); !ok || alert.Offscreen {
@@ -77,17 +78,79 @@ func TestQueueReadStatesAreExclusiveAndKeyboardRetryReadsOnce(t *testing.T) {
 					}
 					tester.Key(0, ui.KeyEnter)
 					tester.Key(0, ui.KeyEnter)
-					if tester.HasText(failure) || tester.HasText(view.msg("emptyTitle")) {
+					if tester.HasText(failure) || tester.HasText(empty) {
 						t.Error("retry retained a failure or empty-state claim while loading")
 					}
 					service.replies <- queueReadReply{page: domain.QueryJobs(nil, domain.QueueQuery{Source: "local"})}
 					flushView(t, callbacks, tester)
-					if len(service.queries) != 2 || controller.ListError != nil || !tester.HasText(view.msg("emptyTitle")) || tester.HasText(loading) || tester.HasText(failure) {
+					if len(service.queries) != 2 || controller.ListError != nil || !tester.HasText(empty) || tester.HasText(loading) || tester.HasText(failure) {
 						t.Fatal("keyboard retry did not recover with exactly one fresh read and a distinct empty state")
 					}
 				})
 			}
 		}
+	}
+}
+
+func TestQueueEmptyStateActions(t *testing.T) {
+	for _, locale := range []string{"zh-CN", "en-US"} {
+		t.Run(locale, func(t *testing.T) {
+			callbacks := make(chan func(), 8)
+			service := queueReadService{replies: make(chan queueReadReply, 1), queries: make(chan domain.QueueQuery, 1)}
+			controller := client.New(service, func(f func()) { callbacks <- f }, func() {})
+			defer controller.Close()
+			view := NewMeetings(controller, locale)
+			created := 0
+			view.NewJob = func() { created++ }
+			shell := Shell{Locale: locale, Preferences: domain.DefaultUIPreferences(), Content: view.View, Route: "/jobs"}
+			tester := ui.NewTesterWith(shell.View, 1440, 960, ui.TesterOptions{Dark: locale == "zh-CN"})
+			empty := view.text("还没有会议任务", "No meeting jobs yet")
+			heading, ok := tester.AccessByRole(ui.RoleHeading, empty)
+			action, found := tester.AccessByRole(ui.RoleButton, view.text("新建第一个任务", "Create first job"))
+			if !ok || !found || action.Offscreen || action.Bounds.Y <= heading.Bounds.Y {
+				t.Fatalf("first job action should be visible below the empty state heading: heading=%+v action=%+v", heading, action)
+			}
+			captureParity(t, tester, "queue-empty-"+locale)
+			tester.ClickAt(action.Bounds.X+action.Bounds.W/2, action.Bounds.Y+action.Bounds.H/2)
+			if created != 1 {
+				t.Fatal("first job action did not open the creation flow")
+			}
+
+			view.status, view.query, view.page = "failed", "sample", 2
+			tester.Frame()
+			if !tester.HasText(view.msg("emptyTitle")) || tester.HasText(empty) {
+				t.Fatal("filtered empty queue needs its own message")
+			}
+			if err := tester.Click(view.text("清除筛选", "Clear filters")); err != nil {
+				t.Fatal(err)
+			}
+			want := domain.QueueQuery{Source: "local", Filter: "all", Page: 1}
+			service.replies <- queueReadReply{page: domain.QueryJobs(queueParityJobs("local", 1), want)}
+			flushView(t, callbacks, tester)
+			if got := <-service.queries; got != want || !tester.HasText("Synthetic meeting 00") {
+				t.Fatalf("clear filters did not restore the complete list: %+v", got)
+			}
+		})
+	}
+}
+
+func TestQueueUsesCenteredFixedContentWidth(t *testing.T) {
+	view := NewMeetings(&client.Controller{ResultController: &client.ResultController{}}, "en-US")
+	shell := Shell{Locale: "en-US", Preferences: domain.DefaultUIPreferences(), Content: view.View, Route: "/jobs"}
+	contentLeft := func(width int) float32 {
+		tester := ui.NewTesterWith(shell.View, width, 960, ui.TesterOptions{})
+		heading, ok := tester.AccessByRole(ui.RoleHeading, view.msg("queueTitle"))
+		if !ok || heading.Offscreen {
+			t.Fatalf("queue heading is missing at width %d: %+v", width, heading)
+		}
+		return heading.Bounds.X
+	}
+
+	mediumWidth, wideWidth := 1640, 1920
+	mediumLeft, wideLeft := contentLeft(mediumWidth), contentLeft(wideWidth)
+	wantShift := float64(wideWidth-mediumWidth) / 2
+	if shift := float64(wideLeft - mediumLeft); math.Abs(shift-wantShift) > 1 {
+		t.Fatalf("queue content did not stay centered at its fixed maximum width: medium=%v wide=%v shift=%.1f want=%.1f", mediumLeft, wideLeft, shift, wantShift)
 	}
 }
 
@@ -113,16 +176,15 @@ func TestQueueFailureReasonTooltipIsSafeAndKeyboardAccessible(t *testing.T) {
 						t.Fatal("queue table missing")
 					}
 					action, _ := tester.Find(view.msg("details") + ": " + job.Title)
-					tester.Scroll(table.Bounds.X+200, action.Y+10, 1100, 0)
-					tester.Frame()
+
 					var status ui.Rect
 					for _, access := range tester.AccessAll() {
-						if access.Role == ui.RoleCell && access.RowIndex == 2 && access.ColumnIndex == 8 {
+						if access.Role == ui.RoleCell && access.RowIndex == 2 && access.ColumnIndex == 2 {
 							status = access.Bounds
 						}
 					}
 					if status.W <= 0 || status.H <= 0 {
-						t.Fatal("failed status is not visible after data-column scroll", status)
+						t.Fatal("failed status is not visible beside the task title", status)
 					}
 					tester.Move(status.X+24, status.Y+status.H/2)
 					tester.Advance(time.Second)
@@ -136,12 +198,16 @@ func TestQueueFailureReasonTooltipIsSafeAndKeyboardAccessible(t *testing.T) {
 					if tester.HasText(safe) {
 						t.Error("Escape did not dismiss the failed-status tooltip")
 					}
+					tester.Scroll(table.Bounds.X+200, action.Y+10, 1100, 0)
+					tester.Frame()
 					diarization, _ := tester.Find(view.diarization(job))
 					tester.Move(diarization.X+diarization.W/2, diarization.Y+diarization.H/2)
 					tester.Advance(time.Second)
 					if _, ok := tester.AccessByRole(ui.RoleTooltip, ""); !ok {
 						t.Fatal("the existing diarization tooltip did not appear under the same hover clock")
 					}
+					tester.Scroll(table.Bounds.X+200, action.Y+10, -1100, 0)
+					tester.Frame()
 					tester.Move(1090, 740)
 					focused := func() bool {
 						status, ok := tester.AccessByRole(ui.RoleGroup, statusText(locale, "failed"))

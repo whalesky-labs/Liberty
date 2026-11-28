@@ -15,6 +15,10 @@ type LiveOptions struct {
 	TranslationReady bool
 	ModelReady       bool
 }
+type LiveModelStatus struct {
+	TranslationReady bool
+	ModelReady       bool
+}
 type liveRun struct {
 	session domain.LiveSession
 	request domain.LiveRequest
@@ -50,15 +54,21 @@ func (s *LiveService) Recover(ctx context.Context) error {
 	return s.repository.RecoverLive(ctx, domain.PersistedUTC(time.Now()))
 }
 func (s *LiveService) Options(ctx context.Context) (LiveOptions, error) {
-	o := LiveOptions{ModelReady: s.asr.Ready(ctx)}
-	if local, ok := s.translation.(interface{ Ready(context.Context) bool }); ok {
-		o.TranslationReady = local.Ready(ctx)
-	} else {
-		o.TranslationReady = true
-	}
-	var err error
-	o.Devices, err = s.capture.Devices(ctx)
+	status := s.ModelStatus(ctx)
+	o := LiveOptions{ModelReady: status.ModelReady, TranslationReady: status.TranslationReady}
+	devices, err := s.capture.Devices(ctx)
+	o.Devices = devices
 	return o, err
+}
+
+func (s *LiveService) ModelStatus(ctx context.Context) LiveModelStatus {
+	status := LiveModelStatus{ModelReady: s.asr.Ready(ctx)}
+	if local, ok := s.translation.(interface{ Ready(context.Context) bool }); ok {
+		status.TranslationReady = local.Ready(ctx)
+	} else {
+		status.TranslationReady = true
+	}
+	return status
 }
 func (s *LiveService) operation(ctx context.Context) (context.Context, func(), error) {
 	s.mu.Lock()

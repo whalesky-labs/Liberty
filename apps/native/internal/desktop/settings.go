@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"math"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -11,57 +12,90 @@ import (
 )
 
 type SettingsView struct {
-	Client            *client.SettingsController
-	Runtime           *RuntimeView
-	Remote            *client.RemoteController
-	Diagnostics       *client.DiagnosticsController
-	DiagnosticFiles   client.DiagnosticFiles
-	ConfirmTokenClear func()
-	Locale            string
-	ActiveSource      func() string
-	Back              func()
-	section, search   string
+	Client                   *client.SettingsController
+	Runtime                  *RuntimeView
+	Remote                   *client.RemoteController
+	Diagnostics              *client.DiagnosticsController
+	Storage                  *client.DeviceStorageController
+	Updates                  *client.UpdateController
+	CheckUpdates             func()
+	DiagnosticFiles          client.DiagnosticFiles
+	ConfirmTokenClear        func()
+	Locale                   string
+	BuildChannel             string
+	ActiveSource             func() string
+	Back                     func()
+	NavigateSection          func(string)
+	section, search          string
+	permissionSettingsFailed bool
+	storageFolderOpenFailed  bool
+	memoryUsage              client.RuntimeMemorySampler
 }
 
 func (v *SettingsView) msg(key string) string { return presentation.Message(v.Locale, "settings."+key) }
+func profileIndependentSection(section string) bool {
+	return section == "accessPermissions" || section == "about" || section == "deviceStorage"
+}
+
 func (v *SettingsView) Sidebar(c *ui.Context) {
 	if v.section == "" {
 		v.section = "appearance"
 	}
-	settingsSidebar(c, v.Locale, v.section, &v.search, v.Back, func(section string) bool {
-		return v.Client != nil && (section != "remoteCompatibility" || v.Remote != nil) && (section != "diagnostics" || v.Diagnostics != nil) && (section != "localRuntime" || v.Runtime != nil && v.Runtime.Client != nil)
-	}, func(section string) {
-		if v.Client == nil {
-			return
-		}
-		if v.Client.Dirty() {
-			v.Client.Save()
-		} else {
-			v.Client.Load()
-		}
-		v.section = section
-	})
+	settingsSidebar(c, v.Locale, v.section, &v.search, v.Back, v.sectionAvailable, v.selectSection)
 }
 func (v *SettingsView) View(c *ui.Context) {
 	if v.section == "" {
 		v.section = "appearance"
 	}
-	if v.section == "localRuntime" {
+	if v.section == "about" {
+		settingsAboutPage(c, v.Locale, v.section, func() { v.about(c) })
+		return
+	}
+	if v.section == "accessPermissions" {
+		settingsPage(c, v.Locale, v.section, func() {
+			settingsGroup(c, v.msg("privacyGroup"), func() { v.accessPermissions(c, runtime.GOOS) })
+		})
+		return
+	}
+	if v.section == "deviceStorage" {
+		if v.Storage == nil {
+			v.unavailable(c)
+			return
+		}
+		v.Storage.EnsureLoaded()
+		settingsPageWithHeader(c, v.Locale, v.section, func() {
+			if ui.Button(c, v.msg("deviceStorageRefresh")).Disabled(v.Storage.Busy).Clicked() {
+				v.Storage.Refresh()
+			}
+		}, func() { v.deviceStorage(c) })
+		return
+	}
+	if runtimeSettingsSection(v.section) {
 		if v.Runtime == nil || v.Runtime.Client == nil {
 			v.unavailable(c)
 			return
 		}
+		v.Runtime.section = v.section
+		v.Runtime.NavigateSection = v.selectSection
 		v.Runtime.View(c)
 		return
 	}
-	if v.Client == nil || v.section == "remoteCompatibility" && v.Remote == nil || v.section == "diagnostics" && v.Diagnostics == nil {
+	if v.section == "diagnostics" {
+		if v.Diagnostics == nil {
+			v.unavailable(c)
+			return
+		}
+		settingsPage(c, v.Locale, v.section, func() { v.diagnostics(c) })
+		return
+	}
+	if v.Client == nil || v.section == "remoteCompatibility" && v.Remote == nil || v.section == "diagnostics" && v.Diagnostics == nil || v.section == "voice" && (v.Runtime == nil || v.Runtime.Live == nil) {
 		v.unavailable(c)
 		return
 	}
 	settingsPage(c, v.Locale, v.section, func() {
 		if v.Client.Error != nil {
 			ui.Text(c, resourceError(v.Locale, v.Client.Error)).TextColor(c.Theme().Danger).Role(ui.RoleAlert).Selectable()
-			if v.Client.CanRetry() && textButton(c, presentation.Message(v.Locale, "common.retry")).Disabled(v.Client.Busy).Clicked() {
+			if v.Client.CanRetry() && ui.Button(c, presentation.Message(v.Locale, "common.retry")).Disabled(v.Client.Busy).Clicked() {
 				v.Client.Retry()
 			}
 		}
@@ -72,22 +106,26 @@ func (v *SettingsView) View(c *ui.Context) {
 			ui.Text(c, localized(v.Locale, "正在读取…", "Loading…")).Role(ui.RoleStatus).Busy(v.Client.Busy)
 			return
 		}
-		settingsPanel(c, func() {
-			switch v.section {
-			case "appearance":
-				v.appearance(c)
-			case "themeSection":
-				v.accent(c)
-			case "processingDefaults":
-				v.defaults(c)
-			case "runtimeOverview":
-				v.runtimeOverview(c)
-			case "remoteCompatibility":
-				v.remoteSettings(c)
-			case "diagnostics":
-				v.diagnostics(c)
-			}
-		})
+		switch v.section {
+		case "experiments":
+			v.experiments(c)
+		case "appearance":
+			v.appearance(c)
+		case "languageDisplay":
+			v.languageDisplay(c)
+		case "performance":
+			v.performance(c)
+		case "runtimeOverview":
+			settingsGroup(c, v.msg("processingModeGroup"), func() { v.runtimeOverview(c) })
+			v.relatedSettings(c, "localRuntime", "remoteCompatibility")
+		case "processingDefaults":
+			v.defaults(c)
+			v.relatedSettings(c, "performance", "speechModels")
+		case "voice":
+			v.voice(c)
+		case "remoteCompatibility":
+			v.remoteSettings(c)
+		}
 	})
 }
 
@@ -113,41 +151,51 @@ func (v *SettingsView) appearance(c *ui.Context) {
 	if c.Theme().Dark {
 		mode = "dark"
 	}
-	settingsRow(c, v.msg("themeMode"), v.msg("effectiveTheme")+": "+v.msg(mode), func() {
-		ui.Row(c).Gap(14).Children(func() {
-			for _, mode := range []string{"auto", "light", "dark"} {
-				b := settingsPreview(c.Key(mode), v.msg(mode), preferences.ThemeMode == mode, func() ui.Element { return v.themePreview(c, mode) })
-				if b.Clicked() {
-					v.Client.SetThemeMode(mode)
+	settingsGroup(c, v.msg("windowStyleGroup"), func() {
+		settingsRow(c, v.msg("themeMode"), v.msg("effectiveTheme")+": "+v.msg(mode), func() {
+			ui.Row(c).Gap(14).Children(func() {
+				for _, mode := range []string{"auto", "light", "dark"} {
+					b := settingsPreview(c.Key(mode), v.msg(mode), preferences.ThemeMode == mode, func() ui.Element { return v.themePreview(c, mode) })
+					if b.Clicked() {
+						v.Client.SetThemeMode(mode)
+					}
 				}
+			})
+		})
+		v.row(c, "glassStyle", "glassStyleHint", func() {
+			ui.Row(c).Gap(14).Children(func() {
+				for _, style := range []string{"transparent", "tinted"} {
+					b := settingsPreview(c.Key(style), v.msg(style), preferences.LiquidGlassStyle == style, func() ui.Element { return v.glassPreview(c, style) })
+					if b.Clicked() {
+						v.Client.Draft.LiquidGlassStyle = style
+						v.Client.Save()
+					}
+				}
+			})
+		})
+	})
+	settingsGroup(c, v.msg("colorGroup"), func() { v.accent(c) })
+}
+
+func (v *SettingsView) languageDisplay(c *ui.Context) {
+	preferences := v.Client.UIPreferences()
+	settingsGroup(c, v.msg("languageGroup"), func() {
+		v.row(c, "locale", "", func() {
+			labels := []string{v.msg("localeZh"), v.msg("localeEn")}
+			selected := labels[0]
+			if preferences.Locale == "en-US" {
+				selected = labels[1]
+			}
+			if selectControl(c, &selected, labels).Width(160).Label(v.msg("locale")).Changed() {
+				locale := "zh-CN"
+				if selected == labels[1] {
+					locale = "en-US"
+				}
+				v.Client.SetLocale(locale)
 			}
 		})
 	})
-	v.row(c, "glassStyle", "glassStyleHint", func() {
-		ui.Row(c).Gap(14).Children(func() {
-			for _, style := range []string{"transparent", "tinted"} {
-				b := settingsPreview(c.Key(style), v.msg(style), preferences.LiquidGlassStyle == style, func() ui.Element { return v.glassPreview(c, style) })
-				if b.Clicked() {
-					v.Client.Draft.LiquidGlassStyle = style
-					v.Client.Save()
-				}
-			}
-		})
-	})
-	v.row(c, "locale", "", func() {
-		labels := []string{v.msg("localeZh"), v.msg("localeEn")}
-		selected := labels[0]
-		if preferences.Locale == "en-US" {
-			selected = labels[1]
-		}
-		if ui.Select(c, &selected, labels).Width(160).MinHeight(40).Label(v.msg("locale")).Changed() {
-			locale := "zh-CN"
-			if selected == labels[1] {
-				locale = "en-US"
-			}
-			v.Client.SetLocale(locale)
-		}
-	})
+	v.performanceDisplay(c)
 }
 
 // The preview and its visible caption share one keyboard and click target.
@@ -208,40 +256,13 @@ func (v *SettingsView) glassPreview(c *ui.Context, style string) ui.Element {
 		})
 	})
 }
-func (v *SettingsView) accent(c *ui.Context) {
-	v.row(c, "accentColor", "", func() {
-		ui.Row(c).FillWidth().Gap(4).Justify(ui.End).Children(func() {
-			for _, color := range []string{"#8f96a3", "#2f6dff", "#a65dd9", "#f062a8", "#ff6a57", "#ffb020", "#f5dd00", "#33c96f"} {
-				selected := strings.EqualFold(v.Client.Draft.AccentColor, color)
-				label := v.msg("colorLabels." + color)
-				b := ui.ButtonBase(c.Key(color)).Column().Width(38).MinHeight(70).Padding(0).Gap(4).AlignItems(ui.Center).Radius(7).Label(label).Tooltip(label).Role(ui.RoleToggleButton).Checked(selected).Selected(selected).Background(ui.Transparent)
-				b.Children(func() {
-					ui.Box(c).Size(38, 38).Center().Children(func() {
-						ring := ui.Box(c).Size(24, 24).Radius(12).Center()
-						if selected {
-							ring.Border(1, c.Theme().TextMuted)
-						}
-						ring.Children(func() {
-							ui.Box(c).Size(18, 18).Radius(9).Background(ui.Hex(color))
-						})
-					})
-					ui.Text(c, label).FillWidth().MinHeight(28).FontSize(11).TextAlign(ui.Center).TextColor(c.Theme().Text)
-				})
-				if b.Clicked() {
-					v.Client.Draft.AccentColor = color
-					v.Client.Save()
-				}
-			}
-		})
-	})
-}
 func (v *SettingsView) text(c *ui.Context, key, hint string, value *string, multiline bool) {
 	v.row(c, key, hint, func() {
 		var field ui.Element
 		if multiline {
 			field = ui.TextArea(c, value).FillWidth().Height(112)
 		} else {
-			field = ui.TextInput(c, value).FillWidth().MinHeight(40)
+			field = ui.TextInput(c, value).FillWidth()
 		}
 		field.Label(v.msg(key))
 		if field.FocusLeft() {
@@ -253,7 +274,7 @@ func (v *SettingsView) number(c *ui.Context, key, hint string, value *uint32, mi
 	v.row(c, key, hint, func() {
 		format := func() string { return strconv.FormatUint(uint64(*value), 10) }
 		text := ui.Local(c.Root(), "settings-number-"+key, format)
-		field := ui.TextInput(c.Key(key), text).Width(160).MinHeight(40).Label(v.msg(key)).Range(minValue, maxValue, float64(*value)).Step(step)
+		field := ui.TextInput(c.Key(key), text).Width(160).Label(v.msg(key)).Range(minValue, maxValue, float64(*value)).Step(step)
 		if field.Changed() {
 			if number, err := strconv.ParseFloat(strings.TrimSpace(*text), 64); err == nil && number >= minValue && number <= maxValue {
 				*value = uint32(math.Round(number))
@@ -279,27 +300,35 @@ func (v *SettingsView) number(c *ui.Context, key, hint string, value *uint32, mi
 }
 func (v *SettingsView) defaults(c *ui.Context) {
 	d := &v.Client.Draft
-	v.text(c, "defaultHotwords", "defaultHotwordsHint", &d.DefaultHotwords, true)
-	v.text(c, "defaultSummaryTemplate", "defaultSummaryTemplateHint", &d.SummaryTemplate, false)
-	v.number(c, "concurrency", "concurrencyHint", &d.Concurrency, 1, 8, 1)
-	v.row(c, "localAsrDevice", "localAsrDeviceHint", func() {
-		ids := []string{"auto", "cpu", "mps", "cuda"}
-		labels := []string{v.msg("localAsrDeviceAuto"), v.msg("localAsrDeviceCpu"), v.msg("localAsrDeviceMps"), v.msg("localAsrDeviceCuda")}
-		selected := labels[0]
-		for i, id := range ids {
-			if id == d.Device {
-				selected = labels[i]
-			}
-		}
-		if ui.Select(c, &selected, labels).Width(160).MinHeight(40).Label(v.msg("localAsrDevice")).Changed() {
-			for i, label := range labels {
-				if label == selected {
-					d.Device = ids[i]
+	settingsGroup(c, v.msg("transcriptionSummaryGroup"), func() {
+		v.text(c, "defaultHotwords", "defaultHotwordsHint", &d.DefaultHotwords, true)
+		v.text(c, "defaultSummaryTemplate", "defaultSummaryTemplateHint", &d.SummaryTemplate, false)
+	})
+}
+
+func (v *SettingsView) performance(c *ui.Context) {
+	d := &v.Client.Draft
+	settingsGroup(c, v.msg("performanceGroup"), func() {
+		v.number(c, "concurrency", "concurrencyHint", &d.Concurrency, 1, 8, 1)
+		v.row(c, "localAsrDevice", "localAsrDeviceHint", func() {
+			ids := []string{"auto", "cpu", "mps", "cuda"}
+			labels := []string{v.msg("localAsrDeviceAuto"), v.msg("localAsrDeviceCpu"), v.msg("localAsrDeviceMps"), v.msg("localAsrDeviceCuda")}
+			selected := labels[0]
+			for i, id := range ids {
+				if id == d.Device {
+					selected = labels[i]
 				}
 			}
-			v.Client.Save()
-		}
+			if selectControl(c, &selected, labels).Width(160).Label(v.msg("localAsrDevice")).Changed() {
+				for i, label := range labels {
+					if label == selected {
+						d.Device = ids[i]
+					}
+				}
+				v.Client.Save()
+			}
+		})
+		v.number(c, "localAsrThreads", "localAsrThreadsHint", &d.Threads, 0, 32, 1)
+		v.number(c, "localAsrBatchSizeSeconds", "localAsrBatchSizeSecondsHint", &d.BatchSeconds, 30, 1200, 30)
 	})
-	v.number(c, "localAsrThreads", "localAsrThreadsHint", &d.Threads, 0, 32, 1)
-	v.number(c, "localAsrBatchSizeSeconds", "localAsrBatchSizeSecondsHint", &d.BatchSeconds, 30, 1200, 30)
 }

@@ -36,20 +36,23 @@ func TestPetStoreCardsUsePaneWidthAndKeepFinalRowSize(t *testing.T) {
 				shell := &Shell{Locale: locale, Route: view.Route, Preferences: domain.DefaultUIPreferences(), Content: view.View}
 				tester := ui.NewTester(shell.View, width, 1400)
 				captureParity(t, tester, fmt.Sprintf("pet-store-%s-%d", locale, width))
+				products, productsOK := tester.AccessByRole(ui.RoleList, view.text("商品列表", "Products"))
+				if !productsOK || products.Bounds.W <= 0 || products.Bounds.X < 0 || products.Bounds.X+products.Bounds.W > float32(width) {
+					t.Fatal("product list left the content pane", products)
+				}
 				first, ok := tester.AccessByRole(ui.RoleGroup, view.itemName(store.Catalog[0].Item.ItemKey))
 				if !ok || first.Bounds.W < 148 {
 					t.Fatal("missing minimum-width product card", first)
 				}
 				for _, item := range store.Catalog {
 					card, ok := tester.AccessByRole(ui.RoleGroup, view.itemName(item.Item.ItemKey))
-					if !ok || math.Abs(float64(first.Bounds.W-card.Bounds.W)) > 1 || card.Bounds.X < first.Bounds.X || card.Bounds.X+card.Bounds.W > float32(width-12) {
+					if !ok || math.Abs(float64(first.Bounds.W-card.Bounds.W)) > 1 || card.Bounds.X < products.Bounds.X || card.Bounds.X+card.Bounds.W > products.Bounds.X+products.Bounds.W+1 {
 						t.Fatal("product card expanded its last row or left the content pane", card)
 					}
 				}
 				if width <= 1080 {
-					products, productsOK := tester.AccessByRole(ui.RoleList, view.text("商品列表", "Products"))
 					overview, ok := tester.Find(view.text("商店概览", "Store Overview"))
-					if !productsOK || !ok || overview.Y <= products.Bounds.Y+products.Bounds.H {
+					if !ok || overview.Y <= products.Bounds.Y+products.Bounds.H {
 						t.Fatal("stacked overview obscures the scrollable product grid", overview, products)
 					}
 					// A narrow pane can add rows beyond the list viewport. Check the

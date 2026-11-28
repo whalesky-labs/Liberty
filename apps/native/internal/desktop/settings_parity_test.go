@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -25,10 +26,15 @@ func settingsParityView(locale, section string) *SettingsView {
 	}
 	return &SettingsView{
 		Locale: locale, section: section, Back: func() {},
-		Client:      &client.SettingsController{Loaded: true, Draft: domain.DefaultSettings()},
-		Remote:      &client.RemoteController{},
-		Runtime:     &RuntimeView{Locale: locale, Client: &client.RuntimeController{Panel: panel}},
+		Client: &client.SettingsController{Loaded: true, Draft: domain.DefaultSettings()},
+		Remote: &client.RemoteController{},
+		Runtime: &RuntimeView{Locale: locale, Client: &client.RuntimeController{Panel: panel}, Live: &client.LiveController{
+			Options: application.LiveOptions{Devices: []domain.AudioDevice{{ID: "synthetic-device", Name: "Synthetic microphone"}}},
+		}},
 		Diagnostics: &client.DiagnosticsController{Report: &domain.DiagnosticReport{AppVersion: presentation.Version, SchemaVersion: 10, RuntimeStatus: "missing", SupportedPlatforms: domain.DiagnosticPlatforms()}},
+		Storage: &client.DeviceStorageController{Report: &application.DeviceStorageReport{
+			Directory: "/synthetic/liberty-profile", Total: 10_000, Database: 1_000, Jobs: 2_000, Runtime: 3_000, Other: 4_000,
+		}, Loaded: true},
 	}
 }
 
@@ -43,15 +49,16 @@ func settingsTrailingTargets(view *SettingsView, locale, section string) []setti
 		return []settingsEdgeTarget{
 			{ui.RoleToggleButton, view.msg("dark")},
 			{ui.RoleToggleButton, view.msg("tinted")},
-			{ui.RolePopUpButton, view.msg("locale")},
+			{ui.RoleMenuButton, view.msg("accentColor")},
 		}
-	case "themeSection":
-		return []settingsEdgeTarget{{ui.RoleToggleButton, view.msg("colorLabels.#33c96f")}}
+	case "languageDisplay":
+		return []settingsEdgeTarget{{ui.RolePopUpButton, view.msg("locale")}, {ui.RoleSwitch, view.msg("performanceIndicators")}}
+	case "performance":
+		return []settingsEdgeTarget{{ui.RolePopUpButton, view.msg("localAsrDevice")}}
 	case "processingDefaults":
 		return []settingsEdgeTarget{
 			{ui.RoleTextField, view.msg("defaultHotwords")},
 			{ui.RoleTextField, view.msg("defaultSummaryTemplate")},
-			{ui.RolePopUpButton, view.msg("localAsrDevice")},
 		}
 	case "runtimeOverview":
 		return []settingsEdgeTarget{
@@ -59,13 +66,15 @@ func settingsTrailingTargets(view *SettingsView, locale, section string) []setti
 		}
 	case "localRuntime":
 		return []settingsEdgeTarget{
-			{ui.RolePopUpButton, view.msg("runtimeDownloadSource")},
 			{ui.RoleButton, view.msg("runtimeInstallAction")},
 			{ui.RoleButton, view.msg("runtimeResourcePython") + " · " + view.msg("runtimeResourceDownload")},
 			{ui.RoleButton, view.msg("runtimeResourceFfmpeg") + " · " + view.msg("runtimeResourceDownload")},
-			{ui.RoleButton, view.msg("runtimeResourceFunasr") + " · " + view.msg("runtimeResourceDownload")},
 			{ui.RoleStatus, view.msg("runtimeStatusMissing")},
 		}
+	case "speechModels":
+		return []settingsEdgeTarget{{ui.RoleButton, view.msg("runtimeResourceFunasr") + " · " + view.msg("runtimeResourceDownload")}}
+	case "runtimeDownloads":
+		return []settingsEdgeTarget{{ui.RolePopUpButton, view.msg("runtimeDownloadSource")}}
 	case "remoteCompatibility":
 		return []settingsEdgeTarget{
 			{ui.RoleTextField, view.msg("backendUrl")},
@@ -76,15 +85,85 @@ func settingsTrailingTargets(view *SettingsView, locale, section string) []setti
 			{ui.RoleButton, localized(locale, "刷新", "Refresh")},
 			{ui.RoleText, presentation.Version},
 		}
+	case "experiments":
+		return nil
+	case "about":
+		return []settingsEdgeTarget{{ui.RolePopUpButton, view.msg("updateChannel")}, {ui.RoleButton, view.msg("checkUpdates")}}
+	case "deviceStorage":
+		return []settingsEdgeTarget{{ui.RoleButton, view.msg("deviceStorageRefresh")}, {ui.RoleButton, view.msg("deviceStorageBrowse")}}
+	case "accessPermissions":
+		if disk, _ := accessPermissionURLs(runtime.GOOS); disk != "" {
+			return []settingsEdgeTarget{{ui.RoleButton, view.msg("openDiskPermissions")}, {ui.RoleButton, view.msg("openMicrophonePermissions")}}
+		}
+		return []settingsEdgeTarget{{ui.RoleText, view.msg("permissionSettingsUnavailable")}}
+	case "voice":
+		return []settingsEdgeTarget{
+			{ui.RoleButton, view.msg("voiceRefreshDevices")},
+			{ui.RoleCheckBox, view.msg("voiceTranslate")},
+			{ui.RoleButton, localized(locale, "打开", "Open") + " " + view.msg("speechModels")},
+		}
 	default:
 		return nil
 	}
 }
 
+func TestSettingsMenusExposeOrderedContentGroups(t *testing.T) {
+	want := map[string][]string{
+		"appearance":          {"windowStyleGroup", "colorGroup"},
+		"languageDisplay":     {"languageGroup", "performanceDisplay"},
+		"performance":         {"performanceGroup"},
+		"runtimeOverview":     {"processingModeGroup", "relatedSettingsGroup"},
+		"processingDefaults":  {"transcriptionSummaryGroup", "relatedSettingsGroup"},
+		"localRuntime":        {"runtimeSetupGroup", "runtimeEnvironmentGroup", "relatedSettingsGroup"},
+		"speechModels":        {"runtimeModelsGroup", "liveModelsGroup", "relatedSettingsGroup"},
+		"runtimeDownloads":    {"downloadsGroup", "installHistoryGroup", "relatedSettingsGroup"},
+		"accessPermissions":   {"privacyGroup"},
+		"remoteCompatibility": {"connectionGroup", "connectionTestGroup"},
+		"diagnostics":         {"healthGroup", "securityGroup", "diagnosticLogsGroup"},
+		"experiments":         {"memoryUsage"},
+		"about":               {"applicationInfo", "updateSettings"},
+		"deviceStorage":       {"deviceStorageOverviewGroup", "deviceStorageDetailsGroup", "deviceStorageFoldersGroup"},
+		"voice":               {"voiceInputGroup", "voiceTranslationGroup", "relatedSettingsGroup"},
+	}
+	for _, locale := range []string{"zh-CN", "en-US"} {
+		for _, group := range settingsNavigation {
+			for _, item := range group.items {
+				t.Run(locale+"/"+item.key, func(t *testing.T) {
+					view := settingsParityView(locale, item.key)
+					view.Runtime.Live = &client.LiveController{}
+					tester := ui.NewTester(view.View, 1100, 2200)
+					page, ok := tester.AccessByRole(ui.RoleHeading, view.msg(item.key))
+					if !ok || len(want[item.key]) == 0 {
+						t.Fatal("missing page heading or group expectations", item.key)
+					}
+					bottom := page.Bounds.Y + page.Bounds.H
+					for _, key := range want[item.key] {
+						heading, ok := tester.AccessByRole(ui.RoleHeading, view.msg(key))
+						if !ok || heading.Level != 2 || heading.Bounds.X != page.Bounds.X || heading.Bounds.Y <= bottom {
+							t.Fatal("missing, misaligned or out-of-order group heading", key, heading)
+						}
+						bottom = heading.Bounds.Y + heading.Bounds.H
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestSettingsAllSectionsKeepHierarchyAndHorizontalFields(t *testing.T) {
 	for _, locale := range []string{"zh-CN", "en-US"} {
+		referenceValue := presentation.Message(locale, "settings.localAsrDeviceAuto")
+		reference := ui.NewTesterWith(func(c *ui.Context) {
+			colors := presentation.PreferenceColors(c.Theme().Dark, domain.DefaultUIPreferences())
+			ui.Themed(c, &colors.Theme).AlignItems(ui.Start).Children(func() {
+				ui.Select(c, &referenceValue, []string{referenceValue}).Label("Default select")
+				ui.TextInput(c, &referenceValue).Label("Default input")
+			})
+		}, 320, 160, ui.TesterOptions{Dark: locale == "en-US"})
+		defaultSelect, _ := reference.AccessByRole(ui.RolePopUpButton, "Default select")
+		defaultInput, _ := reference.AccessByRole(ui.RoleTextField, "Default input")
 		for _, width := range []int{1440, 1100, 760} {
-			for _, section := range []string{"appearance", "themeSection", "runtimeOverview", "processingDefaults", "localRuntime", "remoteCompatibility", "diagnostics"} {
+			for _, section := range []string{"appearance", "languageDisplay", "performance", "runtimeOverview", "processingDefaults", "localRuntime", "speechModels", "runtimeDownloads", "accessPermissions", "remoteCompatibility", "diagnostics", "experiments", "about", "deviceStorage", "voice"} {
 				t.Run(fmt.Sprintf("%s-%d-%s", locale, width, section), func(t *testing.T) {
 					view := settingsParityView(locale, section)
 					shell := Shell{Locale: locale, Route: "/settings", Preferences: domain.DefaultUIPreferences(), Sidebar: view.Sidebar, Content: view.View}
@@ -92,6 +171,61 @@ func TestSettingsAllSectionsKeepHierarchyAndHorizontalFields(t *testing.T) {
 					heading, ok := tester.AccessByRole(ui.RoleHeading, view.msg(section))
 					if !ok || heading.Level != 1 || heading.Offscreen || heading.Description != view.msg(settingsHintKey(section)) {
 						t.Fatal("settings lost its heading or section description", heading)
+					}
+					subtitle, ok := tester.AccessByRole(ui.RoleText, view.msg(settingsHintKey(section)))
+					if !ok || subtitle.Offscreen || math.Abs(float64(subtitle.Bounds.X-heading.Bounds.X)) > 1 || float64(subtitle.Bounds.Y-heading.Bounds.Y-heading.Bounds.H) < 7 {
+						t.Fatal("settings subtitle is missing, misaligned, or too close to its title", heading, subtitle)
+					}
+					if section == "about" {
+						for _, group := range []struct{ title, firstRow string }{
+							{"applicationInfo", "applicationVersion"},
+							{"updateSettings", "updateChannel"},
+						} {
+							title, titleOK := tester.AccessByRole(ui.RoleHeading, view.msg(group.title))
+							row, rowOK := tester.AccessByRole(ui.RoleText, view.msg(group.firstRow))
+							if !titleOK || !rowOK || title.Level != 2 || title.Bounds.X != heading.Bounds.X || title.Bounds.X != row.Bounds.X {
+								t.Fatal("About group title must align with the page title and its first row", title, row)
+							}
+						}
+						license, ok := tester.AccessByRole(ui.RoleText, view.msg("license"))
+						update, _ := tester.AccessByRole(ui.RoleHeading, view.msg("updateSettings"))
+						if !ok || update.Bounds.Y-(license.Bounds.Y+license.Bounds.H) < 64 {
+							t.Fatal("too little space between the license label and update group", license, update)
+						}
+					}
+					if section == "processingDefaults" {
+						first, firstOK := tester.AccessByRole(ui.RoleHeading, view.msg("transcriptionSummaryGroup"))
+						if !firstOK || first.Level != 2 {
+							t.Fatal("missing task defaults group", first)
+						}
+						for _, key := range []string{"defaultHotwords", "defaultSummaryTemplate"} {
+							if !tester.HasText(view.msg(key)) {
+								t.Fatal("task default missing", key)
+							}
+						}
+						for _, key := range []string{"concurrency", "localAsrThreads", "localAsrBatchSizeSeconds"} {
+							if _, ok := tester.AccessByRole(ui.RoleTextField, view.msg(key)); ok {
+								t.Fatal("performance control remained in task defaults", key)
+							}
+						}
+					}
+
+					for _, target := range settingsTrailingTargets(view, locale, section) {
+						if target.role == ui.RoleStatus {
+							continue // The runtime status belongs to the title row.
+						}
+						control, ok := tester.AccessByRole(target.role, target.name)
+						if section == "deviceStorage" && target.name == view.msg("deviceStorageRefresh") {
+							controlCenter := control.Bounds.Y + control.Bounds.H/2
+							headingCenter := heading.Bounds.Y + heading.Bounds.H/2
+							if !ok || math.Abs(float64(controlCenter-headingCenter)) > 1 {
+								t.Fatal("storage refresh action should align with the page title", heading, control)
+							}
+							continue
+						}
+						if !ok || control.Bounds.Y < subtitle.Bounds.Y+subtitle.Bounds.H+56 {
+							t.Fatal("settings content has lost the gap below its header", subtitle, control)
+						}
 					}
 					navigation, ok := tester.AccessByRole(ui.RoleNavigation, view.msg("navigationLabel"))
 					if !ok || navigation.Offscreen {
@@ -101,17 +235,20 @@ func TestSettingsAllSectionsKeepHierarchyAndHorizontalFields(t *testing.T) {
 						t.Fatal("settings sidebar covered the page heading", heading, navigation)
 					}
 					for _, node := range tester.AccessAll() {
-						if node.Role != ui.RoleTextField && node.Role != ui.RolePopUpButton && node.Role != ui.RoleToggleButton {
+						if node.Role != ui.RoleTextField && node.Role != ui.RolePopUpButton && node.Role != ui.RoleToggleButton && node.Role != ui.RoleSwitch && node.Role != ui.RoleCheckBox {
 							continue
 						}
 						if node.Offscreen || node.Bounds.W < 20 || node.Bounds.X < 0 || node.Bounds.X+node.Bounds.W > float32(width) {
 							t.Fatalf("settings control clipped: %+v", node)
 						}
-						if node.Role == ui.RoleToggleButton && section != "themeSection" && (node.Name == view.msg("auto") || node.Name == view.msg("light") || node.Name == view.msg("dark") || node.Name == view.msg("transparent") || node.Name == view.msg("tinted")) && node.Bounds.H < 55.9 {
+						if node.Role == ui.RoleToggleButton && section != "languageDisplay" && (node.Name == view.msg("auto") || node.Name == view.msg("light") || node.Name == view.msg("dark") || node.Name == view.msg("transparent") || node.Name == view.msg("tinted")) && node.Bounds.H < 55.9 {
 							t.Fatal("appearance preview lost its card size", node)
 						}
-						if node.Role == ui.RolePopUpButton && node.Bounds.H < 39.9 {
-							t.Fatal("settings selector lost its control height", node)
+						if node.Role == ui.RolePopUpButton && math.Abs(float64(node.Bounds.H-defaultSelect.Bounds.H)) > 0.1 {
+							t.Fatal("settings selector overrides the MyGo default height", node, defaultSelect)
+						}
+						if node.Role == ui.RoleTextField && node.Name != view.msg("defaultHotwords") && math.Abs(float64(node.Bounds.H-defaultInput.Bounds.H)) > 0.1 {
+							t.Fatal("settings input overrides the MyGo default height", node, defaultInput)
 						}
 					}
 					if section == "processingDefaults" {
@@ -131,12 +268,29 @@ func TestSettingsAllSectionsKeepHierarchyAndHorizontalFields(t *testing.T) {
 							t.Fatal("settings status should describe the control without a separate caption", control)
 						}
 					}
+					footerBeforeResize, hasFooter := tester.AccessByRole(ui.RoleText, view.msg("copyright"))
+					if hasFooter != (section == "about") || hasFooter && footerBeforeResize.Offscreen {
+						t.Fatal("copyright footer must appear only on the About page", section, footerBeforeResize, hasFooter)
+					}
+					footerEndBeforeResize, hasAuthorLink := tester.AccessByRole(ui.RoleLink, view.msg("authorGithub"))
+					if hasAuthorLink != (section == "about") || hasAuthorLink && footerEndBeforeResize.Offscreen {
+						t.Fatal("author link must appear visibly only on the About page", section, footerEndBeforeResize, hasAuthorLink)
+					}
 					tester.SetSize(width, 960)
 					tester.Frame()
-					if section == "appearance" || section == "themeSection" {
+					if section == "about" {
 						footer, ok := tester.AccessByRole(ui.RoleText, view.msg("copyright"))
-						if !ok || footer.Offscreen || footer.Bounds.Y < 820 || footer.Bounds.Y+footer.Bounds.H > 930 {
-							t.Fatal("short settings pages lost their bottom footer", footer)
+						if !ok || footer.Offscreen || footer.Bounds.Y+footer.Bounds.H > 930 {
+							t.Fatal("About page lost its visible pinned footer", footer)
+						}
+						link, ok := tester.AccessByRole(ui.RoleLink, view.msg("authorGithub"))
+						if !ok || link.Offscreen || link.Bounds.Y+link.Bounds.H > 930 {
+							t.Fatal("About footer links left the pinned footer area", link)
+						}
+						beforeBottomGap := float64(2200 - (footerEndBeforeResize.Bounds.Y + footerEndBeforeResize.Bounds.H))
+						afterBottomGap := float64(960 - (link.Bounds.Y + link.Bounds.H))
+						if math.Abs(afterBottomGap-beforeBottomGap) > 1 {
+							t.Fatal("About footer did not remain fixed to the bottom while resizing", footerEndBeforeResize, link)
 						}
 					}
 					captureParity(t, tester, fmt.Sprintf("settings-%s-%s-%d", section, locale, width))
@@ -150,7 +304,7 @@ func TestSettingsTrailingControlsAlignAcrossEverySection(t *testing.T) {
 	for _, locale := range []string{"zh-CN", "en-US"} {
 		for _, width := range []int{1440, 1100, 760} {
 			t.Run(fmt.Sprintf("%s-%d", locale, width), func(t *testing.T) {
-				view := settingsParityView(locale, "appearance")
+				view := settingsParityView(locale, "languageDisplay")
 				shell := Shell{Locale: locale, Route: "/settings", Preferences: domain.DefaultUIPreferences(), Sidebar: view.Sidebar, Content: view.View}
 				appearanceTester := ui.NewTesterWith(shell.View, width, 2200, ui.TesterOptions{Dark: locale == "en-US"})
 				localeField, ok := appearanceTester.AccessByRole(ui.RolePopUpButton, view.msg("locale"))
@@ -159,7 +313,7 @@ func TestSettingsTrailingControlsAlignAcrossEverySection(t *testing.T) {
 				}
 				appearanceEdge := localeField.Bounds.X + localeField.Bounds.W
 
-				for _, section := range []string{"appearance", "themeSection", "runtimeOverview", "processingDefaults", "localRuntime", "remoteCompatibility", "diagnostics"} {
+				for _, section := range []string{"appearance", "languageDisplay", "performance", "runtimeOverview", "processingDefaults", "localRuntime", "speechModels", "runtimeDownloads", "accessPermissions", "remoteCompatibility", "diagnostics", "experiments", "about", "voice"} {
 					t.Run(section, func(t *testing.T) {
 						sectionView := settingsParityView(locale, section)
 						sectionShell := Shell{Locale: locale, Route: "/settings", Preferences: domain.DefaultUIPreferences(), Sidebar: sectionView.Sidebar, Content: sectionView.View}
@@ -179,8 +333,8 @@ func TestSettingsTrailingControlsAlignAcrossEverySection(t *testing.T) {
 								t.Fatalf("%s controls do not share their right edge: %+v and %+v", section, first, control)
 							}
 						}
-						if section == "themeSection" {
-							colorPicker := controls[0]
+						if section == "appearance" {
+							colorPicker := controls[len(controls)-1]
 							if math.Abs(float64(colorPicker.Bounds.X+colorPicker.Bounds.W-appearanceEdge)) > 1 {
 								t.Fatalf("theme color picker does not end with the other settings controls: %+v language=%+v", colorPicker, localeField)
 							}
@@ -208,7 +362,7 @@ func TestSettingsSidebarFiltersDescriptionsAndAnnouncesEmptyResults(t *testing.T
 		if view.search != "  pYtHoN  " {
 			t.Fatal("settings search did not accept keyboard input")
 		}
-		for _, section := range []string{"appearance", "themeSection", "runtimeOverview", "processingDefaults", "remoteCompatibility", "diagnostics"} {
+		for _, section := range []string{"appearance", "languageDisplay", "performance", "speechModels", "runtimeDownloads", "runtimeOverview", "processingDefaults", "accessPermissions", "remoteCompatibility", "diagnostics", "experiments", "about", "voice"} {
 			if _, ok := tester.AccessByRole(ui.RoleButton, view.msg(section)); ok {
 				t.Fatal("search retained a navigation item without a match", section)
 			}
@@ -243,7 +397,7 @@ func TestSettingsCompactNavigationScrollsAndKeepsMainContentUsable(t *testing.T)
 	}
 	tester.Scroll(navigation.Bounds.X+200, navigation.Bounds.Y+15, 2000, 0)
 	tester.Frame()
-	last, ok := tester.AccessByRole(ui.RoleButton, view.msg("diagnostics"))
+	last, ok := tester.AccessByRole(ui.RoleButton, view.msg("about"))
 	if !ok || last.Offscreen || last.Bounds.W < 70 || last.Bounds.X+last.Bounds.W > 760 {
 		t.Fatal("last compact settings link remains unreachable", last)
 	}
@@ -270,6 +424,7 @@ func TestSettingsMissingAuxiliaryControllersRenderAccessibleUnavailableState(t *
 			{"runtime-controller", "localRuntime", func(view *SettingsView) { view.Runtime.Client = nil }},
 			{"remote-controller", "remoteCompatibility", func(view *SettingsView) { view.Remote = nil }},
 			{"diagnostics-controller", "diagnostics", func(view *SettingsView) { view.Diagnostics = nil }},
+			{"voice-controller", "voice", func(view *SettingsView) { view.Runtime.Live = nil }},
 			{"settings-controller", "appearance", func(view *SettingsView) { view.Client = nil }},
 		} {
 			t.Run(locale+"/"+scenario.name, func(t *testing.T) {
@@ -286,13 +441,13 @@ func TestSettingsMissingAuxiliaryControllersRenderAccessibleUnavailableState(t *
 				}
 				for _, control := range tester.AccessAll() {
 					switch control.Role {
-					case ui.RoleButton, ui.RolePopUpButton, ui.RoleTextField, ui.RoleToggleButton:
+					case ui.RoleButton, ui.RolePopUpButton, ui.RoleTextField, ui.RoleToggleButton, ui.RoleSwitch, ui.RoleCheckBox:
 						t.Fatal("unavailable settings section exposed an interactive control", control)
 					}
 				}
 				if scenario.name == "settings-controller" {
 					sidebar := ui.NewTester(view.Sidebar, 1100, 960)
-					for _, section := range []string{"appearance", "themeSection", "runtimeOverview", "processingDefaults", "localRuntime", "remoteCompatibility", "diagnostics"} {
+					for _, section := range []string{"appearance", "languageDisplay", "performance", "runtimeOverview", "processingDefaults", "localRuntime", "speechModels", "runtimeDownloads", "remoteCompatibility", "diagnostics", "experiments", "voice"} {
 						link, ok := sidebar.AccessByRole(ui.RoleButton, view.msg(section))
 						if !ok || !link.Disabled {
 							t.Fatal("settings navigation remained actionable without its controller", section, link)
@@ -365,12 +520,12 @@ func TestSettingsKeyboardChoicePersistsAndExposesPressedState(t *testing.T) {
 			t.Fatal("theme choice no longer has a single pressed option", other)
 		}
 	}
-	view.section = "themeSection"
+	view.section = "appearance"
 	controller.Draft.AccentColor = "#A65DD9"
 	tester.Frame()
-	color, ok := tester.AccessByRole(ui.RoleToggleButton, view.msg("colorLabels.#a65dd9"))
-	if !ok || !color.Checked || math.Abs(float64(color.Bounds.W-38)) > .1 {
-		t.Fatal("accent color selection is case-sensitive or lost its hit target", color)
+	color, ok := tester.AccessByRole(ui.RoleMenuButton, view.msg("accentColor"))
+	if !ok || color.Value != view.msg("colorLabels.#a65dd9") || math.Abs(float64(color.Bounds.W-160)) > .1 {
+		t.Fatal("accent color selection is case-sensitive or lost its compact trigger", color)
 	}
 }
 
@@ -389,14 +544,21 @@ func TestSettingsAppearanceShowsSessionOverridesAndPersistsExplicitChoices(t *te
 	flushView(t, callbacks, tester)
 	assertPreferences := func(mode, locale string) {
 		t.Helper()
+		previous := view.section
+		view.section = "appearance"
+		tester.Frame()
 		choice, ok := tester.AccessByRole(ui.RoleToggleButton, view.msg(mode))
 		if !ok || !choice.Checked {
-			t.Fatal("appearance did not expose the effective session theme", choice)
+			t.Fatal("appearance did not expose effective theme", choice)
 		}
+		view.section = "languageDisplay"
+		tester.Frame()
 		language, ok := tester.AccessByRole(ui.RolePopUpButton, view.msg("locale"))
 		if !ok || language.Value != view.msg(locale) {
-			t.Fatal("appearance did not expose the effective session language", language)
+			t.Fatal("language page lost effective session locale", language)
 		}
+		view.section = previous
+		tester.Frame()
 	}
 	assertPreferences("dark", "localeEn")
 	if controller.Dirty() || len(service.saved) != 0 {
@@ -410,6 +572,8 @@ func TestSettingsAppearanceShowsSessionOverridesAndPersistsExplicitChoices(t *te
 		t.Fatal("explicit theme choice saved the unrelated language override", value.UIPreferences)
 	}
 	assertPreferences("auto", "localeEn")
+	view.section = "languageDisplay"
+	tester.Frame()
 	language, _ := tester.AccessByRole(ui.RolePopUpButton, view.msg("locale"))
 	tester.ClickAt(language.Bounds.X+language.Bounds.W/2, language.Bounds.Y+language.Bounds.H/2)
 	if err := tester.Click(view.msg("localeZh")); err != nil {

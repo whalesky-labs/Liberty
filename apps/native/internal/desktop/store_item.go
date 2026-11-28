@@ -83,8 +83,8 @@ func (v *StoreItemView) preview(c *ui.Context, labels *PetView, colors presentat
 			if back {
 				ui.Column(c).Fill().Padding(24).Gap(8).Children(func() {
 					ui.Row(c).Grow(1).Center().Children(func() { ui.Text(c, v.typeLabel()).FontSize(12).TextColor(c.Theme().TextMuted) })
-					ui.Row(c).Grow(1).Center().Children(func() { ui.Text(c, labels.stage(item.Rarity)).FontSize(24).Bold() })
-					ui.Row(c).Grow(1).Center().Children(func() { ui.Text(c, price).FontSize(12).Bold() })
+					ui.Row(c).Grow(1).Center().Children(func() { ui.Text(c, labels.stage(item.Rarity)).FontSize(24) })
+					ui.Row(c).Grow(1).Center().Children(func() { ui.Text(c, price).FontSize(12) })
 				})
 				return
 			}
@@ -104,7 +104,7 @@ func (v *StoreItemView) View(c *ui.Context) {
 		if !colors.Theme.Dark {
 			background = ui.Hex("#f3f5f8")
 		}
-		ui.Scroll(c).Fill().Background(background).Children(func() {
+		contentScroll(c).Fill().Background(background).Children(func() {
 			if v.item == nil {
 				ui.Text(c, text("无法找到该商品详情。", "Item details are unavailable.")).Padding(20)
 				return
@@ -142,7 +142,7 @@ func (v *StoreItemView) View(c *ui.Context) {
 						badge(v.typeLabel(), c.Theme().TextMuted)
 						badge(labels.stage(item.Rarity), rarityColor)
 					})
-					ui.Text(c, text(item.NameZh, item.NameEn)).FontSize(28).LineHeight(1.2).Bold().Role(ui.RoleHeading).Level(1)
+					ui.Text(c, text(item.NameZh, item.NameEn)).FontSize(28).LineHeight(1.2).Role(ui.RoleHeading).Level(1)
 					ui.Text(c, text(item.DescriptionZh, item.DescriptionEn)).FillWidth().FontSize(14).LineHeight(1.75).TextColor(c.Theme().TextMuted)
 					if reason := text(v.item.LockedReasonZh, v.item.LockedReasonEn); reason != "" {
 						ui.Text(c, reason).FillWidth().Padding(10, 12).FontSize(13).Radius(8).Border(1, c.Theme().Warning.Alpha(.26)).Background(c.Theme().Warning.Alpha(.09))
@@ -151,7 +151,7 @@ func (v *StoreItemView) View(c *ui.Context) {
 						stat := func(label, value string) {
 							ui.Column(c).MinWidth(0).MinHeight(58).Padding(10, 12).Justify(ui.Center).Gap(4).Radius(8).Border(1, colors.Separator).Background(c.Theme().Surface).Children(func() {
 								ui.Text(c, label).FontSize(12).LineHeight(1.45).TextColor(c.Theme().TextMuted)
-								ui.Text(c, value).FontSize(14).LineHeight(1.35).Bold()
+								ui.Text(c, value).FontSize(14).LineHeight(1.35)
 							})
 						}
 						stat(text("分类", "Type"), v.typeLabel())

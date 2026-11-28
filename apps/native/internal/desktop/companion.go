@@ -78,7 +78,7 @@ func (growth *companionGrowth) render(c *ui.Context) {
 		c.After(remaining)
 	}
 	ui.Text(c.Key("companion-growth"), fmt.Sprintf("+%d", growth.value)).Absolute().Left(196).Top(top).Width(78).
-		TextAlign(ui.Center).FontSize(18).Bold().TextColor(ui.Hex("#ff6138")).TextShadow(0, 1, 2, ui.RGBA(0, 0, 0, .65)).Opacity(opacity).PassThrough()
+		TextAlign(ui.Center).FontSize(18).TextColor(ui.Hex("#ff6138")).TextShadow(0, 1, 2, ui.RGBA(0, 0, 0, .65)).Opacity(opacity).PassThrough()
 }
 
 type companionPositionWindow interface {

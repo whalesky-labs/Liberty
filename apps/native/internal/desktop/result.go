@@ -18,10 +18,13 @@ type ResultView struct {
 	lastJob                                       string
 	lastSource                                    string
 	query, speaker                                string
+	sourceSegmentID                               string
+	pendingSourceSegmentID                        string
 	Close                                         func()
 	OpenNotes                                     func(string)
 	OpenSummary                                   func(string)
 	Actions                                       *client.ResultActionController
+	Playback                                      *client.PlaybackController
 	EditingEnabled                                bool
 	WordExportEnabled                             bool
 	RemoteCapabilities                            *domain.RemoteCapabilities
@@ -87,11 +90,22 @@ func (v *ResultView) Body(c *ui.Context) {
 		v.transcript = ui.ListState{}
 		v.query = ""
 		v.speaker = ""
+		v.sourceSegmentID = ""
 		v.editingSegment, v.originalSpeaker, v.draftSpeaker = "", "", ""
 		v.focusSpeakerSegment = ""
 		v.transcriptCache = transcriptCache{}
+		if v.Actions != nil {
+			v.Actions.CancelCorrection()
+		}
 	}
 	job := r.Job
+	if v.pendingSourceSegmentID != "" {
+		v.sourceSegmentID = v.pendingSourceSegmentID
+		v.pendingSourceSegmentID = ""
+		v.query = ""
+		v.speaker = ""
+		v.transcript = ui.ListState{}
+	}
 	if job.Source == "remote" && (!meetingOperationAvailable(job.Source, v.RemoteCapabilities, "jobs.read") || !meetingOperationAvailable(job.Source, v.RemoteCapabilities, "jobs.result.read")) {
 		if v.Close != nil && textButton(c, presentation.Message(v.Locale, "common.closeWindow")).Clicked() {
 			v.Close()
@@ -113,9 +127,28 @@ func (v *ResultView) Body(c *ui.Context) {
 			}
 		})
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, job.Title).FontSize(23).Bold().Grow(1).MinWidth(0).Role(ui.RoleHeading).Level(1)
+			ui.Text(c, job.Title).FontSize(23).Grow(1).MinWidth(0).Role(ui.RoleHeading).Level(1)
 			statusBadge(c, v.Locale, job.OverallStatus)
 		})
+		if v.Playback != nil && job.Source == "local" {
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				label := fmt.Sprintf("%g×", v.Playback.Speed)
+				selector := selectControl(c, &label, []string{"0.75×", "1×", "1.25×", "1.5×", "2×"}).Width(110).Label(v.text("回放速度", "Playback speed"))
+				if selector.Changed() {
+					for _, speed := range []float64{.75, 1, 1.25, 1.5, 2} {
+						if label == fmt.Sprintf("%g×", speed) {
+							v.Playback.Speed = speed
+						}
+					}
+				}
+				if ui.Button(c, v.text("停止回放", "Stop playback")).Disabled(v.Playback.SegmentID == "").Clicked() {
+					v.Playback.Stop()
+				}
+				if v.Playback.Error != nil {
+					ui.Text(c, v.text("无法回放，请检查原文件是否仍存在。", "Playback failed. Check that the original file is still available.")).FillWidth().Role(ui.RoleAlert).TextColor(c.Theme().Danger)
+				}
+			})
+		}
 		ui.Text(c, v.msg("heroCopy")).FontSize(12).TextColor(c.Theme().TextMuted)
 		ui.Row(c).FillWidth().Gap(8).Wrap().Children(func() {
 			for _, key := range []string{"aiSummary", "viewNotes", "exportBundle", "exportTranscript", "exportNotes", "exportWord"} {
@@ -157,6 +190,9 @@ func (v *ResultView) Body(c *ui.Context) {
 				ui.Text(c.Key("exported"), v.text("文件已导出。", "File exported.")).TextColor(c.Theme().Success).Role(ui.RoleStatus)
 			}
 		}
+		if r.SummarySourceChanged {
+			ui.Text(c, v.text("逐字稿已修改，当前纪要基于旧内容；请核对或主动重新整理。", "The transcript has changed. These notes use earlier content; review them or generate a new summary.")).FillWidth().TextColor(c.Theme().Warning).Role(ui.RoleStatus)
+		}
 		ui.Row(c).FillWidth().Gap(12).Wrap().Children(func() {
 			for _, item := range []struct {
 				key   string
@@ -192,27 +228,43 @@ func (v *ResultView) Body(c *ui.Context) {
 	})
 	ui.Column(c).FillWidth().Grow(1).MinHeight(0).Padding(12).Gap(12).Border(1, palette(c).Separator).Radius(10).Background(palette(c).Panel).Children(func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, v.msg("transcript")).FontSize(16).Bold().Grow(1).Role(ui.RoleHeading).Level(2)
+			ui.Text(c, v.msg("transcript")).FontSize(16).Grow(1).Role(ui.RoleHeading).Level(2)
 			if ui.TextInput(c, &v.query).Width(280).Placeholder(v.msg("searchPlaceholder")).Label(v.msg("searchPlaceholder")).Changed() {
+				v.sourceSegmentID = ""
 				v.transcript = ui.ListState{}
 			}
 		})
 		if job.DiarizationStatus == "legacy_unverified" && len(segments) > 0 && segments[0].Speaker != nil {
 			ui.Text(c, v.msg("legacySpeakerNotice")).FontSize(12).TextColor(c.Theme().Warning)
 		}
-		options, visible := v.transcriptData(segments)
-		ui.Row(c).FillWidth().Gap(6).Wrap().Children(func() {
-			if segmentButton(c, fmt.Sprintf("%s %d", v.msg("allSpeakers"), len(segments)), v.speaker == "").MaxWidthPercent(100).MinWidth(0).Role(ui.RoleToggleButton).Checked(v.speaker == "").Clicked() {
-				v.speaker = ""
+		options, _ := v.transcriptData(segments)
+		values := []string{""}
+		labels := []string{fmt.Sprintf("%s %d", v.msg("allSpeakers"), len(segments))}
+		for _, option := range options {
+			values = append(values, option.label)
+			labels = append(labels, fmt.Sprintf("%s %d", option.label, option.count))
+		}
+		ui.ScrollHorizontal(c).FillWidth().MinWidth(0).Label(v.text("讲话人筛选", "Speaker filter")).Children(func() {
+			previous := v.speaker
+			segmentedControl(c, &v.speaker, values, labels...).Label(v.msg("allSpeakers"))
+			if v.speaker != previous {
 				v.transcript = ui.ListState{}
 			}
-			for _, option := range options {
-				if segmentButton(c.Key(option.label), fmt.Sprintf("%s %d", option.label, option.count), v.speaker == option.label).MaxWidthPercent(100).MinWidth(0).Role(ui.RoleToggleButton).Checked(v.speaker == option.label).Clicked() {
-					v.speaker = option.label
-					v.transcript = ui.ListState{}
+		})
+		_, visible := v.transcriptData(segments)
+		if v.sourceSegmentID != "" {
+			visible = nil
+			for _, segment := range segments {
+				if segment.ID == v.sourceSegmentID {
+					visible = []domain.Segment{segment}
+					break
 				}
 			}
-		})
+			if ui.Button(c, v.text("返回全部原文", "Show all transcript")).AlignSelf(ui.Start).Clicked() {
+				v.sourceSegmentID = ""
+				v.query = ""
+			}
+		}
 		if len(visible) == 0 {
 			ui.Text(c, v.msg("emptyFilteredTranscript")).TextColor(c.Theme().TextMuted).Role(ui.RoleStatus)
 			return
@@ -237,7 +289,7 @@ func (v *ResultView) Body(c *ui.Context) {
 							v.clearSpeakerEdit()
 						}
 					} else {
-						ui.Text(c, v.speakerLabel(segment)).MinWidth(0).FontSize(12).Bold().Padding(3, 8).Radius(5).Background(palette(c).Selected).TextColor(palette(c).NavAccent)
+						ui.Text(c, v.speakerLabel(segment)).MinWidth(0).FontSize(12).Padding(3, 8).Radius(5).Background(palette(c).Selected).TextColor(palette(c).NavAccent)
 						edit := textButton(c.Key("edit-speaker"), presentation.Message(v.Locale, "common.edit")).Shrink(0).Disabled(busy)
 						if v.focusSpeakerSegment == segment.ID {
 							edit.Focus()
@@ -259,7 +311,7 @@ func (v *ResultView) Body(c *ui.Context) {
 				if v.editingSegment == segment.ID && tools.Shortcut(0, ui.KeyEscape) {
 					v.clearSpeakerEdit()
 				}
-				ui.Text(c, segment.Text).PreserveSpaces().Selectable()
+				v.segmentCorrection(c, r, segment)
 				separator(c)
 			})
 		}).Grow(1).MinHeight(0).Focusable().Label(v.msg("transcript"))
