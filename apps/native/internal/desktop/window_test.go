@@ -186,6 +186,79 @@ func TestApplicationMenuItemsUseSharedIcons(t *testing.T) {
 	}
 }
 
+func TestEditAndWindowMenusFollowLibertyLocale(t *testing.T) {
+	type expectedMenuItem struct {
+		role  mygo.MenuRole
+		label string
+	}
+	for _, locale := range []string{"zh-CN", "en-US"} {
+		t.Run(locale, func(t *testing.T) {
+			items := ApplicationMenu(locale).Items()
+			edit := items[2].Submenu
+			window := items[3].Submenu
+			wantEdit := []expectedMenuItem{
+				{mygo.RoleUndo, localized(locale, "撤销", "Undo")},
+				{mygo.RoleRedo, localized(locale, "重做", "Redo")},
+				{"", ""},
+				{mygo.RoleCut, localized(locale, "剪切", "Cut")},
+				{mygo.RoleCopy, localized(locale, "复制", "Copy")},
+				{mygo.RolePaste, localized(locale, "粘贴", "Paste")},
+			}
+			wantWindow := []expectedMenuItem{{mygo.RoleMinimize, localized(locale, "最小化", "Minimize")}}
+			if runtime.GOOS == "darwin" {
+				wantEdit = append(wantEdit,
+					expectedMenuItem{mygo.RolePasteAndMatchStyle, localized(locale, "粘贴并匹配样式", "Paste and Match Style")},
+					expectedMenuItem{mygo.RoleDelete, localized(locale, "删除", "Delete")},
+					expectedMenuItem{mygo.RoleSelectAll, localized(locale, "全选", "Select All")},
+					expectedMenuItem{},
+					expectedMenuItem{label: localized(locale, "语音", "Speech")},
+				)
+				wantWindow = append(wantWindow,
+					expectedMenuItem{mygo.RoleZoom, localized(locale, "缩放", "Zoom")},
+					expectedMenuItem{},
+					expectedMenuItem{mygo.RoleFront, localized(locale, "前置全部窗口", "Bring All to Front")},
+				)
+			} else {
+				wantEdit = append(wantEdit,
+					expectedMenuItem{mygo.RoleDelete, localized(locale, "删除", "Delete")},
+					expectedMenuItem{},
+					expectedMenuItem{mygo.RoleSelectAll, localized(locale, "全选", "Select All")},
+				)
+				wantWindow = append(wantWindow, expectedMenuItem{mygo.RoleClose, presentation.Message(locale, "common.closeWindow")})
+			}
+			assertLocalized := func(name string, got []*mygo.MenuItem, want []expectedMenuItem) {
+				t.Helper()
+				if len(got) != len(want) {
+					t.Fatalf("%s menu has %d items, want %d: %+v", name, len(got), len(want), got)
+				}
+				for i, expected := range want {
+					item := got[i]
+					if expected.label == "" {
+						if item.Type != mygo.MenuItemSeparator {
+							t.Errorf("%s item %d should be a separator: %+v", name, i, item)
+						}
+						continue
+					}
+					if item.Role != expected.role || item.Label != expected.label {
+						t.Errorf("%s item %d is role %q label %q; want role %q label %q", name, i, item.Role, item.Label, expected.role, expected.label)
+					}
+					if expected.role != "" && item.Accelerator == "" && expected.role != mygo.RoleDelete && expected.role != mygo.RoleFront && expected.role != mygo.RoleZoom {
+						t.Errorf("%s item %q lost its native keyboard action", name, item.Label)
+					}
+				}
+			}
+			assertLocalized("Edit", edit, wantEdit)
+			assertLocalized("Window", window, wantWindow)
+			if runtime.GOOS == "darwin" {
+				speech := edit[len(edit)-1]
+				if len(speech.Submenu) != 2 || speech.Submenu[0].Role != mygo.RoleStartSpeaking || speech.Submenu[0].Label != localized(locale, "开始讲话", "Start Speaking") || speech.Submenu[1].Role != mygo.RoleStopSpeaking || speech.Submenu[1].Label != localized(locale, "停止讲话", "Stop Speaking") {
+					t.Errorf("Speech submenu did not follow %s: %+v", locale, speech.Submenu)
+				}
+			}
+		})
+	}
+}
+
 func fileSettingsMenuItem(items []*mygo.MenuItem) *mygo.MenuItem {
 	for _, item := range items {
 		if item.Label == presentation.Message("zh-CN", "menu.settings") {
