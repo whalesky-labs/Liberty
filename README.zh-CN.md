@@ -14,7 +14,7 @@ Liberty 将本地转写、说话人分离、逐字稿校对、会议纪要和结
 
 ## 当前状态
 
-工作区正在准备 **2.0.0-alpha.4**；本版范围见[第四个预发行说明](docs/releases/2.0.0-alpha.4.md)，后续改动记录在 [Unreleased](CHANGELOG.md#unreleased)。版本号和源码不代表已公开发行，下载以 [GitHub Releases](https://github.com/whalesky-labs/Liberty/releases) 的实际资产为准。
+第四个 Native 预发行版 **[2.0.0-alpha.4](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.4)** 已公开，提供 macOS Apple Silicon、Intel 和 Windows x64 的安装器与便携归档。本版范围及核验见[发行说明](docs/releases/2.0.0-alpha.4.md)，后续改动记录在 [Unreleased](CHANGELOG.md#unreleased)。稳定版 latest 仍为 `v1.1.24`。
 
 | 实现 | 当前职责 |
 | --- | --- |
@@ -38,7 +38,7 @@ Native 生产切换尚未完成。[切换门槛](docs/architecture/release-readi
 
 ## 安装、启动与更新
 
-从 [GitHub Releases](https://github.com/whalesky-labs/Liberty/releases)选择实际提供的对应平台资产。当前交付链准备 macOS ad-hoc 临时签名 DMG、Windows 当前用户 MSI，并保留便携候选归档；社区安装包不提供可信发布者签名或 Apple 公证。旧发行保持其原有资产。
+从 [v2.0.0-alpha.4](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.4) 下载对应平台资产：macOS ad-hoc 临时签名 DMG、Windows 当前用户 MSI，以及便携候选归档；社区安装包不提供可信发布者签名或 Apple 公证。旧发行保持其原有资产。
 
 源码开发使用固定的 `pnpm@10.30.3`、Go `1.27.4` 和 Rust `1.94.0`：
 

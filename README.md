@@ -14,7 +14,7 @@ The product is free. Basic meeting workflows require no API key or paid API; AI 
 
 ## Current Status
 
-The workspace is preparing **2.0.0-alpha.4**. See the [fourth prerelease scope](docs/releases/2.0.0-alpha.4.md), with subsequent work under [Unreleased](CHANGELOG.md#unreleased). A source version does not establish publication; use the assets actually available on [GitHub Releases](https://github.com/whalesky-labs/Liberty/releases).
+**[2.0.0-alpha.4](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.4)** is published as the fourth Native prerelease, with installers and portable archives for Apple Silicon Macs, Intel Macs and Windows x64. See the [release scope and verification](docs/releases/2.0.0-alpha.4.md); subsequent work belongs to [Unreleased](CHANGELOG.md#unreleased). The stable latest remains `v1.1.24`.
 
 | Implementation | Current role |
 | --- | --- |
@@ -38,7 +38,7 @@ See [meeting workflows](docs/meeting-workflow.md), [live translation](docs/live-
 
 ## Install, Launch and Update
 
-Use the assets actually available on [GitHub Releases](https://github.com/whalesky-labs/Liberty/releases), selecting your platform. The current delivery pipeline prepares ad-hoc-signed macOS DMGs and Windows per-user MSIs, alongside portable candidate archives. Trusted publisher signing and Apple notarization are not provided by this community path. Older releases keep their original assets.
+Download the matching platform from [v2.0.0-alpha.4](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.4): ad-hoc-signed macOS DMGs and a Windows per-user MSI are available alongside portable candidate archives. Trusted publisher signing and Apple notarization are not provided by this community path. Older releases keep their original assets.
 
 For source development, use pinned `pnpm@10.30.3`, Go `1.27.4` and Rust `1.94.0`:
 
