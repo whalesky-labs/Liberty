@@ -10,7 +10,7 @@ integration; the production client companion has not been replaced.
 
 - **当前全套候选**：`candidates/pixel-actions/` 中的 15 个 GLB，编辑源为 `source/pixel-actions/` 中的 15 个 Blender 文件。已生成全部动作，但仍有可见姿态／接触差异，未完成逐帧 1:1 验收。`completedActions` 为空，不能将 `generatedActions` 当作验收通过。
 - **原捧脸基准**：`candidates/voxel-study/libby-voxel.glb` 与 `source/libby-voxel.blend` 保留用户要求恢复的原像素资产，用于回归对照。
-- **被否定的版本**：`candidates/cartoon-study/` 为用户否定的圆润造型；根目录的 `crush.glb`、`rope.glb`、`work.glb` 是更早被否定的图形夹具。根清单保持 `rejected`，这些资产不进入生产。
+- **图形回归夹具**：根目录的 `crush.glb`、`rope.glb`、`work.glb` 仍由原生解码、姿态和错误输入测试使用，根清单保持 `rejected`，不进入生产。已弃用的圆润造型及其构建、校验和预览工具链已删除。
 
 全套包含 `crush`、`defecate`、`drive`、`eat`、`gaming`、`pants`、`reading`、`rope`、`run`、`slack`、`sleep`、`snow`、`studying`、`toy`、`work`。每组使用对应 9 张原帧（合计 135 张），具备独立角色／道具体积、骨骼轨道及几何形变。GLB 不包含图像贴图或整帧角色网格切换。骨骼、角色／道具形变及绳索共用同一个 STEP 时间轴，每 300 ms 同步切换完整姿态，保持原图九帧节奏。禁止骨骼提前移动、形变仍停在上一帧，也不单独插值绳索与握柄；否则会造成部件断开。此修复采用像素定格节奏，不代表新增了连续补间动画。侧背面与遮挡结构是推定。
 
