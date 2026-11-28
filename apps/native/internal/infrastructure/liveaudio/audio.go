@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strconv"
+	"strings"
 	"time"
 
 	"liberty.local/liberty/internal/domain"
@@ -54,9 +55,24 @@ func (a *Audio) Devices(ctx context.Context) ([]domain.AudioDevice, error) {
 	for _, d := range devices {
 		result = append(result, d.public)
 	}
+	if systemAudioAvailable() {
+		result = append(result, domain.AudioDevice{ID: systemDeviceID, Name: "系统声音 / System audio"})
+		for _, d := range devices {
+			result = append(result, domain.AudioDevice{ID: mixedDevicePrefix + d.public.ID, Name: "系统声音 + / System + " + d.public.Name})
+		}
+	}
 	return result, nil
 }
 func (a *Audio) Capture(ctx context.Context, id string, consume func([]byte) error) error {
+	if id == systemDeviceID {
+		return clockedCapture(ctx, consume, captureSystemAudio)
+	}
+	if microphone, ok := strings.CutPrefix(id, mixedDevicePrefix); ok {
+		if microphone == "" || strings.HasPrefix(microphone, "system") {
+			return domain.ErrLiveInput
+		}
+		return mixCapture(ctx, captureSystemAudio, func(ctx context.Context, emit func([]byte) error) error { return a.Capture(ctx, microphone, emit) }, consume)
+	}
 	r, devices, err := a.devices(ctx)
 	if err != nil {
 		return err
