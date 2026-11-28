@@ -94,7 +94,7 @@ PR 和 main 的 `quality.yml` 按改动范围选择检查，未知或高风险�
 
 远端验收变量为 `LIBERTY_REMOTE_ACCEPTANCE_URL`、`LIBERTY_REMOTE_ACCEPTANCE_CREDENTIAL_REF` 和 `LIBERTY_REMOTE_ACCEPTANCE_JOB_ID`。凭据引用指向系统凭据库中的测试条目，不在命令或文档中填写 Token。真实媒体 ASR 基准的输入和证据要求见 [benchmarks/asr](../benchmarks/asr/README.md)。
 
-便携包验收需人工或桌面自动化操作四个阶段：旧原生候选查看 `Portable baseline` 后正常退出；新候选将该人员改名为 `Portable upgraded` 并保存退出；确认恢复完成提示；回退到旧原生候选，复核 `Portable baseline` 后退出。脚本还核对失败替换没有改动数据库、恢复前安全副本仍保存升级后的记录、每次退出释放资料锁。成功时清理本轮临时目录，失败时保留现场；不要将旧 Tauri 包作为 `--previous-archive`。归档内清单、逐文件摘要、确切文件集、目标架构及实际版本输出均须通过，档案摘要随日志输出；该过程不自动证明发行源码归因、旧 schema 迁移或未来版本兼容。
+便携包验收需人工或桌面自动化操作四个阶段：旧原生候选创建自己的数据库，在人员页面新增且只保存一名 `Portable baseline` 后正常退出；新候选将该人员改名为 `Portable upgraded` 并保存退出；确认恢复完成提示；回退到旧原生候选，复核 `Portable baseline` 后退出。脚本在升级前持有资料锁，通过 SQLite 保存包含 WAL 的旧 schema 快照，随后核对升级后的当前 schema、恢复后的旧 schema、失败替换前后的数据库字节、恢复前安全副本及每次退出释放资料锁。成功时清理本轮临时目录，失败时保留现场；不要将旧 Tauri 包作为 `--previous-archive`。归档内清单、逐文件摘要、确切文件集、目标架构及实际版本输出均须通过，档案摘要随日志输出；验收结果仅覆盖所选两个包及实际 schema 路径，不自动证明发行源码归因、其他旧 schema 或未来版本兼容。
 
 ## 生成源与发布
 
