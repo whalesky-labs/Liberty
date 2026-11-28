@@ -56,7 +56,9 @@ func (s *Selections) Authorize(path string) (application.SelectedMedia, error) {
 	token := hex.EncodeToString(nonce[:])
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.items) >= 32 {
+	// A replacement dialog may grant 32 new files before the controller releases
+	// the previous 32. The bound does not increase concurrent ASR workers.
+	if len(s.items) >= 64 {
 		return application.SelectedMedia{}, ErrSelection
 	}
 	s.items[token] = grant{canonical, info}
