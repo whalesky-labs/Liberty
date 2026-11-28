@@ -14,7 +14,7 @@ Liberty 将本地转写、说话人分离、逐字稿校对、会议纪要和结
 
 ## 当前状态
 
-工作区版本为 **2.0.0-alpha.3**，后续改动记录在 [Unreleased](CHANGELOG.md#unreleased)。本文描述当前源码，可能包含[对应 GitHub Release](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.3)尚未交付的功能。
+工作区正在准备 **2.0.0-alpha.4**；本版范围见[第四个预发行说明](docs/releases/2.0.0-alpha.4.md)，后续改动记录在 [Unreleased](CHANGELOG.md#unreleased)。版本号和源码不代表已公开发行，下载以 [GitHub Releases](https://github.com/whalesky-labs/Liberty/releases) 的实际资产为准。
 
 | 实现 | 当前职责 |
 | --- | --- |

@@ -58,7 +58,7 @@ type Profile struct {
 	once          sync.Once
 }
 
-const Version = "2.0.0-alpha.3"
+const Version = "2.0.0-alpha.4"
 
 func (p *Profile) RecordPetDiagnostic(event diagnosticlog.Event, instance diagnosticlog.Instance) {
 	if p.diagnosticLog != nil {

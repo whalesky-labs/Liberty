@@ -14,7 +14,7 @@ The product is free. Basic meeting workflows require no API key or paid API; AI 
 
 ## Current Status
 
-The workspace version is **2.0.0-alpha.3**, with subsequent changes under [Unreleased](CHANGELOG.md#unreleased). This README describes current source, which can include features absent from the [versioned GitHub Release](https://github.com/whalesky-labs/Liberty/releases/tag/v2.0.0-alpha.3).
+The workspace is preparing **2.0.0-alpha.4**. See the [fourth prerelease scope](docs/releases/2.0.0-alpha.4.md), with subsequent work under [Unreleased](CHANGELOG.md#unreleased). A source version does not establish publication; use the assets actually available on [GitHub Releases](https://github.com/whalesky-labs/Liberty/releases).
 
 | Implementation | Current role |
 | --- | --- |
