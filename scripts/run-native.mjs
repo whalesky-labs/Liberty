@@ -30,6 +30,7 @@ async function goFiles(directory) {
 }
 
 async function check() {
+  await run(process.execPath, ["--test", path.join(root, "scripts/test-native-source-isolation.mjs")], { cwd: root });
   await run(process.execPath, ["--test", path.join(root, "scripts/test-native-fixtures.mjs")], { cwd: root });
   await run(process.execPath, ["--test", path.join(root, "scripts/test-native-launch.mjs")], { cwd: root });
   await run(process.execPath, ["--test", path.join(root, "scripts/test-native-package.mjs")], { cwd: root });

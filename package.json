@@ -20,6 +20,7 @@
     "native:portable:acceptance": "node scripts/accept-native-portable.mjs",
     "native:remote:acceptance": "node scripts/run-native.mjs remote-acceptance",
     "native:check": "node scripts/run-native.mjs check",
+    "native:source:check": "node scripts/check-native-source-isolation.mjs",
     "native:bench:reads": "node scripts/run-native.mjs bench-reads",
     "native:licenses": "node scripts/collect-native-licenses.mjs",
     "native:contracts:generate": "node scripts/generate-native-contracts.mjs",

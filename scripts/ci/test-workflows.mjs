@@ -1,13 +1,31 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
-import { assertSecurityInstaller, assertWorkflow, checkWorkflows, renderYaml, securityInstaller, workflows } from './workflows.mjs';
+import { assertSecurityInstaller, assertWorkflow, checkNativeWorkflows, checkWorkflows, renderYaml, securityInstaller, workflows } from './workflows.mjs';
 import { fullSuites } from './plan.mjs';
 import { suiteCommands } from './run.mjs';
 
 test('actual workflows match reviewed generated event and gate policy', async () => {
   await checkWorkflows();
   for (const [name, definition] of Object.entries(workflows)) assert.deepEqual(assertWorkflow(name, renderYaml(definition)), definition);
+});
+test('Native policy is independent of the temporary desktop entry while the full gate still requires it', async context => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'native-workflow-isolation-'));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  for (const [name, definition] of Object.entries(workflows)) await writeFile(path.join(directory, name), renderYaml(definition));
+  await checkNativeWorkflows(directory);
+  await assert.rejects(checkWorkflows(directory), { code: 'ENOENT' });
+  await writeFile(path.join(directory, 'build-desktop.yml'), 'on:\n  schedule: []\n');
+  await assert.rejects(checkWorkflows(directory), /Scheduled or privileged/);
+  await writeFile(path.join(directory, 'unknown.yml'), 'on: push\n');
+  await assert.rejects(checkNativeWorkflows(directory), /Unreviewed workflow/);
+  await rm(path.join(directory, 'unknown.yml'));
+  const changed = structuredClone(workflows['build-native.yml']);
+  changed.jobs.build.needs = ['select'];
+  await writeFile(path.join(directory, 'build-native.yml'), renderYaml(changed));
+  await assert.rejects(checkNativeWorkflows(directory), /reviewed event, validation, permission or delivery policy/);
 });
 test('scanner authentication cannot drift or suppress download failures', () => {
   assertSecurityInstaller(securityInstaller);
