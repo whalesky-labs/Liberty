@@ -13,6 +13,7 @@
     <Icon Id="CandidateIcon.exe" SourceFile="payload\Liberty Native Candidate.exe" />
     <Property Id="ARPPRODUCTICON" Value="CandidateIcon.exe" />
     <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="SystemFolder" />
       <Directory Id="LocalAppDataFolder">
         <Directory Id="ProgramsDirectory" Name="Programs">
           <Directory Id="INSTALLFOLDER" Name="Liberty Native Candidate @TARGET@">
