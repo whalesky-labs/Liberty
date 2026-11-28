@@ -16,6 +16,10 @@
       <Directory Id="SystemFolder" />
       <Directory Id="LocalAppDataFolder">
         <Directory Id="ProgramsDirectory" Name="Programs">
+          <Component Id="ProgramsFolderCleanup" Guid="*" Win64="@WIN64@">
+            <RemoveFolder Id="RemoveEmptyProgramsFolder" On="uninstall" />
+            <RegistryValue Root="HKCU" Key="Software\Liberty\NativeCandidate\@TARGET@" Name="ProgramsFolder" Type="integer" Value="1" KeyPath="yes" />
+          </Component>
           <Directory Id="INSTALLFOLDER" Name="Liberty Native Candidate @TARGET@">
 @COMPONENTS@
           </Directory>
@@ -34,6 +38,7 @@
     <Feature Id="NativeCandidate" Title="Liberty Native Candidate" Level="1">
 @COMPONENT_REFS@
       <ComponentRef Id="CandidateShortcut" />
+      <ComponentRef Id="ProgramsFolderCleanup" />
     </Feature>
     <!-- An opt-in failing transaction exercises the actual MSI rollback path.
          It runs after files are written, before the transaction commits. -->

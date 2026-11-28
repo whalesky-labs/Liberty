@@ -45,7 +45,7 @@ for (const target of ['windows-x64']) {
     assert.match(result, /InstallScope="perUser" InstallPrivileges="limited"/);
     assert.match(result, /Platform="x64"/);
     const components = [...result.matchAll(/<Component\s[^>]*>/g)].map(match => match[0]);
-    assert.equal(components.length, installerFiles.length + 1);
+    assert.equal(components.length, installerFiles.length + 2);
     for (const component of components) assert.match(component, /\bWin64="yes"/);
     assert.doesNotMatch(result, /@[A-Z_][A-Z0-9_]*@/);
     assert.match(result, />VersionNT64<\/Condition>/);
@@ -60,7 +60,13 @@ for (const target of ['windows-x64']) {
     assert.match(result, /Custom Action="AcceptanceRollback" After="InstallFiles"/);
     assert.match(result, /Execute="deferred" Return="check" Impersonate="yes"/);
     assert.doesNotMatch(result, /RemoveFile|DeleteFile|RemoveRegistryKey|Id="AppDataFolder"|com\.westng\.liberty[^.]/);
-    assert.equal((result.match(/RemoveFolder/g) ?? []).length, 1, 'only installer-owned shortcut folder is removed');
+    assert.deepEqual([...result.matchAll(/<RemoveFolder[^>]+\/>/g)].map(match => match[0]).sort(), [
+      '<RemoveFolder Id="RemoveCandidateMenu" On="uninstall" />',
+      '<RemoveFolder Id="RemoveEmptyInstallFolder" On="uninstall" />',
+      '<RemoveFolder Id="RemoveEmptyProgramsFolder" On="uninstall" />',
+    ].sort(), 'only the empty menu, install directory and Programs parent can be removed');
+    assert.match(result, /<Directory Id="ProgramsDirectory" Name="Programs">\s*<Component Id="ProgramsFolderCleanup"[^>]*>\s*<RemoveFolder Id="RemoveEmptyProgramsFolder"/);
+    assert.match(result, /<Directory Id="INSTALLFOLDER"[^>]*>\s*<Component Id="Payload0"[^>]*>\s*<File[^>]*\/?>\s*<RemoveFolder Id="RemoveEmptyInstallFolder"/);
   });
 }
 test('installer identity is isolated from production', () => {

@@ -80,7 +80,7 @@ export function renderWix(template, { target, version, files, productVersion = m
   assert.deepEqual([...files].sort(), [...expected].sort(), 'Installer payload must be the exact verified candidate file set');
   files = expected;
   const win64 = 'yes';
-  const components = files.map((name, index) => `            <Component Id="Payload${index}" Guid="${windowsPayloadGuids[name]}" Win64="${win64}">\n              <File Id="File${index}" Source="payload\\${xml(name)}" Name="${xml(name)}" Checksum="yes" />\n              <RegistryValue Root="HKCU" Key="Software\\Liberty\\NativeCandidate\\${target}" Name="File${index}" Type="integer" Value="1" KeyPath="yes" />\n            </Component>`).join('\n');
+  const components = files.map((name, index) => `            <Component Id="Payload${index}" Guid="${windowsPayloadGuids[name]}" Win64="${win64}">\n              <File Id="File${index}" Source="payload\\${xml(name)}" Name="${xml(name)}" Checksum="yes" />\n${index === 0 ? '              <RemoveFolder Id="RemoveEmptyInstallFolder" On="uninstall" />\n' : ''}              <RegistryValue Root="HKCU" Key="Software\\Liberty\\NativeCandidate\\${target}" Name="File${index}" Type="integer" Value="1" KeyPath="yes" />\n            </Component>`).join('\n');
   const values = { TARGET: target, VERSION: productVersion, UPGRADE_CODE: upgradeCodes[target], PLATFORM: 'x64', WIN64: win64, ARCH_CONDITION: 'VersionNT64', COMPONENTS: components, COMPONENT_REFS: files.map((_, i) => `      <ComponentRef Id="Payload${i}" />`).join('\n') };
   const rendered = template.replace(/@([A-Z_][A-Z0-9_]*)@/g, (_, key) => {
     if (!Object.hasOwn(values, key)) throw new Error('Unknown installer template placeholder');
