@@ -1,6 +1,6 @@
 # CI/CD 操作与检查规则
 
-最后核实：2026-11-27。执行来源为 `.github/workflows/`、`scripts/ci/` 和根 `package.json`。支持 macOS Apple Silicon、macOS Intel、Windows x64；当前 Native 仍为隔离候选，生产切换按[发布要求](release-readiness.md)验收。
+最后核实：2026-11-28。执行来源为 `.github/workflows/`、`scripts/ci/` 和根 `package.json`。支持 macOS Apple Silicon、macOS Intel、Windows x64；当前 Native 仍为隔离候选，生产切换按[发布要求](release-readiness.md)验收。
 
 ## 何时执行
 
@@ -60,6 +60,8 @@ main 的差异基准为 Quality Gate 最近一次成功 push 的祖先提交，�
 | `pnpm check` | 开发者主动执行的完整本地质量入口，包含共享 Python 一次、Native、临时旧端、发布和 CI 策略 |
 
 `pnpm check` 不包含真实漏洞扫描、完整冻结兼容、全包 race 或所有系统的实际执行；完整 CI 分别执行这些检查。`pnpm native:verify` 仍是无需旧前端或 Rust 的原生本地检查入口。候选交付在旧端退役前调用共同完整门禁，因而也要求临时生产端检查通过。
+
+Windows 发布专项除 PowerShell 路径传递外，还使用固定且校验摘要的 WiX 3.14.1 编译真实 MSI 模板，并核验产品版本、架构、当前用户范围和文件清单。测试载荷为合成文件，不执行或安装；实际候选构建另验证安装器中的真实程序。WiX 失败仅输出错误码、ICE 编号和模板行号，不转发工具原始日志。
 
 手动触发示例（GitHub CLI）：
 
