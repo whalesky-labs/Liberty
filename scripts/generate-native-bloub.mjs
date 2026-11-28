@@ -15,13 +15,12 @@ export function assertBloubFrames(artifact, expected) {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const root = fileURLToPath(new URL("../", import.meta.url));
+export async function generateBloub({ root = fileURLToPath(new URL("../", import.meta.url)), check = false } = {}) {
   const output = path.join(root, "apps/native/internal/desktop/presentation/bloub_frames_generated.json.gz");
   const sample = sampleBloub(await loadBloub(root));
   const payload = Buffer.from(JSON.stringify(sample));
   let bytes;
-  if (process.argv.includes("--check")) {
+  if (check) {
     bytes = await readFile(output);
     assertBloubFrames(bytes, payload);
   } else {
@@ -31,4 +30,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     await writeFile(output, bytes);
   }
   console.log(`Native bloub frames match pinned upstream ${sample.source}: ${bytes.length} compressed bytes.`);
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await generateBloub({ check: process.argv.includes("--check") });
 }
