@@ -69,7 +69,7 @@ OpenAI 兼容响应的正式字段按大小写精确匹配；typed envelope 的�
 
 ## 数据、接管与凭据
 
-SQLite 当前 schema 为 v13，维护实时会话、定稿字幕和状态事件，并记录自动翻译方向；v13 增加独立人工纪要、修订号与来源关联。两端共用 `packages/desktop-resources/database/` 下的 SQL 和内置总结模板；Go 从共享源生成 SQL 并由自己的执行器升级。旧 Rust 实现导出的 v0–v10 合成库、期望输出和文档已冻结在 `packages/desktop-resources/fixtures/native-v10/`，当前兼容入口校验并重放这些样本，不再运行旧客户端。`legacydb` 负责兼容读取，`jobdb` 负责事务写入。干净检出的完整重建仍须独立验收，不能仅从工作区样本存在推断已完成。
+SQLite 当前 schema 为 v13，维护实时会话、定稿字幕和状态事件，并记录自动翻译方向；v13 增加独立人工纪要、修订号与来源关联。两端共用 `packages/desktop-resources/database/` 下的 SQL 和内置总结模板；Go 从共享源生成 SQL 并由自己的执行器升级。旧 Rust 实现导出的 v0–v10 合成库、期望输出和文档已冻结在 `packages/desktop-resources/fixtures/native-v10/`，当前兼容入口校验并重放这些样本，不再运行旧客户端。`legacydb` 负责兼容读取，`jobdb` 负责事务写入。源码独立重建使用 `pnpm native:source:check`：在没有旧端与 Cargo 的隔离副本中删除、重建生成物，并完成 Native 检查、兼容回放和目标编译；验收范围及输入归因见[开发指南](../development.md)。
 
 preview 必须选择显式快照或目录。candidate 无参数启动使用独立候选资料目录。`--database` 和 `--default-profile` 始终只读；生产资料使用离线 `--import-profile <源目录> --profile-directory <不存在的新目录>` 导入独立 Native 资料。目标按同一只读事务取得包含 WAL 的 SQLite 快照，迁移后给现用凭据分配独立随机引用，不继承源库清理所有权。源快照有排队、执行、删除、总结或安装中的操作时拒绝导入。重复导入验证已发布身份，不覆盖目标后续数据；导入不迁移安装运行时文件或用户媒体。显式可写目录和恢复拒绝与生产资料重叠。
 

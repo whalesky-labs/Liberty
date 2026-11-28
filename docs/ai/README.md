@@ -8,6 +8,7 @@
 
 | 文档 | 用途与边界 |
 | --- | --- |
+| [Native 切换与旧端退役](plans/2026-11-28-native-retirement.md) | 源码独立重建、当前验收结果和旧端删除前的剩余门槛；不授予生产放行 |
 | [会议工作流实施与验收](plans/2026-11-28-meeting-workflow-improvements.md) | 保留当前执行进度、失败记录和未完成项；行为见[会议工作流](../meeting-workflow.md)与[实时翻译](../live-translation.md) |
 | [会议产品对比](research/2026-11-27-github-meeting-products-comparison.md) | 上述计划的调研依据，限 2026-11-27 的资料与源码快照；不作为当前功能清单或竞品质量排名 |
 | [桌宠互动与 3D 接入](designs/2026-11-25-native-companion-interaction-3d.md) | 保留已确认方向和剩余验收；模型、预览和正式客户端的边界分别维护 |
